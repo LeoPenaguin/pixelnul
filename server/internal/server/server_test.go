@@ -168,3 +168,50 @@ func TestForgetLoop(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+func TestHeatRoute(t *testing.T) {
+	e := newTestEnv(t, Options{Burst: 1})
+	_ = e.s.store.Paint(context.Background(), board.Pixel{X: 0, Y: 0, C: 1}, 0)
+	if code, body := get(t, e.url+"/api/heat/0/0"); code != 200 || len(body) != board.ChunkSize*board.ChunkSize || body[0] != 1 {
+		t.Errorf("heat = %d, %d bytes", code, len(body))
+	}
+	if code, _ := get(t, e.url+"/api/heat/99/0"); code != 400 {
+		t.Errorf("outside the world = %d; want 400", code)
+	}
+}
+
+func TestStatsRoute(t *testing.T) {
+	e := newTestEnv(t, Options{Burst: 1})
+	clock := time.UnixMilli(42)
+	e.s.now = func() time.Time { return clock } // the route is called directly below: no concurrent reader
+	stats := func() (code int, st struct {
+		board.Stats
+		Online int
+	},
+	) {
+		t.Helper()
+		w := httptest.NewRecorder()
+		e.s.statsRoute(w, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/stats", http.NoBody))
+		_ = json.Unmarshal(w.Body.Bytes(), &st)
+		return w.Code, st
+	}
+	c := e.s.hub.subscribe() // one connected client
+	defer e.s.hub.unsubscribe(c)
+
+	if code, st := stats(); code != 200 || st.Placed != 0 || st.Online != 1 || st.Pixels != board.WorldWidth*board.WorldHeight {
+		t.Errorf("stats = %d %+v", code, st)
+	}
+	_ = e.s.store.Paint(context.Background(), board.Pixel{X: 0, Y: 0, C: 1}, 0)
+	if _, st := stats(); st.Placed != 0 {
+		t.Error("within statsMaxAge, the cached answer is served")
+	}
+	clock = clock.Add(statsMaxAge)
+	if _, st := stats(); st.Placed != 1 {
+		t.Error("after statsMaxAge, the stats are recomputed")
+	}
+	clock = clock.Add(statsMaxAge)
+	e.mr.Close()
+	if code, _ := stats(); code != 500 {
+		t.Errorf("redis down = %d; want 500", code)
+	}
+}

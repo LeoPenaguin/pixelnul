@@ -37,6 +37,13 @@ func (h *hub) unsubscribe(c chan []byte) {
 	h.mu.Unlock()
 }
 
+// online is the number of connected clients (tabs, not people).
+func (h *hub) online() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.clients)
+}
+
 func (h *hub) queue(p board.Pixel) {
 	h.pendMu.Lock()
 	h.pending[[2]int{p.X, p.Y}] = p.C

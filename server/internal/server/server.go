@@ -19,8 +19,9 @@ import (
 
 const (
 	maxConnsIP   = 10
-	lookupsBurst = 20 // pixel history lookups in a row per IP
-	lookupsRate  = 10 // per second after that: the front asks at most ~5/s (after a 200 ms pause)
+	lookupsBurst = 20               // pixel history lookups in a row per IP
+	lookupsRate  = 10               // per second after that: the front asks at most ~5/s (after a 200 ms pause)
+	statsMaxAge  = 10 * time.Second // the stats scan the whole world: computed at most this often
 )
 
 // Options tunes the pixel quota.
@@ -41,6 +42,10 @@ type Server struct {
 	// ponytail: global lock around painting so Redis order = broadcast order.
 	// Tops out around 20k pixels/s locally; beyond that, lock per chunk.
 	paintMu sync.Mutex
+
+	statsMu   sync.Mutex
+	stats     []byte // last /api/stats answer
+	statsTime time.Time
 
 	flushEvery  time.Duration // batch broadcast interval
 	forgetEvery time.Duration // quota cleanup interval
@@ -71,7 +76,9 @@ func New(store *board.Store, o Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/config", s.config)
-	mux.HandleFunc("GET /api/chunks/{cx}/{cy}", s.chunk)
+	mux.HandleFunc("GET /api/chunks/{cx}/{cy}", s.chunkRoute(s.store.Chunk))
+	mux.HandleFunc("GET /api/heat/{cx}/{cy}", s.chunkRoute(s.store.Heat))
+	mux.HandleFunc("GET /api/stats", s.statsRoute)
 	mux.HandleFunc("GET /api/pixels/{x}/{y}", s.pixelInfo)
 	mux.HandleFunc("GET /ws", s.ws)
 	return mux
@@ -123,20 +130,49 @@ func (s *Server) config(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-// chunk returns a chunk's raw bytes. It may be shorter than 65,536 bytes (or empty):
-// the rest is 0, i.e. white.
-func (s *Server) chunk(w http.ResponseWriter, r *http.Request) {
-	cx, err1 := strconv.Atoi(r.PathValue("cx"))
-	cy, err2 := strconv.Atoi(r.PathValue("cy"))
-	if err1 != nil || err2 != nil || !board.ChunkInWorld(cx, cy) {
-		http.Error(w, "bad chunk", http.StatusBadRequest)
-		return
+// chunkRoute serves one byte per pixel of a chunk: its colours (Chunk) or its change counts
+// (Heat). It may be shorter than 65,536 bytes (or empty): the rest is 0.
+func (s *Server) chunkRoute(get func(ctx context.Context, cx, cy int) ([]byte, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cx, err1 := strconv.Atoi(r.PathValue("cx"))
+		cy, err2 := strconv.Atoi(r.PathValue("cy"))
+		if err1 != nil || err2 != nil || !board.ChunkInWorld(cx, cy) {
+			http.Error(w, "bad chunk", http.StatusBadRequest)
+			return
+		}
+		data, err := get(r.Context(), cx, cy)
+		if err != nil {
+			http.Error(w, "redis error", http.StatusInternalServerError)
+			return
+		}
+		writeBytes(w, r, data)
 	}
-	data, err := s.store.Chunk(r.Context(), cx, cy)
-	if err != nil {
-		http.Error(w, "redis error", http.StatusInternalServerError)
-		return
+}
+
+// statsRoute returns the world statistics and the number of connected clients, recomputed at
+// most every statsMaxAge.
+func (s *Server) statsRoute(w http.ResponseWriter, r *http.Request) {
+	s.statsMu.Lock()
+	defer s.statsMu.Unlock()
+	if now := s.now(); s.stats == nil || now.Sub(s.statsTime) >= statsMaxAge {
+		st, err := s.store.Stats(r.Context(), now.UnixMilli())
+		if err != nil {
+			http.Error(w, "redis error", http.StatusInternalServerError)
+			return
+		}
+		s.stats = mustJSON(struct {
+			board.Stats
+			Online int `json:"online"`
+		}{st, s.hub.online()})
+		s.statsTime = now
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(s.stats)
+}
+
+// writeBytes sends raw bytes, gzipped when the client accepts it.
+func writeBytes(w http.ResponseWriter, r *http.Request, data []byte) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Vary", "Accept-Encoding")

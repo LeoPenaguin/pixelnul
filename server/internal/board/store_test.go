@@ -2,6 +2,8 @@ package board
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -65,6 +67,76 @@ func TestInfo(t *testing.T) {
 
 	mr.Close()
 	if _, err := s.Info(ctx, 0, 0); err == nil {
+		t.Error("a Redis failure must be returned")
+	}
+}
+
+func TestHeat(t *testing.T) {
+	s, mr := newTestStore(t)
+	ctx := context.Background()
+	if heat, err := s.Heat(ctx, 0, 0); err != nil || heat != nil {
+		t.Errorf("never-painted chunk: %v, %v; want empty", heat, err)
+	}
+	for range 3 {
+		_ = s.Paint(ctx, Pixel{1, 2, 5}, 0)
+	}
+	// Capped at 255; malformed fields (another writer, a future format) are skipped.
+	mr.HSet("meta:0:0", "n:7", "300", "n:x", "1", "n:70000", "1", "n:9", "y")
+	heat, err := s.Heat(ctx, 0, 0)
+	if _, off := Locate(1, 2); err != nil || len(heat) != ChunkSize*ChunkSize || heat[off] != 3 || heat[7] != 255 || heat[9] != 0 {
+		t.Errorf("heat = %d bytes, %v", len(heat), err)
+	}
+	mr.Close()
+	if _, err := s.Heat(ctx, 0, 0); err == nil {
+		t.Error("a Redis failure must be returned")
+	}
+}
+
+func TestStats(t *testing.T) {
+	s, mr := newTestStore(t)
+	ctx := context.Background()
+	const now = 100*hourMs + 5
+
+	st, err := s.Stats(ctx, now)
+	if err != nil || st.Placed != 0 || st.Painted != 0 || st.Hottest != nil || st.Colors[0] != WorldWidth*WorldHeight || len(st.Hours) != 24 {
+		t.Fatalf("empty world: %+v, %v", st, err)
+	}
+
+	paint := func(x, y, c int, at int64) {
+		t.Helper()
+		if e := s.Paint(ctx, Pixel{x, y, c}, at); e != nil {
+			t.Fatal(e)
+		}
+	}
+	paint(5, 5, 3, now)
+	paint(5, 5, 4, now)  // same pixel: 2 changes, colour 4 now
+	paint(-5, 1, 4, now) // tie candidates with 2 changes: (-5, 1) is above (5, 5)
+	paint(-5, 1, 4, now)
+	paint(9, 1, 2, now-2*hourMs) // 2 hours ago, tied with (-5, 1) on the same row but further right
+	paint(9, 1, 2, now-2*hourMs)
+	// Left by a former, larger world: outside the current one, ignored.
+	_, off := Locate(-700, 0)
+	mr.HSet("meta:-3:0", "n:"+strconv.FormatInt(off, 10), "50")
+	_ = mr.Set("chunk:-3:0", strings.Repeat("\x03", int(off)+1))
+	// A byte that is not a palette colour (corruption) at (256, 256): ignored.
+	_ = mr.Set("chunk:1:1", "\xff")
+
+	st, err = s.Stats(ctx, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Placed != 6 || st.Painted != 3 || *st.Hottest != (Hot{-5, 1, 2}) {
+		t.Errorf("placed %d, painted %d, hottest %+v", st.Placed, st.Painted, st.Hottest)
+	}
+	if st.Colors[4] != 2 || st.Colors[2] != 1 || st.Colors[3] != 0 || st.Colors[0] != WorldWidth*WorldHeight-3 {
+		t.Errorf("colors = %v", st.Colors[:5])
+	}
+	if st.Hours[23] != 4 || st.Hours[21] != 2 || st.Hours[22] != 0 {
+		t.Errorf("hours = %v", st.Hours)
+	}
+
+	mr.Close()
+	if _, err := s.Stats(ctx, now); err == nil {
 		t.Error("a Redis failure must be returned")
 	}
 }
