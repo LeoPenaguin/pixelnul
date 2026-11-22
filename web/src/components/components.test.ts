@@ -76,22 +76,23 @@ describe('HelpDialog', () => {
   test('opens, closes with the button, Escape or a click outside', async () => {
     const screen = await render(HelpDialog)
     const dialog = screen.getByRole('dialog', { includeHidden: true })
-    expect(screen.component.isOpen()).toBe(false)
+    const isOpen = () => (dialog.element() as HTMLDialogElement).open
+    expect(isOpen()).toBe(false)
     screen.component.open()
     await expect.element(screen.getByRole('heading', { name: 'Raccourcis clavier' })).toBeVisible()
     await expect.element(screen.getByText('Déplacer de 10 pixels')).toBeVisible()
     await screen.getByRole('button', { name: 'Fermer' }).click()
-    expect(screen.component.isOpen()).toBe(false)
+    expect(isOpen()).toBe(false)
 
     screen.component.open()
     await userEvent.keyboard('{Escape}')
-    expect(screen.component.isOpen()).toBe(false)
+    expect(isOpen()).toBe(false)
 
     screen.component.open()
     await screen.getByRole('heading').click() // inside the dialog: stays open
-    expect(screen.component.isOpen()).toBe(true)
+    expect(isOpen()).toBe(true)
     ;(dialog.element() as HTMLDialogElement).dispatchEvent(new MouseEvent('click', { bubbles: true })) // the backdrop
-    expect(screen.component.isOpen()).toBe(false)
+    expect(isOpen()).toBe(false)
   })
 })
 

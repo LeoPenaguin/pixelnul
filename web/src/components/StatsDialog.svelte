@@ -2,6 +2,7 @@
 <script lang="ts">
   import { fetchStats, type Stats } from '../lib/api'
   import { colorName } from '../lib/colors'
+  import { fmt, plural } from '../lib/format'
   import Modal from './Modal.svelte'
   import { Button } from './ui/button'
 
@@ -26,8 +27,6 @@
     }
   }
 
-  const fmt = (n: number) => n.toLocaleString('fr-FR')
-  const plural = (n: number, word: string) => `${fmt(n)} ${word}${n > 1 ? 's' : ''}`
   /** "14 h": the hour of the i-th bar, the last one being the current hour. */
   const hourLabel = (i: number) => `${String((new Date().getHours() - 23 + i + 24) % 24)} h`
 
@@ -50,9 +49,9 @@
 
 <Modal bind:this={modal} title="Statistiques">
   {#if failed}
-    <p class="note" role="alert">Impossible de charger les statistiques pour le moment.</p>
+    <p class="hint note" role="alert">Impossible de charger les statistiques pour le moment.</p>
   {:else if !stats}
-    <p class="note" role="status">Chargement…</p>
+    <p class="hint note" role="status">Chargement…</p>
   {:else}
     {@const s = stats}
     {@const maxHour = Math.max(1, ...s.hours)}
@@ -70,7 +69,7 @@
     </div>
 
     <h3>Activité, dernières 24 h</h3>
-    <p class="caption" aria-hidden="true">
+    <p class="hint caption" aria-hidden="true">
       {hovered === null
         ? `${plural(dayTotal, 'pixel')} en 24 h`
         : `${hourLabel(hovered)} : ${plural(s.hours[hovered], 'pixel')}`}
@@ -85,7 +84,7 @@
     </div>
     <div class="axis" aria-hidden="true"><span>il y a 24 h</span><span>maintenant</span></div>
     <p class="sr-only">
-      {`${plural(dayTotal, 'pixel')} posés ces dernières 24 heures, au plus ${plural(Math.max(...s.hours), 'pixel')} en une heure.`}
+      {`${plural(dayTotal, 'pixel posé')} ces dernières 24 heures, au plus ${plural(Math.max(...s.hours), 'pixel')} en une heure.`}
     </p>
 
     <h3>Couleurs sur la toile</h3>
@@ -101,9 +100,9 @@
           </li>
         {/each}
       </ul>
-      <p class="note">Hors blanc, la couleur du fond.</p>
+      <p class="hint note">Hors blanc, la couleur du fond.</p>
     {:else}
-      <p class="note">Rien n'a encore été peint.</p>
+      <p class="hint note">Rien n'a encore été peint.</p>
     {/if}
 
     {#if s.top.length}
@@ -140,8 +139,6 @@
 <style>
   .note {
     margin: 0;
-    font-weight: var(--font-weight-normal);
-    color: var(--muted-foreground);
   }
   .tiles {
     display: grid;
@@ -164,15 +161,8 @@
     color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
-  h3 {
-    margin: 18px 0 8px;
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-bold);
-  }
   .caption {
     margin: 0 0 6px;
-    font-weight: var(--font-weight-normal);
-    color: var(--muted-foreground);
   }
   /* 24 bars from a shared baseline, 2 px apart, rounded at the data end only. */
   .hours {

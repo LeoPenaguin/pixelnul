@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/LeoPenaguin/pixels/server/internal/account"
 )
@@ -30,6 +31,9 @@ type Google struct {
 	TokenURL         string
 }
 
+// googleClient calls Google with a deadline: a hanging token endpoint must not hold the callback.
+var googleClient = &http.Client{Timeout: 10 * time.Second}
+
 func (g *Google) redirectURI() string {
 	return strings.TrimSuffix(g.PublicURL, "/") + "/api/auth/callback"
 }
@@ -47,7 +51,7 @@ func (g *Google) sub(ctx context.Context, code string) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := http.DefaultClient.Do(req)
+	res, err := googleClient.Do(req)
 	if err != nil {
 		return "", err
 	}

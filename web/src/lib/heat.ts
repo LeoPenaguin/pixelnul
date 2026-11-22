@@ -1,5 +1,6 @@
 // Heatmap colours: how many times a pixel was painted, from never (dark) to the board's most
 // disputed pixel (bright). The scale follows the board: its top is the current maximum.
+import { hexToRgb } from './colors'
 
 export const HEAT_NONE = '#1c1c1c' // never painted
 /** From painted once to painted the most. */
@@ -9,14 +10,12 @@ export const HEAT_RAMP = ['#4b1d8c', '#a3307e', '#e4505b', '#f99a3e', '#fde74c']
  *  not flatten everything else to the bottom colour. */
 export const heatLevel = (n: number, max: number) => (max <= 1 ? 1 : Math.log(Math.min(n, max)) / Math.log(max))
 
-const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
-
 /** Colour at position t (0 to 1) of the ramp, as #rrggbb. */
 export function rampColor(t: number) {
   const x = t * (HEAT_RAMP.length - 1)
   const i = Math.min(Math.floor(x), HEAT_RAMP.length - 2)
-  const a = channels(HEAT_RAMP[i])
-  const b = channels(HEAT_RAMP[i + 1])
+  const a = hexToRgb(HEAT_RAMP[i])
+  const b = hexToRgb(HEAT_RAMP[i + 1])
   return `#${a
     .map((v, k) =>
       Math.round(v + (b[k] - v) * (x - i))

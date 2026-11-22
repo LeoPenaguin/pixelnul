@@ -260,14 +260,16 @@ func (s *Server) pixelInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The last painter's pseudo; null if anonymous or deleted.
-	pseudos, err := s.accounts.Pseudos(r.Context(), []string{info.User})
-	if err != nil {
-		http.Error(w, "redis error", http.StatusInternalServerError)
-		return
-	}
 	var by *string
-	if pseudos[0] != "" {
-		by = &pseudos[0]
+	if info.User != "" {
+		pseudos, err := s.accounts.Pseudos(r.Context(), []string{info.User})
+		if err != nil {
+			http.Error(w, "redis error", http.StatusInternalServerError)
+			return
+		}
+		if pseudos[0] != "" {
+			by = &pseudos[0]
+		}
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, struct {

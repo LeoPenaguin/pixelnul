@@ -26,6 +26,7 @@
     type User,
   } from './lib/api'
   import { colorName } from './lib/colors'
+  import { plural } from './lib/format'
   import { downloadBoard, type ImageType } from './lib/download'
   import type { Point } from './lib/engine/camera'
   import { World } from './lib/engine/world'
@@ -110,7 +111,7 @@
       const i = await fetchPixelInfo(hover.x, hover.y)
       info = i
       if (!speak || !isHovered(i)) return
-      const changes = i.changes ? `, ${String(i.changes)} changement${i.changes > 1 ? 's' : ''}` : ''
+      const changes = i.changes ? `, ${plural(i.changes, 'changement')}` : ''
       const by = i.by ? `, par ${i.by}` : ''
       announce(`${String(i.x)}, ${String(i.y)} : ${colorName(colors[i.c])}${changes}${by}`)
     } catch {

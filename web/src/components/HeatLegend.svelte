@@ -14,7 +14,7 @@
     <span class="ramp" style:background={`linear-gradient(to right, ${HEAT_RAMP.join(', ')})`}></span>
     <span>{String(max)}</span>
   </span>
-  <span class="note">fois peint · H pour revenir</span>
+  <span class="hint note">fois peint · H pour revenir</span>
 </div>
 
 <style>
@@ -49,10 +49,6 @@
   }
   .ramp {
     width: 120px;
-  }
-  .note {
-    font-weight: var(--font-weight-normal);
-    color: var(--muted-foreground);
   }
   /* Phones: the note is dropped to fit the width. */
   @media (max-width: 640px) {

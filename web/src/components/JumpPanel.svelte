@@ -3,6 +3,7 @@
   import ArrowRight from '~icons/mingcute/arrow-right-fill'
   import type { PixelInfo } from '../lib/api'
   import type { Point } from '../lib/engine/camera'
+  import { plural } from '../lib/format'
   import { ago } from '../lib/time'
 
   type Props = {
@@ -34,8 +35,6 @@
   function cancel(e: KeyboardEvent) {
     if (e.key === 'Escape') (e.currentTarget as HTMLElement).blur()
   }
-
-  const plural = (n: number) => (n > 1 ? 's' : '')
 </script>
 
 <div class="panel jump">
@@ -48,8 +47,26 @@
       if (!e.currentTarget.contains(e.relatedTarget as Node | null)) editing = false
     }}
   >
-    <label>X <input type="number" step="1" bind:value={fx} onkeydown={cancel} aria-label="Coordonnée X" /></label>
-    <label>Y <input type="number" step="1" bind:value={fy} onkeydown={cancel} aria-label="Coordonnée Y" /></label>
+    <label
+      >X <input
+        class="field"
+        type="number"
+        step="1"
+        bind:value={fx}
+        onkeydown={cancel}
+        aria-label="Coordonnée X"
+      /></label
+    >
+    <label
+      >Y <input
+        class="field"
+        type="number"
+        step="1"
+        bind:value={fy}
+        onkeydown={cancel}
+        aria-label="Coordonnée Y"
+      /></label
+    >
     <button class="icon" type="submit" title="Aller à ces coordonnées (Entrée)" aria-label="Aller à ces coordonnées">
       <ArrowRight width="20" height="20" aria-hidden="true" />
     </button>
@@ -59,7 +76,7 @@
       {#if colorLabel}<strong>{`${colorLabel} · `}</strong>{/if}
       <span>
         {#if info.lastChange}
-          {`${String(info.changes)} changement${plural(info.changes)} · dernier ${ago(info.lastChange, now)}${info.by ? ` par ${info.by}` : ''}`}
+          {`${plural(info.changes, 'changement')} · dernier ${ago(info.lastChange, now)}${info.by ? ` par ${info.by}` : ''}`}
         {:else if info.c}
           Peint avant le suivi des changements
         {:else}
@@ -99,15 +116,6 @@
   input {
     width: 8ch;
     padding: 4px 6px;
-    border: 2px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--highlight);
-    font: inherit;
-    color: var(--ink);
     font-variant-numeric: tabular-nums;
-  }
-  input:focus {
-    outline: var(--stroke) solid var(--focus);
-    outline-offset: 1px;
   }
 </style>

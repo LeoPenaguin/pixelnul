@@ -106,10 +106,6 @@
   /* No keyboard on small touch screens: the shortcut list is useless there. */
   @media (pointer: coarse) and (max-width: 640px) {
     hr.help,
-    /* A pressed toggle (heatmap shown): lime, like the other "on" states. */
-  .controls :global([aria-pressed='true']) {
-      background: var(--highlight);
-    }
     span.help {
       display: none;
     }

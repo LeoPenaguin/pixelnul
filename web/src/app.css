@@ -68,7 +68,7 @@ html,
 body {
   margin: 0;
   overflow: hidden;
-  background: #e5e5e5;
+  background: #e5e5e5; /* outside the world: same as BACKGROUND in engine/world.ts */
 }
 
 .panel {
@@ -107,7 +107,6 @@ canvas.panel {
   outline-offset: 1px;
 }
 
-/* Segmented control: the radios are hidden, their labels are the buttons. */
 /* Segmented control (radios in labels): the radios are hidden, their labels are the buttons. */
 .segmented {
   display: flex;
@@ -139,6 +138,25 @@ canvas.panel {
   position: absolute;
   opacity: 0;
   pointer-events: none;
+}
+
+/* Text field. */
+.field {
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--highlight);
+  font: inherit;
+  color: var(--ink);
+}
+.field:focus {
+  outline: var(--stroke) solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* Secondary text: hints, notes, statuses. */
+.hint {
+  font-weight: var(--font-weight-normal);
+  color: var(--muted-foreground);
 }
 
 /* Visible to screen readers only. */

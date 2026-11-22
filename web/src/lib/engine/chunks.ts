@@ -1,17 +1,16 @@
 // Chunk cache: loading from the server, decoding to images, live pixels.
 import type { Config } from '../api'
+import { packColors } from '../colors'
 import { context2d } from './canvas'
 
-export type Rgb = [number, number, number]
-
-export const hexToRgb = (hex: string): Rgb => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as Rgb
-
-/** Server bytes (1 byte = colour index) → image. Missing or unknown bytes = white (index 0). */
-export function decodeChunk(bytes: Uint8Array, rgb: Rgb[], size: number): ImageData {
+/** Server bytes (1 byte = colour index) → image. Missing or unknown bytes = colour 0.
+ *  `palette`: from packColors, one 32-bit write per pixel. */
+export function decodeChunk(bytes: Uint8Array, palette: Uint32Array, size: number): ImageData {
   const img = new ImageData(size, size)
-  for (let i = 0; i < size * size; i++) {
-    img.data.set([...(rgb[bytes[i]] ?? rgb[0]), 255], i * 4)
-  }
+  const px = new Uint32Array(img.data.buffer)
+  px.fill(palette[0])
+  const n = Math.min(bytes.length, px.length)
+  for (let i = 0; i < n; i++) if (bytes[i] < palette.length) px[i] = palette[bytes[i]]
   return img
 }
 
@@ -24,7 +23,7 @@ type Entry = { canvas: OffscreenCanvas } | { pending: Pending }
 export class Chunks {
   private entries = new Map<string, Entry>()
   private colors: string[]
-  private rgb: Rgb[]
+  private palette: Uint32Array
   private shift: number
 
   /** `changed`: a chunk arrived or changed, a redraw is needed. `path` and `colors`: where the
@@ -36,7 +35,7 @@ export class Chunks {
     colors = cfg.palette.flat(),
   ) {
     this.colors = colors
-    this.rgb = this.colors.map(hexToRgb)
+    this.palette = packColors(this.colors)
     this.shift = Math.log2(cfg.chunkSize)
   }
 
@@ -89,7 +88,7 @@ export class Chunks {
       if (this.entries.get(k) !== entry) return // reloaded or evicted meanwhile
       const S = this.cfg.chunkSize
       const canvas = new OffscreenCanvas(S, S)
-      context2d(canvas).putImageData(decodeChunk(bytes, this.rgb, S), 0, 0)
+      context2d(canvas).putImageData(decodeChunk(bytes, this.palette, S), 0, 0)
       this.entries.set(k, { canvas })
       for (const [x, y, c] of entry.pending) this.setPixel(x, y, c)
       this.changed()
