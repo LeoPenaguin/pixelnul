@@ -27,7 +27,7 @@
   } from './lib/api'
   import { colorName } from './lib/colors'
   import { plural } from './lib/format'
-  import { downloadBoard, type ImageType } from './lib/download'
+  import { downloadBoard } from './lib/download'
   import type { Point } from './lib/engine/camera'
   import { World } from './lib/engine/world'
   import { shortcut, type Action } from './lib/keyboard'
@@ -70,7 +70,7 @@
   let colors: string[] = [] // flattened palette, filled when the configuration loads
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
   const shownInfo = $derived(info && isHovered(info) ? info : null)
-  const colorLabel = $derived(settings.colorNames && shownInfo?.c ? colorName(colors[shownInfo.c]) : null)
+  const colorLabel = $derived(shownInfo?.c ? colorName(colors[shownInfo.c]) : null)
   const needsAccount = $derived(cfg?.auth === true && !user?.pseudo) // sign-in on: painting needs a pseudo
   const canPaint = $derived(!lost && !heat && !needsAccount && (!limits || quotaAt(limits, quota, now).available >= 1))
   $effect(() => {
@@ -121,7 +121,7 @@
 
   function place(x: number, y: number) {
     if (heat) {
-      announce('Carte de chaleur affichée : appuie sur H pour revenir aux couleurs et peindre')
+      announce('Heatmap affichée : appuie sur H pour revenir aux couleurs et peindre')
       return
     }
     if (needsAccount) {
@@ -154,8 +154,9 @@
 
   async function toggleHeat() {
     heat = !heat
-    announce(heat ? 'Carte de chaleur affichée' : 'Couleurs affichées')
+    announce(heat ? 'Heatmap affichée' : 'Couleurs affichées')
     if (heat) {
+      paletteOpen = false // the toolbar gives way to the legend
       // The chunk bytes stop at 255; without the stats, the scale stays at its last top.
       const s = await fetchStats().catch(() => null)
       if (s) heatMax = Math.min(255, Math.max(1, s.hottest?.changes ?? 1))
@@ -223,7 +224,7 @@
 
   function keydown(e: KeyboardEvent) {
     // Typing coordinates, key already handled (palette) or a dialog open (it handles Escape): leave it.
-    if (e.target instanceof HTMLInputElement || e.defaultPrevented || document.querySelector('dialog[open]')) return
+    if (e.target instanceof HTMLInputElement || e.defaultPrevented || document.querySelector('[role=dialog]')) return
     const a = shortcut(e, e.target === canvas || e.target === document.body)
     if (!a) return
     e.preventDefault()
@@ -300,7 +301,7 @@
 <p id="board-help" class="sr-only">
   Flèches pour déplacer le curseur, Maj et flèches pour aller 10 pixels plus loin, Entrée ou Espace pour poser un pixel
   de la couleur choisie. Plus et moins pour zoomer, 0 pour revenir en 0, 0, C pour les couleurs, G pour la grille, H
-  pour la carte de chaleur, point d'interrogation pour la liste des raccourcis.
+  pour la heatmap, point d'interrogation pour la liste des raccourcis.
 </p>
 <div class="sr-only" aria-live="polite">{message}</div>
 
@@ -346,9 +347,6 @@
 <!-- Controls only once the board is loaded: before that they would do nothing. -->
 {#if cfg}
   {@const conf = cfg}
-  {#if heat}
-    <HeatLegend max={heatMax} />
-  {/if}
   <StatsDialog
     bind:this={statsDialog}
     colors={conf.palette.flat()}
@@ -358,7 +356,7 @@
     bind:this={downloadDialog}
     width={conf.worldWidth}
     height={conf.worldHeight}
-    ondownload={(type: ImageType, scale: number) => downloadBoard(conf, type, scale)}
+    ondownload={(scale: number) => downloadBoard(conf, scale)}
   />
   <NavControls
     onzoomin={() => world?.zoomBy(1.5)}
@@ -370,16 +368,20 @@
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}
   />
-  <Toolbar
-    bind:this={toolbar}
-    rows={cfg.palette}
-    bind:color
-    bind:open={paletteOpen}
-    colorNames={settings.colorNames}
-    quota={needsAccount ? null : limits}
-    snapshot={quota}
-    {now}
-  />
+  {#if heat}
+    <!-- No painting on the heatmap: its legend takes the toolbar's place. -->
+    <HeatLegend max={heatMax} />
+  {:else}
+    <Toolbar
+      bind:this={toolbar}
+      rows={cfg.palette}
+      bind:color
+      bind:open={paletteOpen}
+      quota={needsAccount ? null : limits}
+      snapshot={quota}
+      {now}
+    />
+  {/if}
 {/if}
 
 <style>

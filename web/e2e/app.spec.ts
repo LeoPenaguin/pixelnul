@@ -61,7 +61,12 @@ test('palette, grid and help from the keyboard', async ({ page }) => {
   await open(page)
   await page.getByRole('application', { name: 'Board de pixels' }).focus()
   await page.keyboard.press('g')
-  await expect(page.getByRole('checkbox', { name: 'Grille', includeHidden: true })).not.toBeChecked()
+  // The settings dialog only exists while open: the setting is read where it is remembered.
+  await expect
+    .poll(() =>
+      page.evaluate(() => (JSON.parse(localStorage.getItem('pixels:settings') ?? '{}') as { grid?: boolean }).grid),
+    )
+    .toBe(false)
 
   await page.keyboard.press('c')
   const radios = page.getByRole('radio')

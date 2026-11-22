@@ -8,6 +8,7 @@
   import Minus from '~icons/mingcute/minimize-fill'
   import KeyCap, { type Key } from './KeyCap.svelte'
   import Modal from './Modal.svelte'
+  import { Kbd } from './ui/kbd'
 
   let modal: { open: () => void }
 
@@ -40,7 +41,7 @@
     [['0'], '', 'Revenir en 0, 0'],
     [['C'], '', 'Ouvrir ou fermer les couleurs (flèches pour choisir)'],
     [['G'], '', 'Afficher ou cacher la grille'],
-    [['H'], '', 'Carte de chaleur : les endroits les plus disputés'],
+    [['H'], '', 'Heatmap : les endroits les plus disputés'],
     [['Tab'], '', "Passer d'un bouton à l'autre ; les champs X / Y permettent de sauter à un pixel"],
     [['Échap'], '', 'Fermer la palette ou cette aide'],
     [['?'], '', 'Afficher cette aide'],
@@ -53,7 +54,7 @@
       <!-- One element per row (valid in a <dl>): its border is the full-width line between rows. -->
       <div class="row">
         <dt>
-          {#each keys as k, i (i)}{#if i}{joiner}{/if}<kbd><KeyCap key={k} /></kbd>{/each}
+          {#each keys as k, i (i)}{#if i}{joiner}{/if}<Kbd><KeyCap key={k} /></Kbd>{/each}
         </dt>
         <dd>{label}</dd>
       </div>
@@ -88,22 +89,5 @@
     margin: 0;
     color: var(--muted-foreground);
     font-weight: var(--font-weight-normal);
-  }
-  /* Fixed height and an equal minimum width: one-character keys are square, words grow wider. */
-  kbd {
-    display: inline-grid;
-    place-items: center;
-    min-width: 24px;
-    height: 24px;
-    padding: 0 5px;
-    border-radius: 4px;
-    border: 2px solid var(--ink);
-    background: var(--highlight);
-    font: inherit;
-    line-height: 1;
-  }
-  /* Icon keys: no side padding, so they stay square like one-character keys. */
-  kbd:has(:global(svg)) {
-    padding: 0;
   }
 </style>

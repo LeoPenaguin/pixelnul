@@ -5,14 +5,12 @@ import { chunkRange } from './engine/camera'
 import { context2d } from './engine/canvas'
 import { decodeChunk } from './engine/chunks'
 
-export type ImageType = 'image/png' | 'image/webp' | 'image/jpeg'
-
 // ponytail: ×4 = 5120 × 2880, near Safari's canvas limit (16.7 Mpx); a bigger world or scale needs tiled encoding.
 export const IMAGE_SCALES = [1, 2, 3, 4]
 
-/** One board pixel = scale × scale image pixels, kept sharp. Rejects if a chunk cannot be loaded
- *  (no partial image). */
-export async function boardImage(cfg: Config, type: ImageType, scale = 1): Promise<Blob> {
+/** PNG of the board: lossless, so every pixel stays sharp. One board pixel = scale × scale image pixels.
+ *  Rejects if a chunk cannot be loaded (no partial image). */
+export async function boardImage(cfg: Config, scale = 1): Promise<Blob> {
   const { chunkSize: S, worldWidth: W, worldHeight: H } = cfg
   const palette = packColors(cfg.palette.flat())
   const canvas = new OffscreenCanvas(W, H)
@@ -34,16 +32,15 @@ export async function boardImage(cfg: Config, type: ImageType, scale = 1): Promi
   const outCtx = context2d(out)
   outCtx.imageSmoothingEnabled = false // square pixels, not blurred ones
   outCtx.drawImage(canvas, 0, 0, W * scale, H * scale)
-  return out.convertToBlob({ type, quality: 0.95 })
+  return out.convertToBlob({ type: 'image/png' })
 }
 
-/** Downloads the board image, named after today's date. A browser that cannot encode the asked
- *  type (WebP in Safari) gives PNG: the extension follows the real type. */
-export async function downloadBoard(cfg: Config, type: ImageType, scale: number, now = new Date()) {
-  const blob = await boardImage(cfg, type, scale)
+/** Downloads the board image, named after today's date. */
+export async function downloadBoard(cfg: Config, scale: number, now = new Date()) {
+  const blob = await boardImage(cfg, scale)
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = `pixels-${now.toISOString().slice(0, 10)}.${blob.type.split('/')[1]}`
+  a.download = `pixels-${now.toISOString().slice(0, 10)}.png`
   a.click()
   setTimeout(() => {
     URL.revokeObjectURL(a.href)

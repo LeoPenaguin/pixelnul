@@ -68,7 +68,8 @@ const announced = (text: string) =>
   vi.waitFor(() => {
     expect(document.querySelector('[aria-live]')?.textContent).toBe(text)
   })
-const grid = () => page.getByRole('checkbox', { name: 'Grille', includeHidden: true })
+// The settings dialog is unmounted while closed: the grid setting is read where it is remembered.
+const grid = () => (JSON.parse(localStorage.getItem('pixels:settings') ?? '{}') as { grid?: boolean }).grid ?? true
 const fields = () => [...document.querySelectorAll<HTMLInputElement>('input[type=number]')].map((i) => i.valueAsNumber)
 
 /** Renders the app, waits for the configuration and opens the real-time connection. */
@@ -232,8 +233,7 @@ describe('targeted pixel history', () => {
     await expect.element(page.getByText(/changements/)).not.toBeInTheDocument()
   })
 
-  test('names the colour of the pixel when colour names are on', async () => {
-    localStorage.setItem('pixels:settings', JSON.stringify({ colorNames: true }))
+  test('names the colour of the pixel', async () => {
     await start()
     info = { c: 5, changes: 1, lastChange: Date.now() }
     const r = board().getBoundingClientRect()
@@ -285,7 +285,7 @@ describe('keyboard', () => {
     press('-')
     press('0')
     press('g')
-    await expect.element(grid()).not.toBeChecked()
+    await expect.poll(grid).toBe(false)
     press('c')
     await expect.element(page.getByRole('radio', { name: 'Noir' })).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}') // handled by the palette, not the board
@@ -295,8 +295,9 @@ describe('keyboard', () => {
     press('?')
     await expect.element(page.getByRole('heading', { name: 'Raccourcis clavier' })).toBeVisible()
     press('g') // help open: shortcuts are disabled
-    await expect.element(grid()).not.toBeChecked()
+    await expect.poll(grid).toBe(false)
     await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // after its closing animation
     press('x') // key without a shortcut
   })
 
@@ -304,14 +305,11 @@ describe('keyboard', () => {
     await start()
     await page.getByRole('button', { name: 'Paramètres' }).click()
     await page.getByRole('checkbox', { name: 'Grille' }).click()
-    await page.getByRole('checkbox', { name: 'Noms des couleurs' }).click()
-    await page.getByText('150 %').click() // the label: the radio itself is visually hidden
+    await page.getByRole('radio', { name: '150 %' }).click()
     expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1.5')
     await userEvent.keyboard('{Escape}')
-    await expect.element(page.getByRole('button', { name: /^Couleurs/ })).toHaveTextContent('Noir')
     expect(JSON.parse(localStorage.getItem('pixels:settings') ?? '')).toEqual({
       grid: false,
-      colorNames: true,
       scale: 1.5,
     })
   })
@@ -320,20 +318,20 @@ describe('keyboard', () => {
     const { ws } = await start()
     board().focus()
     press('h')
-    await expect.element(page.getByRole('group', { name: 'Légende de la carte de chaleur' })).toBeVisible()
-    await announced('Carte de chaleur affichée')
+    await expect.element(page.getByRole('group', { name: 'Légende de la heatmap' })).toBeVisible()
+    await announced('Heatmap affichée')
     const r = board().getBoundingClientRect()
     click(r.left + r.width / 2, r.top + r.height / 2)
-    await announced('Carte de chaleur affichée : appuie sur H pour revenir aux couleurs et peindre')
+    await announced('Heatmap affichée : appuie sur H pour revenir aux couleurs et peindre')
     expect(ws.sent).toHaveLength(0)
-    await page.getByRole('button', { name: 'Carte de chaleur' }).click()
-    await expect.element(page.getByRole('group', { name: 'Légende de la carte de chaleur' })).not.toBeInTheDocument()
+    await page.getByRole('button', { name: 'Heatmap' }).click()
+    await expect.element(page.getByRole('group', { name: 'Légende de la heatmap' })).not.toBeInTheDocument()
     await announced('Couleurs affichées')
   })
 
   test('the heatmap scale tops at the most painted pixel', async () => {
     await start()
-    const legend = () => page.getByRole('group', { name: 'Légende de la carte de chaleur' })
+    const legend = () => page.getByRole('group', { name: 'Légende de la heatmap' })
     hottest = { x: 0, y: 0, changes: 900 }
     press('h')
     await expect.element(legend().getByText('255', { exact: true })).toBeVisible() // chunk bytes stop at 255
@@ -377,7 +375,7 @@ describe('keyboard', () => {
     await page.getByRole('button', { name: 'À propos' }).click()
     await expect.element(page.getByRole('heading', { name: 'À propos' })).toBeVisible()
     press('g')
-    await expect.element(grid()).toBeChecked()
+    await expect.poll(grid).toBe(true)
     await userEvent.keyboard('{Escape}')
   })
 

@@ -77,16 +77,16 @@ test('account calls: refusals are explained, other failures throw', async () => 
 
 test('settings: defaults, remembered, safe when storage fails', () => {
   localStorage.clear()
-  expect(loadSettings()).toEqual({ grid: true, colorNames: false, scale: 1 })
-  saveSettings({ grid: false, colorNames: true, scale: 1.25 })
-  expect(loadSettings()).toEqual({ grid: false, colorNames: true, scale: 1.25 })
+  expect(loadSettings()).toEqual({ grid: true, scale: 1 })
+  saveSettings({ grid: false, scale: 1.25 })
+  expect(loadSettings()).toEqual({ grid: false, scale: 1.25 })
   localStorage.setItem('pixels:settings', '{oops')
   expect(loadSettings().grid).toBe(true)
   const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
     throw new Error('blocked')
   })
   expect(() => {
-    saveSettings({ grid: true, colorNames: false, scale: 1 })
+    saveSettings({ grid: true, scale: 1 })
   }).not.toThrow()
   set.mockRestore()
   localStorage.clear()

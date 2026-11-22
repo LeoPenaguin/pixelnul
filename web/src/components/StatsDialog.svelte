@@ -124,7 +124,6 @@
       <div class="hot">
         <span>{`${String(h.x)}, ${String(h.y)} · peint ${fmt(h.changes)} fois`}</span>
         <Button
-          variant="outline"
           size="sm"
           onclick={() => {
             modal.close()
@@ -140,9 +139,10 @@
   .note {
     margin: 0;
   }
+  /* Three in a row, fewer per row when the dialog is narrow (phone, enlarged interface). */
   .tiles {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
     gap: 8px;
   }
   .tile {

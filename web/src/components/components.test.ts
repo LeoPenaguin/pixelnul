@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-svelte'
 import type { Stats } from '../lib/api'
+import '../app.css' // the dialog overlay needs its size to be clicked
 import { config, stubFetch } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
 import AccountDialog from './AccountDialog.svelte'
@@ -33,14 +34,12 @@ describe('NavControls', () => {
     await screen.getByRole('button', { name: 'Zoomer' }).click()
     await screen.getByRole('button', { name: 'Dézoomer' }).click()
     await screen.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
-    await screen.getByRole('button', { name: 'Carte de chaleur' }).click()
+    await screen.getByRole('button', { name: 'Heatmap' }).click()
     await screen.getByRole('button', { name: "Télécharger l'image" }).click()
     await screen.getByRole('button', { name: 'Paramètres' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
-    await expect
-      .element(screen.getByRole('button', { name: 'Carte de chaleur' }))
-      .toHaveAttribute('aria-pressed', 'true')
+    await expect.element(screen.getByRole('button', { name: 'Heatmap' })).toHaveAttribute('aria-pressed', 'true')
     await expect.element(screen.getByRole('button', { name: 'Zoomer' })).not.toHaveAttribute('aria-pressed')
   })
 
@@ -60,7 +59,7 @@ describe('NavControls', () => {
       Zoomer: 'Zoomer plus',
       Dézoomer: 'Dézoomer moins',
       'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
-      'Carte de chaleur': 'Carte de chaleur H',
+      Heatmap: 'Heatmap H',
       Paramètres: 'Paramètres', // no shortcut
       'Raccourcis clavier': 'Raccourcis clavier ?',
     }
@@ -75,24 +74,25 @@ describe('NavControls', () => {
 describe('HelpDialog', () => {
   test('opens, closes with the button, Escape or a click outside', async () => {
     const screen = await render(HelpDialog)
-    const dialog = screen.getByRole('dialog', { includeHidden: true })
-    const isOpen = () => (dialog.element() as HTMLDialogElement).open
-    expect(isOpen()).toBe(false)
+    const dialog = page.getByRole('dialog')
+    await expect.element(dialog).not.toBeInTheDocument()
     screen.component.open()
-    await expect.element(screen.getByRole('heading', { name: 'Raccourcis clavier' })).toBeVisible()
-    await expect.element(screen.getByText('Déplacer de 10 pixels')).toBeVisible()
-    await screen.getByRole('button', { name: 'Fermer' }).click()
-    expect(isOpen()).toBe(false)
+    await expect.element(page.getByRole('heading', { name: 'Raccourcis clavier' })).toBeVisible()
+    await expect.element(page.getByText('Déplacer de 10 pixels')).toBeVisible()
+    await page.getByRole('button', { name: 'Fermer' }).click()
+    await expect.element(dialog).not.toBeInTheDocument()
 
     screen.component.open()
+    await expect.element(dialog).toBeVisible()
     await userEvent.keyboard('{Escape}')
-    expect(isOpen()).toBe(false)
+    await expect.element(dialog).not.toBeInTheDocument()
 
     screen.component.open()
-    await screen.getByRole('heading').click() // inside the dialog: stays open
-    expect(isOpen()).toBe(true)
-    ;(dialog.element() as HTMLDialogElement).dispatchEvent(new MouseEvent('click', { bubbles: true })) // the backdrop
-    expect(isOpen()).toBe(false)
+    await page.getByRole('heading').click() // inside the dialog: stays open
+    await expect.element(dialog).toBeVisible()
+    const overlay = document.querySelector<HTMLElement>('[data-slot=dialog-overlay]')!
+    await userEvent.click(overlay, { position: { x: 5, y: 5 } }) // outside
+    await expect.element(dialog).not.toBeInTheDocument()
   })
 })
 
@@ -165,7 +165,7 @@ describe('ServerDown', () => {
 
 describe('Palette', () => {
   test('named radio buttons, arrow navigation', async () => {
-    const screen = await render(Palette, { rows: config.palette, color: 1, colorNames: false })
+    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn() })
     const black = screen.getByRole('radio', { name: 'Noir' })
     await expect.element(black).toBeChecked()
     await expect.element(black).toHaveAttribute('tabindex', '0')
@@ -182,10 +182,8 @@ describe('Palette', () => {
     await expect.element(screen.getByRole('radio', { name: 'Blanc' })).toBeChecked()
   })
 
-  test('writes the selected colour name when colour names are on', async () => {
-    const screen = await render(Palette, { rows: config.palette, color: 1, colorNames: false })
-    expect(screen.container.querySelector('.caption')).toBeNull()
-    await screen.rerender({ colorNames: true })
+  test('writes the selected colour name', async () => {
+    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn() })
     await expect.element(screen.getByText('Noir', { exact: true })).toBeVisible()
   })
 })
@@ -222,7 +220,6 @@ describe('Toolbar', () => {
     rows: config.palette,
     color: 1,
     open: false,
-    colorNames: false,
     quota: { burst: 2, refillMs: 1000 },
     snapshot: { n: 2, at: 0 },
     now: 0,
@@ -254,8 +251,18 @@ describe('Toolbar', () => {
     await expect.element(screen.getByText('2 pixels disponibles sur 2')).toBeInTheDocument()
   })
 
-  test('writes the colour name next to the swatch when colour names are on', async () => {
-    const screen = await render(Toolbar, { ...props, colorNames: true })
+  test('a click on a colour picks it and closes the palette, focus back on the button', async () => {
+    const screen = await render(Toolbar, props)
+    const button = screen.getByRole('button', { name: /^Couleurs/ })
+    await button.click()
+    await screen.getByRole('radio', { name: 'Blanc' }).click()
+    await expect.element(screen.getByRole('radiogroup')).not.toBeInTheDocument()
+    await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Blanc')
+    await expect.element(button).toHaveFocus()
+  })
+
+  test('writes the colour name next to the swatch', async () => {
+    const screen = await render(Toolbar, props)
     await expect.element(screen.getByRole('button', { name: /^Couleurs/ })).toHaveTextContent('Noir')
   })
 
@@ -358,23 +365,24 @@ describe('AboutDialog', () => {
 
 describe('SettingsDialog', () => {
   test('changes the settings it is bound to', async () => {
-    const settings = { grid: true, colorNames: false, scale: 1 }
+    const settings = { grid: true, scale: 1 }
     const screen = await render(SettingsDialog, { settings })
     screen.component.open()
     const grid = screen.getByRole('checkbox', { name: 'Grille' })
     await expect.element(grid).toBeChecked()
     await expect.element(grid).toHaveAccessibleDescription(/touche G/)
     await grid.click()
-    await screen.getByRole('checkbox', { name: 'Noms des couleurs' }).click()
-    await screen.getByText('125 %').click() // the label: the radio itself is visually hidden
-    expect(settings).toEqual({ grid: false, colorNames: true, scale: 1.25 })
+    const size = screen.getByRole('radio', { name: '125 %' })
+    await size.click()
+    await size.click() // the chosen size again: ignored, it stays chosen
+    expect(settings).toEqual({ grid: false, scale: 1.25 })
   })
 })
 
 describe('DownloadDialog', () => {
   test('downloads in the chosen format and size, says when it is busy or failed', async () => {
     let finish = (): void => undefined
-    const ondownload = vi.fn<(type: string, scale: number) => Promise<void>>(
+    const ondownload = vi.fn<(scale: number) => Promise<void>>(
       () =>
         new Promise((resolve) => {
           finish = resolve
@@ -383,15 +391,14 @@ describe('DownloadDialog', () => {
     const screen = await render(DownloadDialog, { width: 1280, height: 720, ondownload })
     screen.component.open()
     await expect.element(screen.getByText(/1280 × 720 pixels/)).toBeVisible()
-    // The labels: the radios themselves are visually hidden.
-    await screen.getByText('×3').click()
+    const x3 = screen.getByRole('radio', { name: '×3' })
+    await x3.click()
+    await x3.click() // the chosen option again: stays chosen
     await expect.element(screen.getByText(/3840 × 2160 pixels/)).toBeVisible()
-    await screen.getByText('JPEG').click()
-    await expect.element(screen.getByText(/un peu flous/)).toBeVisible()
     const button = screen.getByRole('button', { name: 'Télécharger' })
     const status = screen.getByRole('status')
     await button.click()
-    expect(ondownload).toHaveBeenCalledWith('image/jpeg', 3)
+    expect(ondownload).toHaveBeenCalledWith(3)
     await expect.element(status).toHaveTextContent("Préparation de l'image…")
     await expect.element(button).toBeDisabled()
     finish()
@@ -407,10 +414,10 @@ describe('DownloadDialog', () => {
 })
 
 describe('HeatLegend', () => {
-  test('runs from 0 to the board maximum', async () => {
+  test('runs from 1 to the board maximum', async () => {
     const screen = await render(HeatLegend, { max: 42 })
-    const legend = screen.getByRole('group', { name: 'Légende de la carte de chaleur' })
-    for (const label of ['0', '42']) await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
+    const legend = screen.getByRole('group', { name: 'Légende de la heatmap' })
+    for (const label of ['1', '42']) await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
   })
 })
 
@@ -440,24 +447,24 @@ describe('StatsDialog', () => {
     await expect.element(screen.getByText('< 0,1 %')).toBeVisible() // 5 of 921,600 painted: not "0 %"
     await expect.element(screen.getByText('connectés')).toBeVisible()
     await expect.element(screen.getByText('6 pixels en 24 h')).toBeVisible()
-    screen.container.querySelectorAll('.slot')[22].dispatchEvent(new MouseEvent('mouseenter'))
+    document.querySelectorAll('.slot')[22].dispatchEvent(new MouseEvent('mouseenter'))
     await expect.element(screen.getByText(/: 5 pixels$/)).toBeVisible()
-    screen.container.querySelector('.hours')?.dispatchEvent(new MouseEvent('mouseleave'))
+    document.querySelector('.hours')?.dispatchEvent(new MouseEvent('mouseleave'))
     await expect.element(screen.getByText('6 pixels en 24 h')).toBeVisible()
     // Largest first, white left out, empty colours too.
-    expect([...screen.container.querySelectorAll('.colors .name')].map((n) => n.textContent)).toEqual([
+    expect([...document.querySelectorAll('.colors .name')].map((n) => n.textContent)).toEqual([
       'Vert vif',
       'Noir',
       'Rouge vif',
     ])
-    expect([...screen.container.querySelectorAll('.top li')].map((n) => n.textContent)).toEqual([
+    expect([...document.querySelectorAll('.top li')].map((n) => n.textContent)).toEqual([
       '1 Minou 12 pixels',
       '2 Pixel 1 pixel',
     ])
     await expect.element(screen.getByText('-4, 7 · peint 12 fois')).toBeVisible()
     await screen.getByRole('button', { name: 'Y aller' }).click()
     expect(onjump).toHaveBeenCalledWith(-4, 7)
-    await expect.element(screen.getByRole('dialog', { includeHidden: true })).not.toHaveAttribute('open') // closed
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // closed
 
     // An empty board, one connected tab.
     answer = () =>

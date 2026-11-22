@@ -5,7 +5,7 @@ User-facing behaviour, protocol and configuration are described in [README.md](R
 
 ## Layout
 
-```
+```text
 server/                     Go module github.com/LeoPenaguin/pixels/server
   main.go                   entry point only: signals → server.Run
   internal/account/         users, pseudos and sessions in Redis (Lua scripts)
@@ -29,7 +29,7 @@ Keep that split: pure logic in `lib/` (no DOM where possible, so it is testable 
 Run from the directory shown. Hooks run them too, so a commit or push fails if any of them fails.
 
 | Task | Command |
-|---|---|
+| --- | --- |
 | Start Redis | `redis-server --daemonize yes` |
 | Dev server (Go, `:3007`) | `cd server && go run .` (unlimited quota: `PIXEL_REFILL_MS=0 go run .`) |
 | Dev front (`:5173`) | `cd web && pnpm dev` |
@@ -58,7 +58,7 @@ Never bypass them (`--no-verify`); fix the cause instead.
 
 ## Lint rules
 
-Both sides are strict and the config files are the source of truth: `web/eslint.config.js` (typescript-eslint `strictTypeChecked` + `stylisticTypeChecked`, Svelte recommended, extra consistency rules), `web/.prettierrc.json` (no semicolons, single quotes, width 120), `server/.golangci.yml` (standard + bodyclose, contextcheck, errorlint, gocritic, gosec, misspell, noctx, revive, …).
+Both sides are strict and the config files are the source of truth: `web/eslint.config.js` (typescript-eslint `strictTypeChecked` + `stylisticTypeChecked`, Svelte recommended, Tailwind classes in canonical form, extra consistency rules), `web/.prettierrc.json` (no semicolons, single quotes, width 120), `.markdownlint-cli2.jsonc` (every `*.md`, run by `pnpm lint`), `server/.golangci.yml` (standard + bodyclose, contextcheck, errorlint, gocritic, gosec, misspell, noctx, revive, …).
 No need to memorise them: run the linters. Things they will push you towards:
 
 - No non-null assertions (`!`) outside tests, no `any`, no floating promises, `===` only, template literals over concatenation, numbers wrapped in `String()` inside templates.

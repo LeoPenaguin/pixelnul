@@ -2,6 +2,9 @@
 <script lang="ts">
   import { UI_SCALES, type Settings } from '../lib/settings'
   import Modal from './Modal.svelte'
+  import { Checkbox } from './ui/checkbox'
+  import { Label } from './ui/label'
+  import * as ToggleGroup from './ui/toggle-group'
 
   type Props = { settings: Settings }
   let { settings = $bindable() }: Props = $props()
@@ -16,38 +19,38 @@
 
 <Modal bind:this={modal} title="Paramètres">
   <h3>Affichage</h3>
-  <label class="check">
-    <input type="checkbox" bind:checked={settings.grid} aria-keyshortcuts="G" aria-describedby={`${id}-grid`} />
+  <Label class="check">
+    <Checkbox
+      checked={settings.grid}
+      onCheckedChange={(v: boolean) => (settings.grid = v)}
+      aria-keyshortcuts="G"
+      aria-describedby={`${id}-grid`}
+    />
     Grille
-  </label>
+  </Label>
   <small id={`${id}-grid`} class="hint">Lignes entre les pixels quand on zoome (touche G)</small>
 
   <h3>Accessibilité</h3>
-  <label class="check">
-    <input type="checkbox" bind:checked={settings.colorNames} aria-describedby={`${id}-names`} />
-    Noms des couleurs
-  </label>
-  <small id={`${id}-names`} class="hint"
-    >Écrits dans la barre d'outils, la palette et le panneau X / Y, pour ne pas dépendre des couleurs seules</small
+  <p id={`${id}-scale`} class="legend">Taille de l'interface</p>
+  <!-- Clicking the chosen size again must not unselect it: empty values are ignored. -->
+  <ToggleGroup.Root
+    type="single"
+    aria-labelledby={`${id}-scale`}
+    value={String(settings.scale)}
+    onValueChange={(v) => {
+      if (v) settings.scale = Number(v)
+    }}
   >
-  <fieldset>
-    <legend>Taille de l'interface</legend>
-    <div class="segmented">
-      {#each UI_SCALES as s (s)}
-        <label>
-          <input type="radio" name="scale" checked={settings.scale === s} onchange={() => (settings.scale = s)} />
-          <span>{`${String(s * 100)} %`}</span>
-        </label>
-      {/each}
-    </div>
-  </fieldset>
+    {#each UI_SCALES as s (s)}
+      <ToggleGroup.Item value={String(s)}>{`${String(s * 100)} %`}</ToggleGroup.Item>
+    {/each}
+  </ToggleGroup.Root>
 </Modal>
 
 <style>
-  .check {
-    display: flex;
+  :global(.modal .check) {
     gap: 10px;
-    align-items: center;
+    font-size: inherit;
     cursor: pointer;
   }
   /* Hint under its checkbox, aligned with the label text. */
@@ -57,23 +60,7 @@
     line-height: 1.35;
     font-size: var(--text-sm);
   }
-  input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    flex: none;
-    accent-color: var(--active);
-  }
-  fieldset {
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-  legend {
-    margin-bottom: 8px;
-  }
-  input[type='checkbox']:focus-visible {
-    outline: var(--stroke) solid var(--focus);
-    outline-offset: 1px;
+  .legend {
+    margin: 0 0 8px;
   }
 </style>

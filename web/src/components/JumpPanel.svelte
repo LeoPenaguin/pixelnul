@@ -5,11 +5,14 @@
   import type { Point } from '../lib/engine/camera'
   import { plural } from '../lib/format'
   import { ago } from '../lib/time'
+  import { Button } from './ui/button'
+  import { Input } from './ui/input'
+  import { Label } from './ui/label'
 
   type Props = {
     position: Point // targeted pixel, or view centre
     info: PixelInfo | null // history of `position`, once loaded
-    colorLabel: string | null // colour name of a painted pixel, when colour names are on
+    colorLabel: string | null // colour name of a painted pixel
     now: number
     onjump: (x: number, y: number) => void
   }
@@ -47,29 +50,35 @@
       if (!e.currentTarget.contains(e.relatedTarget as Node | null)) editing = false
     }}
   >
-    <label
-      >X <input
-        class="field"
+    <Label
+      >X <Input
+        class="coord"
         type="number"
         step="1"
         bind:value={fx}
         onkeydown={cancel}
         aria-label="Coordonnée X"
-      /></label
+      /></Label
     >
-    <label
-      >Y <input
-        class="field"
+    <Label
+      >Y <Input
+        class="coord"
         type="number"
         step="1"
         bind:value={fy}
         onkeydown={cancel}
         aria-label="Coordonnée Y"
-      /></label
+      /></Label
     >
-    <button class="icon" type="submit" title="Aller à ces coordonnées (Entrée)" aria-label="Aller à ces coordonnées">
-      <ArrowRight width="20" height="20" aria-hidden="true" />
-    </button>
+    <Button
+      variant="ghost"
+      size="icon"
+      type="submit"
+      title="Aller à ces coordonnées (Entrée)"
+      aria-label="Aller à ces coordonnées"
+    >
+      <ArrowRight class="size-5" aria-hidden="true" />
+    </Button>
   </form>
   {#if info}
     <div class="info">
@@ -93,6 +102,12 @@
     position: static;
     padding: 4px 4px 4px 10px;
   }
+  /* Small touch screens: no hover to target a pixel and little room; the board is navigated by hand. */
+  @media (pointer: coarse) and (max-width: 640px) {
+    .jump {
+      display: none;
+    }
+  }
   .row {
     display: flex;
     gap: 6px;
@@ -107,13 +122,11 @@
     font-weight: var(--font-weight-bold);
     color: var(--ink);
   }
-  label {
-    display: flex;
-    align-items: center;
+  .row :global(label) {
     gap: 4px;
     font-weight: var(--font-weight-bold);
   }
-  input {
+  .jump :global(.coord) {
     width: 8ch;
     padding: 4px 6px;
     font-variant-numeric: tabular-nums;

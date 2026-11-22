@@ -21,15 +21,15 @@ cd server && go run .
 cd web && pnpm install && pnpm dev
 ```
 
-Then open http://localhost:5173 (Vite proxies `/api` and `/ws` to the Go server on `:3007`).
+Then open <http://localhost:5173> (Vite proxies `/api` and `/ws` to the Go server on `:3007`).
 
 ## Development
 
 `pnpm install` also installs the Git hooks (Husky). Every command below is also run by a hook.
 
 | What | Command | Hook |
-|---|---|---|
-| Front lint (Prettier + ESLint) | `cd web && pnpm lint` (fix: `pnpm format`) | pre-commit |
+| --- | --- | --- |
+| Front lint (Prettier + ESLint + markdownlint) | `cd web && pnpm lint` (fix: `pnpm format`) | pre-commit |
 | Front type check | `cd web && pnpm check` | pre-commit |
 | Go lint + format check | `cd server && golangci-lint run ./...` (fix: `golangci-lint fmt`) | pre-commit |
 | Commit message | Conventional Commits, checked by commitlint | commit-msg |
@@ -49,10 +49,11 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 - Drag, wheel or two fingers: pan. Ctrl + wheel, pinch or `+` / `-`: zoom.
 - Click (without dragging): paint a pixel with the selected colour. Outside the 1280 × 720 world (grey area), nothing is painted.
 - The cursor shows what a click would do: crosshair = paint, hand = outside the world (pan only), forbidden = no pixel left or offline, closed hand while dragging.
-- Bottom toolbar: palette button (`C`), showing the current colour; Escape closes it. Quota gauge.
+- Phones (small touch screens): no X / Y panel and no minimap, the board is navigated by hand.
+- Bottom toolbar: palette button (`C`), showing the current colour and its name (never colour alone). Clicking a colour picks it and closes the palette; arrow keys browse it, Escape closes it. Quota gauge.
 - Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), download, settings, shortcut list (`?`, hidden on small touch screens).
-- Download: an image of the whole board, ×1 to ×4 (pixels stay square), in PNG, WebP or JPEG. Built in the browser from the chunks.
-- Settings (remembered in the browser): grid (`G`), colour names written in the toolbar, palette and X / Y panel (colour blindness), interface size 100 / 125 / 150 % (the board is not affected).
+- Download: an image of the whole board, ×1 to ×4 (pixels stay square), in PNG (lossless: pixels stay sharp). Built in the browser from the chunks.
+- Settings (remembered in the browser): grid (`G`), interface size 100 / 125 / 150 % (the board is not affected).
 - X / Y fields (top left) follow the pointer; type coordinates and press Enter to jump there. Escape cancels.
 - Recenter, button / keyboard zoom and jumps are animated; a far jump starts a few screens before the target.
 - Minimap (top right, hidden on small touch screens): drag to pan, click to fly there.
@@ -60,7 +61,7 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 - Keyboard: arrows move a cursor (Shift: 10 pixels, the view follows), Enter or Space paints.
 - Accessibility: every control has a name (colours have French names), the board announces the targeted and painted pixels to screen readers, and animations are disabled when the system asks for reduced motion.
 - Hovering a pixel shows how many times it was painted, when it was last painted and by whom (pseudo).
-- Heatmap (`H`, flame button): the board shows how many times each pixel was painted instead of its colour; painting is off meanwhile. A snapshot, reloaded each time it is turned on.
+- Heatmap (`H`, flame button): the board shows how many times each pixel was painted instead of its colour; painting is off meanwhile, and its legend takes the toolbar's place. A snapshot, reloaded each time it is turned on.
 - Accounts (when Google sign-in is configured): watching is free, painting needs a Google sign-in and a pseudo chosen at the first one. The account menu changes the pseudo, signs out, or deletes the account (its past pixels stay, anonymous). Without Google configured, anyone can paint, counted by IP.
 - Stats (site panel): paints in total, share of the board painted, connected tabs, paints per hour over the last 24 h, colours on the board, the day's 10 best painters (UTC day), the most disputed pixel.
 
@@ -92,7 +93,7 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 Also read from `server/.env` (ignored by Git; template: `server/.env.example`). Variables already set in the environment win.
 
 | Variable | Default |
-|---|---|
+| --- | --- |
 | `ADDR` | `:3007` |
 | `REDIS_URL` | `redis://localhost:6379` |
 | `PIXEL_BURST` | `10` (pixels in a row) |

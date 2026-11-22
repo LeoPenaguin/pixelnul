@@ -3,6 +3,9 @@
   import type { User } from '../lib/api'
   import Modal from './Modal.svelte'
   import { Button } from './ui/button'
+  import { Input } from './ui/input'
+  import { Label } from './ui/label'
+  import { Separator } from './ui/separator'
 
   type Props = {
     user: User | null
@@ -18,7 +21,7 @@
   let error = $state('')
   let saving = $state(false)
   let confirming = $state(false) // second step of the deletion
-  let input = $state<HTMLInputElement>()
+  let input = $state<HTMLInputElement | null>(null)
 
   const title = $derived(!user ? 'Se connecter' : user.pseudo ? 'Mon compte' : 'Choisis ton pseudo')
 
@@ -27,7 +30,6 @@
     error = ''
     confirming = false
     modal.open()
-    input?.focus() // straight to the pseudo, rather than the close button
   }
 
   async function save(e: SubmitEvent) {
@@ -44,25 +46,27 @@
   }
 </script>
 
-<Modal bind:this={modal} {title}>
+<!-- Straight to the pseudo, rather than the close button. -->
+<Modal bind:this={modal} {title} initialFocus={() => input ?? undefined}>
   {#if !user}
     <p>Connecte-toi pour poser des pixels. Regarder la toile reste libre, sans compte.</p>
-    <a class="google" href="/api/auth/login">Continuer avec Google</a>
+    <!-- A link: Google's page opens in this tab. -->
+    <Button href="/api/auth/login" size="lg">Continuer avec Google</Button>
     <p class="hint note">Seul un identifiant de compte Google est gardé : ni ton nom, ni ton e-mail.</p>
   {:else}
     {#if !user.pseudo}
       <p>Il s'affichera dans l'historique des pixels que tu poses. Tu pourras le changer plus tard.</p>
     {/if}
     <form onsubmit={save}>
-      <label for={`${id}-pseudo`}>Pseudo</label>
+      <Label for={`${id}-pseudo`} class="pseudo">Pseudo</Label>
       <div class="row">
-        <input
-          class="field"
-          bind:this={input}
+        <Input
+          class="flex-1"
+          bind:ref={input}
           id={`${id}-pseudo`}
           bind:value={draft}
           autocomplete="nickname"
-          maxlength="20"
+          maxlength={20}
           required
           aria-invalid={error ? 'true' : undefined}
           aria-describedby={`${id}-hint`}
@@ -74,17 +78,17 @@
       >
     </form>
     {#if user.pseudo}
-      <hr />
+      <Separator class="my-4" />
       {#if confirming}
         <p>Ton compte et ton pseudo seront supprimés. Tes pixels restent sur la toile, sans nom.</p>
         <div class="row">
           <Button variant="destructive" onclick={() => void then(ondelete)}>Supprimer définitivement</Button>
-          <Button variant="ghost" onclick={() => (confirming = false)}>Annuler</Button>
+          <Button onclick={() => (confirming = false)}>Annuler</Button>
         </div>
       {:else}
         <div class="row">
-          <Button variant="outline" onclick={() => void then(onsignout)}>Se déconnecter</Button>
-          <Button variant="ghost" onclick={() => (confirming = true)}>Supprimer mon compte</Button>
+          <Button onclick={() => void then(onsignout)}>Se déconnecter</Button>
+          <Button onclick={() => (confirming = true)}>Supprimer mon compte</Button>
         </div>
       {/if}
     {/if}
@@ -96,30 +100,11 @@
     margin: 0 0 12px;
     font-weight: var(--font-weight-normal);
   }
-  /* A link (Google's page opens in this tab), styled as the main button. */
-  .google {
-    display: inline-flex;
-    align-items: center;
-    height: 36px;
-    padding: 0 14px;
-    border-radius: var(--radius);
-    background: var(--primary);
-    color: var(--primary-foreground);
-    font-weight: var(--font-weight-medium);
-  }
-  .google:hover {
-    background: color-mix(in oklch, var(--primary), transparent 20%);
-  }
-  .google:focus-visible {
-    outline: var(--stroke) solid var(--focus);
-    outline-offset: 1px;
-  }
   .note {
     margin: 12px 0 0;
     font-size: var(--text-sm);
   }
-  label {
-    display: block;
+  :global(.modal .pseudo) {
     margin-bottom: 6px;
   }
   .row {
@@ -127,11 +112,6 @@
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
-  }
-  input {
-    flex: 1;
-    min-width: 0;
-    padding: 4px 8px;
   }
   small {
     display: block;
@@ -141,10 +121,5 @@
   small.error {
     color: var(--destructive);
     font-weight: var(--font-weight-medium);
-  }
-  hr {
-    margin: 16px 0;
-    border: 0;
-    border-top: 1px solid var(--ink);
   }
 </style>
