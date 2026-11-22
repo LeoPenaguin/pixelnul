@@ -49,7 +49,7 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 - Drag, wheel or two fingers: pan. Ctrl + wheel, pinch or `+` / `-`: zoom.
 - Click (without dragging): paint a pixel with the selected colour. Outside the 1920 × 1080 world (grey area), nothing is painted.
 - The cursor shows what a click would do: crosshair = paint, hand = outside the world (pan only), forbidden = no pixel left or offline, closed hand while dragging.
-- Bottom toolbar: palette button (`C`), with a swatch of the current colour; Escape closes it. Grid toggle (`G`). Quota gauge.
+- Bottom toolbar: palette button (`C`), with a swatch of the current colour; Escape closes it. Quota gauge. Grid toggle (`G`).
 - Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), shortcut list (`?`).
 - X / Y fields (top left) follow the pointer; type coordinates and press Enter to jump there. Escape cancels.
 - Recenter, button / keyboard zoom and jumps are animated; a far jump starts a few screens before the target.

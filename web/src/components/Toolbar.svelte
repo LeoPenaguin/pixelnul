@@ -1,4 +1,4 @@
-<!-- Bottom toolbar: one button per tool (each may open its panel above) and the quota. -->
+<!-- Bottom toolbar: the palette button (opens its panel above), the quota, then the view toggles. -->
 <script lang="ts">
   import { tick } from 'svelte'
   import { colorName } from '../lib/colors'
@@ -52,7 +52,6 @@
       bind:this={button}
       class="icon tool"
       class:active={open}
-      style:--c={hex}
       title="Couleurs (C)"
       aria-label={`Couleurs, couleur actuelle : ${colorName(hex)}`}
       aria-keyshortcuts="C"
@@ -79,6 +78,10 @@
       </svg>
       <span class="current" style:background={hex}></span>
     </button>
+    {#if quota}
+      <Quota rules={quota} {snapshot} {now} />
+    {/if}
+    <span class="sep" aria-hidden="true"></span>
     <button
       type="button"
       class="icon square"
@@ -101,10 +104,6 @@
         <rect x="4" y="4" width="16" height="16" rx="1" /><path d="M9.33 4v16M14.67 4v16M4 9.33h16M4 14.67h16" />
       </svg>
     </button>
-    {#if quota}
-      <span class="sep" aria-hidden="true"></span>
-      <Quota rules={quota} {snapshot} {now} />
-    {/if}
   </div>
 </div>
 
@@ -126,7 +125,6 @@
     align-items: center;
     gap: 4px;
   }
-  /* The palette button takes a dark tint of the selected colour. */
   .tool {
     display: flex;
     align-items: center;
@@ -134,13 +132,6 @@
     width: auto;
     height: 40px;
     padding: 0 10px;
-    background: color-mix(in srgb, var(--c) 22%, #1e1e1e);
-  }
-  .tool:hover {
-    background: color-mix(in srgb, var(--c) 30%, #1e1e1e);
-  }
-  .tool.active {
-    background: color-mix(in srgb, var(--c) 38%, #1e1e1e);
   }
   .square {
     width: 40px;
