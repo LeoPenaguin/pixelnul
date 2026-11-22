@@ -17,7 +17,7 @@ import {
   type Point,
 } from './camera'
 import { context2d } from './canvas'
-import { HEAT_COLORS } from '../heat'
+import { heatColors } from '../heat'
 import { Chunks } from './chunks'
 import { MINIMAP_SPAN, smoothSpan, stepSpan } from './minimap'
 
@@ -109,9 +109,10 @@ export class World {
   }
 
   /** Shows how many times each pixel was painted instead of its colour. Loaded fresh each time
-   *  it is turned on. ponytail: a snapshot, live paints do not heat it up until toggled again. */
-  setHeat(on: boolean) {
-    this.chunks = on ? new Chunks(this.cfg, this.redraw, '/api/heat/', HEAT_COLORS) : this.board
+   *  it is turned on, on a scale up to `max` changes (the board's maximum).
+   *  ponytail: a snapshot, live paints do not heat it up until toggled again. */
+  setHeat(on: boolean, max = 1) {
+    this.chunks = on ? new Chunks(this.cfg, this.redraw, '/api/heat/', heatColors(max)) : this.board
     this.redraw()
   }
 
