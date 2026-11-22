@@ -23,18 +23,20 @@ import { MINIMAP_SPAN, smoothSpan, stepSpan } from './minimap'
 const DRAG_THRESHOLD = 4 // px: below this, it is a click
 const GRID_MIN_ZOOM = 6 // below this, grid lines would be too dense
 const ANIM_MS = 450
-const TARGET_MS = 1000 // highlight duration after a jump
+const TARGET_MS = 2500 // highlight duration after a jump
 const BACKGROUND = '#e5e5e5' // outside the world
 
 // The UI stays monochrome: only the board is in colour. A black outline doubled with white
 // stays readable on any pixel, black included.
-function outline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, width: number) {
+function outline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, width: number, radius = 0) {
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, radius)
   ctx.lineWidth = width * 2
   ctx.strokeStyle = '#fff'
-  ctx.strokeRect(x, y, w, h)
+  ctx.stroke()
   ctx.lineWidth = width
   ctx.strokeStyle = '#000'
-  ctx.strokeRect(x, y, w, h)
+  ctx.stroke()
 }
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -277,7 +279,9 @@ export class World {
       ctx.stroke()
     }
     if (this.hover) outline(ctx, this.hover.x, this.hover.y, 1, 1, 2 / cam.zoom)
-    if (this.target) outline(ctx, this.target.x - 0.5, this.target.y - 0.5, 2, 2, 3 / cam.zoom)
+    // Rounded like the panels (8 CSS px), at most a circle when zoomed out.
+    if (this.target)
+      outline(ctx, this.target.x - 0.5, this.target.y - 0.5, 2, 2, 3 / cam.zoom, Math.min(8 / cam.zoom, 1))
 
     this.drawMinimap(tl, br, visible)
     this.onView({ x: Math.floor(cam.x), y: Math.floor(cam.y) })

@@ -143,7 +143,7 @@ describe('camera', () => {
     expect(w.cam.zoom).toBeCloseTo(24)
   })
 
-  test('jumpTo goes to the pixel, highlights it for a second, and a far jump starts nearby', async () => {
+  test('jumpTo goes to the pixel, highlights it for a few seconds, and a far jump starts nearby', async () => {
     const w = setup()
     w.zoomBy(1.5)
     w.jumpTo(1e9, -1e9) // clamped to the world; zoom taken from the running animation
@@ -154,7 +154,7 @@ describe('camera', () => {
     w.zoomBy(1) // keeps the end of the jump (highlight)
     await settle()
     expect(w.cam).toMatchObject({ x: 3.5, y: 4.5 })
-    await new Promise((r) => setTimeout(r, 1100)) // the highlight fades
+    await new Promise((r) => setTimeout(r, 2600)) // the highlight fades
   })
 
   test('zoomAt keeps the point under the pointer', () => {
