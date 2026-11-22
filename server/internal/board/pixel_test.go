@@ -23,8 +23,8 @@ func TestLocate(t *testing.T) {
 }
 
 func TestValid(t *testing.T) {
-	valid := []Pixel{{-5, 7, 0}, {959, -540, len(Palette) - 1}, {-960, 539, 0}}
-	invalid := []Pixel{{0, 0, len(Palette)}, {0, 0, -1}, {960, 0, 1}, {-961, 0, 1}, {0, 540, 1}, {0, -541, 1}}
+	valid := []Pixel{{-5, 7, 0}, {639, -360, len(Palette) - 1}, {-640, 359, 0}}
+	invalid := []Pixel{{0, 0, len(Palette)}, {0, 0, -1}, {640, 0, 1}, {-641, 0, 1}, {0, 360, 1}, {0, -361, 1}}
 	for _, p := range valid {
 		if !p.Valid() {
 			t.Errorf("%v should be valid", p)
@@ -38,11 +38,11 @@ func TestValid(t *testing.T) {
 }
 
 func TestChunkInWorld(t *testing.T) {
-	// x in [-960, 960) → chunks -4..3 (border ones partly outside); y in [-540, 540) → chunks -3..2.
-	if !ChunkInWorld(-4, -3) || !ChunkInWorld(3, 2) {
+	// x in [-640, 640) → chunks -3..2 (border ones partly outside); y in [-360, 360) → chunks -2..1.
+	if !ChunkInWorld(-3, -2) || !ChunkInWorld(2, 1) {
 		t.Error("border chunks must be in the world")
 	}
-	if ChunkInWorld(-5, 0) || ChunkInWorld(4, 0) || ChunkInWorld(0, -4) || ChunkInWorld(0, 3) {
+	if ChunkInWorld(-4, 0) || ChunkInWorld(3, 0) || ChunkInWorld(0, -3) || ChunkInWorld(0, 2) {
 		t.Error("chunks past the edges must be outside the world")
 	}
 }

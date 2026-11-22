@@ -79,15 +79,15 @@ func TestConfig(t *testing.T) {
 
 func TestChunkRoute(t *testing.T) {
 	e := newTestEnv(t, Options{Burst: 1})
-	_ = e.mr.Set("chunk:-4:2", "\x05")
-	if code, body := get(t, e.url+"/api/chunks/-4/2"); code != 200 || string(body) != "\x05" {
+	_ = e.mr.Set("chunk:-3:1", "\x05")
+	if code, body := get(t, e.url+"/api/chunks/-3/1"); code != 200 || string(body) != "\x05" {
 		t.Errorf("chunk = %d %q", code, body)
 	}
 	if code, body := get(t, e.url+"/api/chunks/0/0"); code != 200 || len(body) != 0 {
 		t.Errorf("never-painted chunk = %d %q; want empty 200", code, body)
 	}
 	// Without gzip support, raw bytes (the client above negotiates gzip transparently).
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, e.url+"/api/chunks/-4/2", http.NoBody)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, e.url+"/api/chunks/-3/1", http.NoBody)
 	req.Header.Set("Accept-Encoding", "identity")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -116,7 +116,7 @@ func TestPixelRoute(t *testing.T) {
 	if err := json.Unmarshal(body, &info); err != nil || code != 200 || info != (board.Info{X: -1, Y: 2}) {
 		t.Errorf("pixel = %d %s", code, body)
 	}
-	for _, bad := range []string{"x/0", "0/y", "960/0", "0/540", "-961/0"} {
+	for _, bad := range []string{"x/0", "0/y", "640/0", "0/360", "-641/0"} {
 		if code, _ := get(t, e.url+"/api/pixels/"+bad); code != 400 {
 			t.Errorf("/api/pixels/%s = %d; want 400", bad, code)
 		}

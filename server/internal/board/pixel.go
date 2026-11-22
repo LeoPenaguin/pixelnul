@@ -11,10 +11,10 @@ import (
 const (
 	ChunkShift = 8 // a chunk is 2^8 = 256 pixels wide
 	ChunkSize  = 1 << ChunkShift
-	// The world is 16:9 and centred on 0, 0: x in [-960, 960), y in [-540, 540).
+	// The world is 16:9 and centred on 0, 0: x in [-640, 640), y in [-360, 360).
 	// Edges do not fall on chunk boundaries: border chunks are partly outside.
-	WorldWidth  = 1920
-	WorldHeight = 1080
+	WorldWidth  = 1280
+	WorldHeight = 720
 )
 
 // PaletteRows are displayed as-is by the front (greys, pastels, mid tones, darks, vivids, skin).
