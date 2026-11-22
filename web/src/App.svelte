@@ -3,12 +3,14 @@
   import { onMount } from 'svelte'
   import AboutDialog from './components/AboutDialog.svelte'
   import DownloadDialog from './components/DownloadDialog.svelte'
+  import HeatLegend from './components/HeatLegend.svelte'
   import HelpDialog from './components/HelpDialog.svelte'
   import JumpPanel from './components/JumpPanel.svelte'
   import NavControls from './components/NavControls.svelte'
   import ServerDown from './components/ServerDown.svelte'
   import SettingsDialog from './components/SettingsDialog.svelte'
   import SitePanel from './components/SitePanel.svelte'
+  import StatsDialog from './components/StatsDialog.svelte'
   import Toolbar from './components/Toolbar.svelte'
   import { fetchConfig, fetchPixelInfo, type Config, type PixelInfo } from './lib/api'
   import { colorName } from './lib/colors'
@@ -31,6 +33,7 @@
   let about: { open: () => void }
   let settingsDialog: { open: () => void }
   let downloadDialog = $state<{ open: () => void }>()
+  let statsDialog = $state<{ open: () => Promise<void> }>()
   let world: World | undefined
   let live: Live | undefined
 
@@ -38,6 +41,7 @@
   let color = $state(5) // black
   let paletteOpen = $state(false)
   let settings = $state(loadSettings())
+  let heat = $state(false) // heatmap shown instead of the colours (painting off)
   let hover = $state<Point | null>(null) // targeted pixel (mouse or keyboard cursor)
   let center = $state<Point>({ x: 0, y: 0 }) // pixel at the view centre
   let info = $state<PixelInfo | null>(null)
@@ -51,7 +55,7 @@
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
   const shownInfo = $derived(info && isHovered(info) ? info : null)
   const colorLabel = $derived(settings.colorNames && shownInfo?.c ? colorName(colors[shownInfo.c]) : null)
-  const canPaint = $derived(!lost && (!limits || quotaAt(limits, quota, now).available >= 1))
+  const canPaint = $derived(!lost && !heat && (!limits || quotaAt(limits, quota, now).available >= 1))
   $effect(() => {
     saveSettings($state.snapshot(settings))
   })
@@ -98,6 +102,10 @@
   }
 
   function place(x: number, y: number) {
+    if (heat) {
+      announce('Carte de chaleur affichée : appuie sur H pour revenir aux couleurs et peindre')
+      return
+    }
     if (!live?.open) {
       announce('Hors ligne, pixel non posé')
       return
@@ -122,6 +130,12 @@
     loadInfo(true)
   }
 
+  function toggleHeat() {
+    heat = !heat
+    world?.setHeat(heat)
+    announce(heat ? 'Carte de chaleur affichée' : 'Couleurs affichées')
+  }
+
   function run(a: Action) {
     switch (a.type) {
       case 'move':
@@ -142,6 +156,9 @@
         break
       case 'grid':
         settings.grid = !settings.grid
+        break
+      case 'heat':
+        toggleHeat()
         break
       case 'palette':
         void toolbar?.toggle()
@@ -230,8 +247,8 @@
 ></canvas>
 <p id="board-help" class="sr-only">
   Flèches pour déplacer le curseur, Maj et flèches pour aller 10 pixels plus loin, Entrée ou Espace pour poser un pixel
-  de la couleur choisie. Plus et moins pour zoomer, 0 pour revenir en 0, 0, C pour les couleurs, G pour la grille, point
-  d'interrogation pour la liste des raccourcis.
+  de la couleur choisie. Plus et moins pour zoomer, 0 pour revenir en 0, 0, C pour les couleurs, G pour la grille, H
+  pour la carte de chaleur, point d'interrogation pour la liste des raccourcis.
 </p>
 <div class="sr-only" aria-live="polite">{message}</div>
 
@@ -249,7 +266,7 @@
 
 <!-- Top-left column: the site panel, then the X / Y panel (once loaded) which grows on its own. -->
 <div class="top-left">
-  <SitePanel onabout={() => about.open()} />
+  <SitePanel onabout={() => about.open()} onstats={() => void statsDialog?.open()} />
   {#if cfg}
     <JumpPanel
       position={hover ?? center}
@@ -264,6 +281,14 @@
 <!-- Controls only once the board is loaded: before that they would do nothing. -->
 {#if cfg}
   {@const conf = cfg}
+  {#if heat}
+    <HeatLegend />
+  {/if}
+  <StatsDialog
+    bind:this={statsDialog}
+    colors={conf.palette.flat()}
+    onjump={(x: number, y: number) => world?.jumpTo(x, y)}
+  />
   <DownloadDialog
     bind:this={downloadDialog}
     width={conf.worldWidth}
@@ -274,6 +299,8 @@
     onzoomin={() => world?.zoomBy(1.5)}
     onzoomout={() => world?.zoomBy(1 / 1.5)}
     onrecenter={() => world?.recenter()}
+    {heat}
+    onheat={toggleHeat}
     ondownload={() => downloadDialog?.open()}
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}

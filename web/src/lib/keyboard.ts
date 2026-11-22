@@ -1,6 +1,6 @@
 // Keyboard shortcuts: maps a key to an action without running it (testable on its own).
 
-type Simple = 'place' | 'zoomIn' | 'zoomOut' | 'recenter' | 'grid' | 'palette' | 'help' | 'escape'
+type Simple = 'place' | 'zoomIn' | 'zoomOut' | 'recenter' | 'grid' | 'heat' | 'palette' | 'help' | 'escape'
 export type Action = { type: 'move'; dx: number; dy: number } | { type: Simple }
 
 const ARROWS: Partial<Record<string, [number, number]>> = {
@@ -16,6 +16,7 @@ const KEYS: Partial<Record<string, Simple>> = {
   '-': 'zoomOut',
   '0': 'recenter',
   g: 'grid',
+  h: 'heat',
   c: 'palette',
   '?': 'help',
   Escape: 'escape',

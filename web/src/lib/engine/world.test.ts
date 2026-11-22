@@ -81,6 +81,30 @@ describe('rendering', () => {
     await frames(10)
   })
 
+  test('the heatmap shows change counts instead of colours, then the colours come back', async () => {
+    stubFetch({
+      '/api/heat/0/0': () => new Response(new Uint8Array([12])), // pixel (0, 0) painted 12 times
+      '/api/chunks/0/0': () => new Response(new Uint8Array([1])),
+      '/api/': () => new Response(new Uint8Array()),
+    })
+    const w = setup()
+    w.setGrid(false)
+    w.setCam({ x: 0, y: 0, zoom: 20 })
+    w.setHeat(true)
+    await vi.waitFor(async () => {
+      await frames()
+      expect(rgbAt(canvas, 210, 150)).toEqual([0xfd, 0xe7, 0x4c]) // 10+: the hottest step
+    })
+    expect(rgbAt(canvas, 230, 150)).toEqual([0x1c, 0x1c, 0x1c]) // (1, 0): never painted
+    w.setPixel(0, 0, 0) // live paints go to the board, not the heat snapshot
+    w.reload() // reloads both
+    w.setHeat(false)
+    await vi.waitFor(async () => {
+      await frames()
+      expect(rgbAt(canvas, 210, 150)).toEqual([0, 0, 0])
+    })
+  })
+
   test('live pixels and reload', async () => {
     const w = setup()
     w.setGrid(false) // no grid: exact colours

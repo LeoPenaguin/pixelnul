@@ -60,14 +60,17 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 - Keyboard: arrows move a cursor (Shift: 10 pixels, the view follows), Enter or Space paints.
 - Accessibility: every control has a name (colours have French names), the board announces the targeted and painted pixels to screen readers, and animations are disabled when the system asks for reduced motion.
 - Hovering a pixel shows how many times it was painted and when it was last painted.
+- Heatmap (`H`, flame button): the board shows how many times each pixel was painted instead of its colour; painting is off meanwhile. A snapshot, reloaded each time it is turned on.
+- Stats (site panel): paints in total, share of the board painted, connected tabs, paints per hour over the last 24 h, colours on the board, the most disputed pixel.
 
 ## How it works
 
 - The world is 1280 × 720 (16:9) and centred on 0, 0: x from -640 to 639, y from -360 to 359. It is stored in 256×256 chunks (6 × 4, the border ones partly outside). The size is `WorldWidth` / `WorldHeight` in `server/internal/board/pixel.go`; resizing needs no data migration (pixels outside a smaller world stay in Redis, hidden, and come back if it grows again).
 - Each chunk is a Redis string `chunk:{cx}:{cy}` of 65,536 bytes, one byte = palette index (0 = white = never painted).
 - History lives in the hash `meta:{cx}:{cy}`: `n:{offset}` = paint count, `t:{offset}` = time of the last paint (Unix ms).
+- The hash `stats:hourly` counts paints per Unix hour (`{hour}` = count), from the moment it was introduced.
 - Painting runs an atomic Lua script: it writes the byte (`SETRANGE`), bumps the counter and timestamps the paint. Repainting the same colour counts too: it costs a pixel and is broadcast like any other.
-- `GET /api/config` returns the palette and quota; `GET /api/chunks/{cx}/{cy}` the raw chunk bytes (gzipped when the client accepts it); `GET /api/pixels/{x}/{y}` returns `{x, y, c, changes, lastChange}`.
+- `GET /api/config` returns the palette and quota; `GET /api/chunks/{cx}/{cy}` the raw chunk bytes (gzipped when the client accepts it); `GET /api/pixels/{x}/{y}` returns `{x, y, c, changes, lastChange}`; `GET /api/heat/{cx}/{cy}` the paint counts of a chunk, one byte per pixel (capped at 255); `GET /api/stats` the world statistics (recomputed at most every 10 s).
 - WebSocket `/ws`: the client sends `{"x","y","c"}`. The server answers `{"t":"q","n"}` (remaining quota) and broadcasts every 100 ms a batch `{"t":"b","p":[x,y,c, x,y,c, …]}` of every pixel painted meanwhile. Messages over 512 bytes are compressed (permessage-deflate) when the browser supports it.
 
 ## Protections (no user accounts)

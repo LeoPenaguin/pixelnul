@@ -26,6 +26,16 @@ beforeEach(() => {
   stubFetch({
     '/api/config': () => configResponse(),
     '/api/chunks/': () => new Response(new Uint8Array()),
+    '/api/stats': () =>
+      Response.json({
+        placed: 1,
+        painted: 1,
+        pixels: 921_600,
+        online: 1,
+        hottest: { x: 40, y: -3, changes: 1 },
+        colors: [0, 1],
+        hours: Array<number>(24).fill(0),
+      }),
     '/api/pixels/': (url) => {
       const [x, y] = url.split('/').slice(-2).map(Number)
       return Response.json({ x, y, c: 0, changes: 0, lastChange: null, ...info })
@@ -218,6 +228,31 @@ describe('keyboard', () => {
       grid: false,
       colorNames: true,
       scale: 1.5,
+    })
+  })
+
+  test('H shows the heatmap: no painting until H again', async () => {
+    const { ws } = await start()
+    board().focus()
+    press('h')
+    await expect.element(page.getByRole('group', { name: 'Légende de la carte de chaleur' })).toBeVisible()
+    await announced('Carte de chaleur affichée')
+    const r = board().getBoundingClientRect()
+    click(r.left + r.width / 2, r.top + r.height / 2)
+    await announced('Carte de chaleur affichée : appuie sur H pour revenir aux couleurs et peindre')
+    expect(ws.sent).toHaveLength(0)
+    await page.getByRole('button', { name: 'Carte de chaleur' }).click()
+    await expect.element(page.getByRole('group', { name: 'Légende de la carte de chaleur' })).not.toBeInTheDocument()
+    await announced('Couleurs affichées')
+  })
+
+  test('the statistics lead to the most disputed pixel', async () => {
+    await start()
+    await page.getByRole('button', { name: 'Stats' }).click()
+    await expect.element(page.getByRole('heading', { name: 'Statistiques' })).toBeVisible()
+    await page.getByRole('button', { name: 'Y aller' }).click()
+    await vi.waitFor(() => {
+      expect(fields()).toEqual([40, -3])
     })
   })
 

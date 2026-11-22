@@ -18,6 +18,20 @@ async function getJSON<T>(url: string): Promise<T> {
   return r.json() as Promise<T>
 }
 
+/** World statistics, recomputed by the server at most every 10 s. colors[c] = pixels of colour c on the
+ *  board (0 = white, never painted included); hours = paints per hour over the last 24 h, oldest first. */
+export type Stats = {
+  placed: number
+  painted: number
+  pixels: number
+  online: number
+  hottest: { x: number; y: number; changes: number } | null
+  colors: number[]
+  hours: number[]
+}
+
 export const fetchConfig = () => getJSON<Config>('/api/config')
+
+export const fetchStats = () => getJSON<Stats>('/api/stats')
 
 export const fetchPixelInfo = (x: number, y: number) => getJSON<PixelInfo>(`/api/pixels/${String(x)}/${String(y)}`)

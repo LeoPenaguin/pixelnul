@@ -1,9 +1,11 @@
 import { describe, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-svelte'
-import { config } from '../test/fakes'
+import type { Stats } from '../lib/api'
+import { config, stubFetch } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
+import HeatLegend from './HeatLegend.svelte'
 import HelpDialog from './HelpDialog.svelte'
 import JumpPanel from './JumpPanel.svelte'
 import NavControls from './NavControls.svelte'
@@ -12,6 +14,7 @@ import Quota from './Quota.svelte'
 import ServerDown from './ServerDown.svelte'
 import SettingsDialog from './SettingsDialog.svelte'
 import SitePanel from './SitePanel.svelte'
+import StatsDialog from './StatsDialog.svelte'
 import Toolbar from './Toolbar.svelte'
 
 describe('NavControls', () => {
@@ -20,18 +23,24 @@ describe('NavControls', () => {
       onzoomin: vi.fn(),
       onzoomout: vi.fn(),
       onrecenter: vi.fn(),
+      onheat: vi.fn(),
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
     }
-    const screen = await render(NavControls, props)
+    const screen = await render(NavControls, { ...props, heat: true })
     await screen.getByRole('button', { name: 'Zoomer' }).click()
     await screen.getByRole('button', { name: 'Dézoomer' }).click()
     await screen.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
+    await screen.getByRole('button', { name: 'Carte de chaleur' }).click()
     await screen.getByRole('button', { name: "Télécharger l'image" }).click()
     await screen.getByRole('button', { name: 'Paramètres' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
+    await expect
+      .element(screen.getByRole('button', { name: 'Carte de chaleur' }))
+      .toHaveAttribute('aria-pressed', 'true')
+    await expect.element(screen.getByRole('button', { name: 'Zoomer' })).not.toHaveAttribute('aria-pressed')
   })
 
   test('shows the label and shortcut of a focused button', async () => {
@@ -39,6 +48,8 @@ describe('NavControls', () => {
       onzoomin: vi.fn(),
       onzoomout: vi.fn(),
       onrecenter: vi.fn(),
+      heat: false,
+      onheat: vi.fn(),
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
@@ -48,6 +59,7 @@ describe('NavControls', () => {
       Zoomer: 'Zoomer plus',
       Dézoomer: 'Dézoomer moins',
       'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
+      'Carte de chaleur': 'Carte de chaleur H',
       Paramètres: 'Paramètres', // no shortcut
       'Raccourcis clavier': 'Raccourcis clavier ?',
     }
@@ -255,11 +267,14 @@ describe('Toolbar', () => {
 describe('SitePanel', () => {
   test('shows the site name, opens the about dialog and links to donations', async () => {
     const onabout = vi.fn()
-    const screen = await render(SitePanel, { onabout })
+    const onstats = vi.fn()
+    const screen = await render(SitePanel, { onabout, onstats })
     await expect.element(screen.getByText('Pixels')).toBeVisible()
     await expect.element(screen.getByRole('link', { name: 'Faire un don' })).toBeVisible()
     await screen.getByRole('button', { name: 'À propos' }).click()
     expect(onabout).toHaveBeenCalledOnce()
+    await screen.getByRole('button', { name: 'Stats' }).click()
+    expect(onstats).toHaveBeenCalledOnce()
   })
 })
 
@@ -321,5 +336,84 @@ describe('DownloadDialog', () => {
     await expect.element(status).toHaveTextContent('Échec du téléchargement, réessaie dans un instant.')
     screen.component.open() // reopening clears the error
     await expect.element(status).toBeEmptyDOMElement()
+  })
+})
+
+describe('HeatLegend', () => {
+  test('explains the colour steps', async () => {
+    const screen = await render(HeatLegend)
+    const legend = screen.getByRole('group', { name: 'Légende de la carte de chaleur' })
+    for (const label of ['0', '3–4', '10+'])
+      await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
+  })
+})
+
+describe('StatsDialog', () => {
+  const colors = config.palette.flat() // white, black, red, blue, green
+  const stats: Stats = {
+    placed: 1234,
+    painted: 5,
+    pixels: 921_600,
+    online: 3,
+    hottest: { x: -4, y: 7, changes: 12 },
+    colors: [900_000, 30, 10, 0, 60],
+    hours: [...Array<number>(22).fill(0), 5, 1],
+  }
+
+  test('shows the figures, the activity, the colours and jumps to the hottest pixel', async () => {
+    let answer = () => Response.json(stats)
+    stubFetch({ '/api/stats': () => answer() })
+    const onjump = vi.fn()
+    const screen = await render(StatsDialog, { colors, onjump })
+    await screen.component.open()
+    await expect.element(screen.getByText('1 234', { exact: true })).toBeVisible()
+    await expect.element(screen.getByText('< 0,1 %')).toBeVisible() // 5 of 921,600 painted: not "0 %"
+    await expect.element(screen.getByText('connectés')).toBeVisible()
+    await expect.element(screen.getByText('6 pixels en 24 h')).toBeVisible()
+    screen.container.querySelectorAll('.slot')[22].dispatchEvent(new MouseEvent('mouseenter'))
+    await expect.element(screen.getByText(/: 5 pixels$/)).toBeVisible()
+    screen.container.querySelector('.hours')?.dispatchEvent(new MouseEvent('mouseleave'))
+    await expect.element(screen.getByText('6 pixels en 24 h')).toBeVisible()
+    // Largest first, white left out, empty colours too.
+    expect([...screen.container.querySelectorAll('.colors .name')].map((n) => n.textContent)).toEqual([
+      'Vert vif',
+      'Noir',
+      'Rouge vif',
+    ])
+    await expect.element(screen.getByText('-4, 7 · peint 12 fois')).toBeVisible()
+    await screen.getByRole('button', { name: 'Y aller' }).click()
+    expect(onjump).toHaveBeenCalledWith(-4, 7)
+    await expect.element(screen.getByRole('dialog', { includeHidden: true })).not.toHaveAttribute('open') // closed
+
+    // An empty board, one connected tab.
+    answer = () =>
+      Response.json({
+        ...stats,
+        placed: 0,
+        painted: 0,
+        online: 1,
+        hottest: null,
+        colors: [921_600, 0, 0, 0, 0],
+        hours: Array<number>(24).fill(0),
+      })
+    await screen.component.open()
+    await expect.element(screen.getByText("Rien n'a encore été peint.")).toBeVisible()
+    await expect.element(screen.getByText('connecté', { exact: true })).toBeVisible()
+    await expect.element(screen.getByText('0 %', { exact: true })).toBeVisible()
+    await expect.element(screen.getByText('0 pixel en 24 h')).toBeVisible()
+    await expect.element(screen.getByText('Pixel le plus disputé')).not.toBeInTheDocument()
+
+    answer = () => new Response('', { status: 500 })
+    await screen.component.open()
+    await expect
+      .element(screen.getByRole('alert'))
+      .toHaveTextContent('Impossible de charger les statistiques pour le moment.')
+  })
+
+  test('says it is loading until the figures arrive', async () => {
+    stubFetch({ '/api/stats': () => new Promise<Response>(() => undefined) })
+    const screen = await render(StatsDialog, { colors, onjump: vi.fn() })
+    void screen.component.open()
+    await expect.element(screen.getByRole('status')).toHaveTextContent('Chargement…')
   })
 })

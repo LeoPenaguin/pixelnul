@@ -44,6 +44,7 @@
     [['0'], '', 'Revenir en 0, 0'],
     [['C'], '', 'Ouvrir ou fermer les couleurs (flèches pour choisir)'],
     [['G'], '', 'Afficher ou cacher la grille'],
+    [['H'], '', 'Carte de chaleur : les endroits les plus disputés'],
     [['Tab'], '', "Passer d'un bouton à l'autre ; les champs X / Y permettent de sauter à un pixel"],
     [['Échap'], '', 'Fermer la palette ou cette aide'],
     [['?'], '', 'Afficher cette aide'],

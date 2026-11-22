@@ -2,6 +2,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { fetchConfig, fetchPixelInfo } from './api'
 import { colorName } from './colors'
+import { HEAT_COLORS, HEAT_STEPS } from './heat'
 import { quotaAt } from './quota'
 import { loadSettings, saveSettings } from './settings'
 import { ago } from './time'
@@ -59,4 +60,9 @@ test('settings: defaults, remembered, safe when storage fails', () => {
   }).not.toThrow()
   set.mockRestore()
   localStorage.clear()
+})
+
+test('heat colours: one per change count, by steps', () => {
+  expect(HEAT_COLORS).toHaveLength(256)
+  expect([0, 1, 4, 9, 255].map((n) => HEAT_COLORS[n])).toEqual([0, 1, 3, 4, 5].map((step) => HEAT_STEPS[step][1]))
 })

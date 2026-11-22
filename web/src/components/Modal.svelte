@@ -12,6 +12,10 @@
     dialog.showModal()
   }
 
+  export function close() {
+    dialog.close()
+  }
+
   export function isOpen() {
     return dialog.open
   }

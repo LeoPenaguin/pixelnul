@@ -17,6 +17,7 @@ import {
   type Point,
 } from './camera'
 import { context2d } from './canvas'
+import { HEAT_COLORS } from '../heat'
 import { Chunks } from './chunks'
 import { MINIMAP_SPAN, smoothSpan, stepSpan } from './minimap'
 
@@ -52,7 +53,8 @@ export class World {
   onView: (center: Point) => void = () => undefined
 
   private ctx: CanvasRenderingContext2D
-  private chunks: Chunks
+  private board: Chunks
+  private chunks: Chunks // shown: the board, or the heatmap
   private frame = 0
   private anim: { from: Cam; to: Cam; t0: number; done?: () => void } | null = null
   private target: Point | null = null // jump target, briefly highlighted
@@ -70,7 +72,8 @@ export class World {
   ) {
     this.ctx = context2d(canvas)
     this.half = { x: cfg.worldWidth / 2, y: cfg.worldHeight / 2 }
-    this.chunks = new Chunks(cfg, this.redraw)
+    this.board = new Chunks(cfg, this.redraw)
+    this.chunks = this.board
     canvas.addEventListener('pointerdown', this.down)
     canvas.addEventListener('pointermove', this.move)
     canvas.addEventListener('pointerup', this.up)
@@ -96,12 +99,20 @@ export class World {
   }
 
   setPixel(x: number, y: number, c: number) {
-    this.chunks.setPixel(x, y, c)
+    this.board.setPixel(x, y, c)
   }
 
   /** Reloads every chunk (after a reconnection, pixels may have been missed). */
   reload() {
+    this.board.clear()
     this.chunks.clear()
+  }
+
+  /** Shows how many times each pixel was painted instead of its colour. Loaded fresh each time
+   *  it is turned on. ponytail: a snapshot, live paints do not heat it up until toggled again. */
+  setHeat(on: boolean) {
+    this.chunks = on ? new Chunks(this.cfg, this.redraw, '/api/heat/', HEAT_COLORS) : this.board
+    this.redraw()
   }
 
   setGrid(on: boolean) {

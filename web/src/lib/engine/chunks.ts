@@ -27,12 +27,15 @@ export class Chunks {
   private rgb: Rgb[]
   private shift: number
 
-  /** `changed`: a chunk arrived or changed, a redraw is needed. */
+  /** `changed`: a chunk arrived or changed, a redraw is needed. `path` and `colors`: where the
+   *  bytes come from and the colour of each byte value (default: the board and its palette). */
   constructor(
     private cfg: Config,
     private changed: () => void,
+    private path = '/api/chunks/',
+    colors = cfg.palette.flat(),
   ) {
-    this.colors = cfg.palette.flat()
+    this.colors = colors
     this.rgb = this.colors.map(hexToRgb)
     this.shift = Math.log2(cfg.chunkSize)
   }
@@ -80,7 +83,7 @@ export class Chunks {
     const entry = { pending: [] as Pending }
     this.entries.set(k, entry)
     try {
-      const res = await fetch(`/api/chunks/${String(cx)}/${String(cy)}`)
+      const res = await fetch(`${this.path}${String(cx)}/${String(cy)}`)
       if (!res.ok) throw new Error(res.statusText)
       const bytes = new Uint8Array(await res.arrayBuffer())
       if (this.entries.get(k) !== entry) return // reloaded or evicted meanwhile

@@ -6,8 +6,8 @@
   // ponytail: placeholder (the code repository) until a donation page exists; put its URL here.
   const DONATE_URL = 'https://github.com/LeoPenaguin/pixels'
 
-  type Props = { onabout: () => void }
-  const { onabout }: Props = $props()
+  type Props = { onabout: () => void; onstats: () => void }
+  const { onabout, onstats }: Props = $props()
 </script>
 
 <header class="panel site">
@@ -15,6 +15,7 @@
   <img src="/logo.svg" alt="" width="24" height="24" />
   <span class="name">Pixels</span>
   <nav aria-label="Site">
+    <Button variant="ghost" aria-haspopup="dialog" onclick={onstats}>Stats</Button>
     <Button variant="ghost" aria-haspopup="dialog" onclick={onabout}>À propos</Button>
     <a class="donate" href={DONATE_URL} target="_blank" rel="noopener noreferrer">
       <Heart width="16" height="16" aria-hidden="true" />
