@@ -2,6 +2,7 @@
 // Svelte rules, plus a few consistency rules. Formatting is left to Prettier.
 import js from '@eslint/js'
 import prettier from 'eslint-config-prettier'
+import tailwind from 'eslint-plugin-better-tailwindcss'
 import svelte from 'eslint-plugin-svelte'
 import globals from 'globals'
 import { defineConfig } from 'eslint/config'
@@ -55,6 +56,12 @@ export default defineConfig(
       'svelte/shorthand-directive': 'error',
       'svelte/spaced-html-comment': 'error',
     },
+  },
+  {
+    // Tailwind classes in their canonical form (as Tailwind IntelliSense's suggestCanonicalClasses).
+    plugins: { 'better-tailwindcss': tailwind },
+    settings: { 'better-tailwindcss': { entryPoint: 'src/app.css' } },
+    rules: { 'better-tailwindcss/enforce-canonical-classes': 'error' },
   },
   {
     // Tests: non-null assertions skip checks that add nothing, and Svelte component exports are

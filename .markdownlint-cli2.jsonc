@@ -1,0 +1,9 @@
+// markdownlint, run by `pnpm lint` in web/ on every Markdown file of the repository.
+{
+  "config": {
+    // Prose lines are not wrapped: one paragraph or list item per line.
+    "MD013": false
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["**/node_modules/**", "web/coverage/**", "web/playwright-report/**", "web/test-results/**"]
+}

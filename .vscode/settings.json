@@ -1,0 +1,4 @@
+{
+  // Same check as the ESLint rule better-tailwindcss/enforce-canonical-classes, shown while typing.
+  "tailwindCSS.lint.suggestCanonicalClasses": "error"
+}
