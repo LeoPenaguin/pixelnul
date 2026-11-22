@@ -18,6 +18,7 @@
     fetchConfig,
     fetchMe,
     fetchPixelInfo,
+    fetchStats,
     savePseudo,
     signOut,
     type Config,
@@ -55,6 +56,7 @@
   let paletteOpen = $state(false)
   let settings = $state(loadSettings())
   let heat = $state(false) // heatmap shown instead of the colours (painting off)
+  let heatMax = $state(1) // change count of the most painted pixel: top of the heatmap scale
   let hover = $state<Point | null>(null) // targeted pixel (mouse or keyboard cursor)
   let center = $state<Point>({ x: 0, y: 0 }) // pixel at the view centre
   let info = $state<PixelInfo | null>(null)
@@ -109,7 +111,8 @@
       info = i
       if (!speak || !isHovered(i)) return
       const changes = i.changes ? `, ${String(i.changes)} changement${i.changes > 1 ? 's' : ''}` : ''
-      announce(`${String(i.x)}, ${String(i.y)} : ${colorName(colors[i.c])}${changes}`)
+      const by = i.by ? `, par ${i.by}` : ''
+      announce(`${String(i.x)}, ${String(i.y)} : ${colorName(colors[i.c])}${changes}${by}`)
     } catch {
       // harmless: the info comes back on the next hover
     }
@@ -148,10 +151,15 @@
     loadInfo(true)
   }
 
-  function toggleHeat() {
+  async function toggleHeat() {
     heat = !heat
-    world?.setHeat(heat)
     announce(heat ? 'Carte de chaleur affichée' : 'Couleurs affichées')
+    if (heat) {
+      // The chunk bytes stop at 255; without the stats, the scale stays at its last top.
+      const s = await fetchStats().catch(() => null)
+      if (s) heatMax = Math.min(255, Math.max(1, s.hottest?.changes ?? 1))
+    }
+    world?.setHeat(heat, heatMax) // `heat` read again: H may have been pressed meanwhile
   }
 
   async function choosePseudo(pseudo: string) {
@@ -198,7 +206,7 @@
         settings.grid = !settings.grid
         break
       case 'heat':
-        toggleHeat()
+        void toggleHeat()
         break
       case 'palette':
         void toolbar?.toggle()
@@ -338,7 +346,7 @@
 {#if cfg}
   {@const conf = cfg}
   {#if heat}
-    <HeatLegend />
+    <HeatLegend max={heatMax} />
   {/if}
   <StatsDialog
     bind:this={statsDialog}
@@ -356,7 +364,7 @@
     onzoomout={() => world?.zoomBy(1 / 1.5)}
     onrecenter={() => world?.recenter()}
     {heat}
-    onheat={toggleHeat}
+    onheat={() => void toggleHeat()}
     ondownload={() => downloadDialog?.open()}
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}

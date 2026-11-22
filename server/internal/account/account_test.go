@@ -156,3 +156,18 @@ func TestRedisDown(t *testing.T) {
 		t.Error("SessionUser: an error was expected")
 	}
 }
+
+func TestPseudos(t *testing.T) {
+	s, mr := newTestStore(t)
+	tok, u := signIn(t, s, "a")
+	_ = s.SetPseudo(ctx, tok, "Minou")
+	_, noPseudo := signIn(t, s, "b")
+	got, err := s.Pseudos(ctx, []string{u.ID, noPseudo.ID, "deleted", ""})
+	if err != nil || len(got) != 4 || got[0] != "Minou" || got[1] != "" || got[2] != "" || got[3] != "" {
+		t.Errorf("pseudos = %q, %v", got, err)
+	}
+	_ = mr.Set("user:broken", "not a hash")
+	if _, err := s.Pseudos(ctx, []string{"broken"}); err == nil {
+		t.Error("a Redis error must be returned")
+	}
+}

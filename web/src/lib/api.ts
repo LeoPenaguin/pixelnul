@@ -13,8 +13,16 @@ export type Config = {
 /** Signed-in user; pseudo is empty until chosen. */
 export type User = { id: string; pseudo: string }
 
-/** A pixel's history; lastChange (Unix ms) is null if its colour never changed. */
-export type PixelInfo = { x: number; y: number; c: number; changes: number; lastChange: number | null }
+/** A pixel's history; lastChange (Unix ms) is null if its colour never changed; by = pseudo of the
+ *  last painter, null if anonymous or deleted. */
+export type PixelInfo = {
+  x: number
+  y: number
+  c: number
+  changes: number
+  lastChange: number | null
+  by: string | null
+}
 
 async function getJSON<T>(url: string): Promise<T> {
   const r = await fetch(url)
@@ -32,6 +40,7 @@ export type Stats = {
   hottest: { x: number; y: number; changes: number } | null
   colors: number[]
   hours: number[]
+  top: { pseudo: string; n: number }[] // most paints today (UTC day), best first
 }
 
 export const fetchConfig = () => getJSON<Config>('/api/config')

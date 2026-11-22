@@ -181,15 +181,48 @@ func (s *Server) statsRoute(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "redis error", http.StatusInternalServerError)
 			return
 		}
+		top, err := s.topPlayers(r.Context(), st.Top)
+		if err != nil {
+			http.Error(w, "redis error", http.StatusInternalServerError)
+			return
+		}
 		s.stats = mustJSON(struct {
 			board.Stats
-			Online int `json:"online"`
-		}{st, s.hub.online()})
+			Online int      `json:"online"`
+			Top    []player `json:"top"`
+		}{st, s.hub.online(), top})
 		s.statsTime = now
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(s.stats)
+}
+
+type player struct {
+	Pseudo string `json:"pseudo"`
+	N      int64  `json:"n"`
+}
+
+// topLen is how many of the day's best painters the stats show.
+const topLen = 10
+
+// topPlayers names the day's best painters, skipping deleted accounts.
+func (s *Server) topPlayers(ctx context.Context, scores []board.Score) ([]player, error) {
+	ids := make([]string, len(scores))
+	for i, sc := range scores {
+		ids[i] = sc.User
+	}
+	pseudos, err := s.accounts.Pseudos(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	top := []player{}
+	for i, p := range pseudos {
+		if p != "" && len(top) < topLen {
+			top = append(top, player{p, scores[i].N})
+		}
+	}
+	return top, nil
 }
 
 // writeBytes sends raw bytes, gzipped when the client accepts it.
@@ -208,7 +241,8 @@ func writeBytes(w http.ResponseWriter, r *http.Request, data []byte) {
 	_ = gz.Close()
 }
 
-// pixelInfo returns the colour, change count and time of the last change (null if never changed).
+// pixelInfo returns the colour, change count, time of the last change (null if never changed) and
+// pseudo of the last painter.
 func (s *Server) pixelInfo(w http.ResponseWriter, r *http.Request) {
 	if !s.lookups.get(clientIP(r)).Allow() {
 		http.Error(w, "too many requests", http.StatusTooManyRequests)
@@ -225,8 +259,21 @@ func (s *Server) pixelInfo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "redis error", http.StatusInternalServerError)
 		return
 	}
+	// The last painter's pseudo; null if anonymous or deleted.
+	pseudos, err := s.accounts.Pseudos(r.Context(), []string{info.User})
+	if err != nil {
+		http.Error(w, "redis error", http.StatusInternalServerError)
+		return
+	}
+	var by *string
+	if pseudos[0] != "" {
+		by = &pseudos[0]
+	}
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, info)
+	writeJSON(w, struct {
+		board.Info
+		By *string `json:"by"`
+	}{info, by})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

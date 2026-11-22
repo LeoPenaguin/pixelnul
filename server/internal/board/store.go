@@ -12,24 +12,28 @@ import (
 // Store keeps the world in Redis. For a chunk "cx:cy":
 //
 //	chunk:cx:cy  65,536-byte string, one colour per pixel (missing or short = white)
-//	meta:cx:cy   hash, "n:{offset}" = colour change count, "t:{offset}" = time of the last one (Unix ms)
+//	meta:cx:cy   hash, "n:{offset}" = colour change count, "t:{offset}" = time of the last one (Unix ms),
+//	             "u:{offset}" = user id of the last painter (missing if anonymous)
 //
 // and for the whole world:
 //
 //	stats:hourly hash, "{Unix hour}" = paints during that hour (counted since this key exists)
+//	top:{day}    sorted set, user id → paints during that UTC day (Unix ms / 86,400,000); kept 2 days
 //	log          stream, one entry per paint: x, y, c (colour), p (previous colour), u (user id, "" if anonymous), t (Unix ms)
 type Store struct{ rdb redis.UniversalClient }
 
 // NewStore stores the world in the given Redis.
 func NewStore(rdb redis.UniversalClient) *Store { return &Store{rdb} }
 
-// Info is a pixel's state. LastChange is nil if its colour never changed.
+// Info is a pixel's state. LastChange is nil if its colour never changed; User is the id of its
+// last painter, "" if anonymous.
 type Info struct {
 	X          int    `json:"x"`
 	Y          int    `json:"y"`
 	C          int    `json:"c"`
 	Changes    int64  `json:"changes"`
 	LastChange *int64 `json:"lastChange"`
+	User       string `json:"-"`
 }
 
 // Atomic paint: writes the byte, bumps the counters, timestamps the change and logs it. Every
@@ -43,17 +47,29 @@ prev = prev == '' and 0 or string.byte(prev)
 redis.call('SETRANGE', KEYS[1], off, string.char(tonumber(ARGV[2])))
 redis.call('HINCRBY', KEYS[2], 'n:' .. off, 1)
 redis.call('HSET', KEYS[2], 't:' .. off, ARGV[3])
+if ARGV[7] == '' then
+  redis.call('HDEL', KEYS[2], 'u:' .. off)
+else
+  redis.call('HSET', KEYS[2], 'u:' .. off, ARGV[7])
+  redis.call('ZINCRBY', KEYS[5], 1, ARGV[7])
+  redis.call('EXPIRE', KEYS[5], 172800)
+end
 redis.call('HINCRBY', KEYS[3], ARGV[4], 1)
 redis.call('XADD', KEYS[4], '*', 'x', ARGV[5], 'y', ARGV[6], 'c', ARGV[2], 'p', prev, 'u', ARGV[7], 't', ARGV[3])
 return 1
 `)
 
-const hourMs = 3_600_000
+const (
+	hourMs = 3_600_000
+	// ponytail: "today" is the UTC day (it starts at 1 or 2 am in France); a local day would need
+	// the visitor's time zone in the key.
+	dayMs = 86_400_000
+)
 
 // Paint sets a pixel at time `at` (Unix ms) for a user ("" if anonymous).
 func (s *Store) Paint(ctx context.Context, p Pixel, at int64, user string) error {
 	id, off := Locate(p.X, p.Y)
-	keys := []string{"chunk:" + id, "meta:" + id, "stats:hourly", "log"}
+	keys := []string{"chunk:" + id, "meta:" + id, "stats:hourly", "log", "top:" + strconv.FormatInt(at/dayMs, 10)}
 	return paintScript.Run(ctx, s.rdb, keys, off, p.C, at, at/hourMs, p.X, p.Y, user).Err()
 }
 
@@ -72,7 +88,7 @@ func (s *Store) Info(ctx context.Context, x, y int) (Info, error) {
 	o := strconv.FormatInt(off, 10)
 	pipe := s.rdb.Pipeline()
 	color := pipe.GetRange(ctx, "chunk:"+id, off, off)
-	meta := pipe.HMGet(ctx, "meta:"+id, "n:"+o, "t:"+o)
+	meta := pipe.HMGet(ctx, "meta:"+id, "n:"+o, "t:"+o, "u:"+o)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return Info{}, err
 	}
@@ -87,6 +103,7 @@ func (s *Store) Info(ctx context.Context, x, y int) (Info, error) {
 		last, _ := strconv.ParseInt(v, 10, 64)
 		info.LastChange = &last
 	}
+	info.User, _ = meta.Val()[2].(string)
 	return info, nil
 }
 
@@ -136,7 +153,17 @@ type Stats struct {
 	Hottest *Hot    `json:"hottest"` // nil while nothing is painted
 	Colors  []int   `json:"colors"`  // pixels of each palette colour on the board (index 0 = white, unpainted included)
 	Hours   []int64 `json:"hours"`   // paints during each of the last 24 hours, oldest first, current hour last
+	Top     []Score `json:"-"`       // most paints today (UTC), best first, at most TopSize
 }
+
+// Score is a user's paint count.
+type Score struct {
+	User string
+	N    int64
+}
+
+// TopSize is how many of the day's best painters Stats reads (extra ones cover deleted accounts).
+const TopSize = 20
 
 // Stats reads the whole world. Pixels outside the world (left by a former, larger size) are ignored.
 // ponytail: scans every chunk (1.5 MB for 1280 × 720); callers cache it. A much bigger world
@@ -161,6 +188,7 @@ func (s *Store) Stats(ctx context.Context, now int64) (Stats, error) {
 		fields[i] = strconv.FormatInt(hour-23+int64(i), 10)
 	}
 	hours := pipe.HMGet(ctx, "stats:hourly", fields...)
+	top := pipe.ZRevRangeWithScores(ctx, "top:"+strconv.FormatInt(now/dayMs, 10), 0, TopSize-1)
 	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
 		return Stats{}, err
 	}
@@ -196,6 +224,9 @@ func (s *Store) Stats(ctx context.Context, now int64) (Stats, error) {
 		if v, ok := v.(string); ok {
 			st.Hours[i], _ = strconv.ParseInt(v, 10, 64)
 		}
+	}
+	for _, z := range top.Val() {
+		st.Top = append(st.Top, Score{z.Member.(string), int64(z.Score)}) //nolint:forcetypeassert // go-redis returns string members
 	}
 	return st, nil
 }

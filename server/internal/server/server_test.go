@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -128,6 +130,24 @@ func TestPixelRoute(t *testing.T) {
 	}
 }
 
+func TestPixelRouteNamesTheLastPainter(t *testing.T) {
+	e := newTestEnv(t, Options{Burst: 1})
+	tok := signedIn(t, e, "a", "Minou")
+	u, _, _ := e.s.accounts.SessionUser(context.Background(), tok)
+	_ = e.s.store.Paint(context.Background(), board.Pixel{X: 1, Y: 1, C: 2}, 0, u.ID)
+	if _, body := get(t, e.url+"/api/pixels/1/1"); !strings.Contains(string(body), `"by":"Minou"`) {
+		t.Errorf("pixel = %s; want by Minou", body)
+	}
+	if _, body := get(t, e.url+"/api/pixels/0/0"); !strings.Contains(string(body), `"by":null`) {
+		t.Errorf("never painted = %s; want by null", body)
+	}
+	e.mr.Del("user:" + u.ID)
+	_ = e.mr.Set("user:"+u.ID, "not a hash")
+	if code, _ := get(t, e.url+"/api/pixels/1/1"); code != 500 {
+		t.Errorf("Redis error on the pseudo = %d; want 500", code)
+	}
+}
+
 func TestPixelRouteRateLimit(t *testing.T) {
 	e := newTestEnv(t, Options{Burst: 1})
 	limited := 0
@@ -178,6 +198,41 @@ func TestHeatRoute(t *testing.T) {
 	}
 	if code, _ := get(t, e.url+"/api/heat/99/0"); code != 400 {
 		t.Errorf("outside the world = %d; want 400", code)
+	}
+}
+
+func TestStatsTopNamesTheDaysBestPainters(t *testing.T) {
+	e := newTestEnv(t, Options{Burst: 1})
+	ctx := context.Background()
+	route := func() (int, string) {
+		e.s.stats = nil // no cache between the steps
+		w := httptest.NewRecorder()
+		e.s.statsRoute(w, httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/stats", http.NoBody))
+		return w.Code, w.Body.String()
+	}
+	if _, body := route(); !strings.Contains(body, `"top":[]`) {
+		t.Errorf("nobody painted today: %s", body)
+	}
+	ids := make([]string, 12)
+	for i := range ids {
+		tok := signedIn(t, e, fmt.Sprint("g", i), fmt.Sprint("joueur", i))
+		u, _, _ := e.s.accounts.SessionUser(ctx, tok)
+		ids[i] = u.ID
+		for range i + 1 { // joueur11 paints most
+			_ = e.s.store.Paint(ctx, board.Pixel{X: i, Y: 0, C: 1}, 42, u.ID)
+		}
+	}
+	e.mr.Del("user:" + ids[11]) // deleted account: skipped
+	_, body := route()
+	var st struct{ Top []player }
+	_ = json.Unmarshal([]byte(body), &st)
+	if len(st.Top) != topLen || st.Top[0] != (player{"joueur10", 11}) || st.Top[9] != (player{"joueur1", 2}) {
+		t.Errorf("top = %+v", st.Top)
+	}
+	e.mr.Del("user:" + ids[0])
+	_ = e.mr.Set("user:"+ids[0], "not a hash")
+	if code, _ := route(); code != 500 {
+		t.Errorf("Redis error on the pseudos = %d; want 500", code)
 	}
 }
 

@@ -59,7 +59,7 @@
       {#if colorLabel}<strong>{`${colorLabel} · `}</strong>{/if}
       <span>
         {#if info.lastChange}
-          {`${String(info.changes)} changement${plural(info.changes)} · dernier ${ago(info.lastChange, now)}`}
+          {`${String(info.changes)} changement${plural(info.changes)} · dernier ${ago(info.lastChange, now)}${info.by ? ` par ${info.by}` : ''}`}
         {:else if info.c}
           Peint avant le suivi des changements
         {:else}

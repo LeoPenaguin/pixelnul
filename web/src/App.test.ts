@@ -18,6 +18,8 @@ const config = {
 let info: Partial<PixelInfo> = {}
 let configResponse: () => Response | Promise<Response>
 let me: User | null = null
+let hottest: { x: number; y: number; changes: number } | null = null
+let statsUp = true
 let accountStatus = 204 // answer of the account actions (pseudo, sign out, delete)
 
 beforeEach(() => {
@@ -26,6 +28,8 @@ beforeEach(() => {
   configResponse = () => Response.json(config)
   me = null
   accountStatus = 204
+  hottest = { x: 40, y: -3, changes: 1 }
+  statsUp = true
   stubWebSocket()
   stubFetch({
     '/api/me/pseudo': () =>
@@ -36,18 +40,21 @@ beforeEach(() => {
     '/api/config': () => configResponse(),
     '/api/chunks/': () => new Response(new Uint8Array()),
     '/api/stats': () =>
-      Response.json({
-        placed: 1,
-        painted: 1,
-        pixels: 921_600,
-        online: 1,
-        hottest: { x: 40, y: -3, changes: 1 },
-        colors: [0, 1],
-        hours: Array<number>(24).fill(0),
-      }),
+      statsUp
+        ? Response.json({
+            placed: 1,
+            painted: 1,
+            pixels: 921_600,
+            online: 1,
+            hottest,
+            colors: [0, 1],
+            hours: Array<number>(24).fill(0),
+            top: [],
+          })
+        : new Response('', { status: 500 }),
     '/api/pixels/': (url) => {
       const [x, y] = url.split('/').slice(-2).map(Number)
-      return Response.json({ x, y, c: 0, changes: 0, lastChange: null, ...info })
+      return Response.json({ x, y, c: 0, changes: 0, lastChange: null, by: null, ...info })
     },
   })
 })
@@ -257,9 +264,9 @@ describe('keyboard', () => {
     info = { c: 5, changes: 1, lastChange: 1 }
     press('ArrowRight')
     await announced('1, 0 : Noir, 1 changement')
-    info = { c: 5, changes: 4, lastChange: 1 }
+    info = { c: 5, changes: 4, lastChange: 1, by: 'Minou' }
     press('ArrowDown', { shiftKey: true })
-    await announced('1, 10 : Noir, 4 changements')
+    await announced('1, 10 : Noir, 4 changements, par Minou')
     expect(fields()).toEqual([1, 10])
     press(' ')
     expect(ws.sent).toEqual([{ x: 1, y: 10, c: 5 }])
@@ -322,6 +329,23 @@ describe('keyboard', () => {
     await page.getByRole('button', { name: 'Carte de chaleur' }).click()
     await expect.element(page.getByRole('group', { name: 'Légende de la carte de chaleur' })).not.toBeInTheDocument()
     await announced('Couleurs affichées')
+  })
+
+  test('the heatmap scale tops at the most painted pixel', async () => {
+    await start()
+    const legend = () => page.getByRole('group', { name: 'Légende de la carte de chaleur' })
+    hottest = { x: 0, y: 0, changes: 900 }
+    press('h')
+    await expect.element(legend().getByText('255', { exact: true })).toBeVisible() // chunk bytes stop at 255
+    press('h')
+    statsUp = false
+    press('h')
+    await expect.element(legend().getByText('255', { exact: true })).toBeVisible() // stats down: last top kept
+    press('h')
+    statsUp = true
+    hottest = null // nothing painted yet
+    press('h')
+    await expect.element(legend().getByText('1', { exact: true })).toBeVisible()
   })
 
   test('the statistics lead to the most disputed pixel', async () => {

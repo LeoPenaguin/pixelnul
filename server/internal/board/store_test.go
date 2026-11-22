@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -52,6 +53,30 @@ func TestPaintLogsWhoAndWhat(t *testing.T) {
 				t.Errorf("entry %d: %s = %v; want %v", i, k, e.Values[k], v)
 			}
 		}
+	}
+}
+
+func TestPaintRemembersTheLastPainterAndTheDayTop(t *testing.T) {
+	s, mr := newTestStore(t)
+	ctx := context.Background()
+	const day = 20_000 * dayMs
+	_ = s.Paint(ctx, Pixel{1, 1, 3}, day+5, "u1")
+	_ = s.Paint(ctx, Pixel{2, 1, 3}, day+6, "u1")
+	_ = s.Paint(ctx, Pixel{2, 1, 4}, day+7, "u2")
+	if info, _ := s.Info(ctx, 2, 1); info.User != "u2" {
+		t.Errorf("last painter = %q; want u2", info.User)
+	}
+	_ = s.Paint(ctx, Pixel{2, 1, 5}, day+8, "")
+	if info, _ := s.Info(ctx, 2, 1); info.User != "" {
+		t.Errorf("repainted anonymously: last painter = %q; want none", info.User)
+	}
+	_ = s.Paint(ctx, Pixel{3, 1, 5}, day+dayMs, "u2") // tomorrow: another top
+	st, _ := s.Stats(ctx, day+9)
+	if len(st.Top) != 2 || st.Top[0] != (Score{"u1", 2}) || st.Top[1] != (Score{"u2", 1}) {
+		t.Errorf("top = %+v; want u1 2, u2 1", st.Top)
+	}
+	if ttl := mr.TTL("top:20000"); ttl != 48*time.Hour {
+		t.Errorf("top TTL = %v; want 2 days", ttl)
 	}
 }
 

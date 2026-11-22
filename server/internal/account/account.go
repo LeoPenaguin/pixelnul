@@ -145,3 +145,21 @@ func (s *Store) Delete(ctx context.Context, tok string) error {
 	}
 	return err
 }
+
+// Pseudos returns the pseudo of each user id ("" for a deleted account, or one without a pseudo yet).
+func (s *Store) Pseudos(ctx context.Context, ids []string) ([]string, error) {
+	pipe := s.rdb.Pipeline()
+	cmds := make([]*redis.StringCmd, len(ids))
+	for i, id := range ids {
+		cmds[i] = pipe.HGet(ctx, "user:"+id, "pseudo")
+	}
+	_, _ = pipe.Exec(ctx) // returns only the first error, maybe a harmless redis.Nil: each one is checked below
+	out := make([]string, len(ids))
+	for i, c := range cmds {
+		if err := c.Err(); err != nil && !errors.Is(err, redis.Nil) {
+			return nil, err
+		}
+		out[i] = c.Val()
+	}
+	return out, nil
+}

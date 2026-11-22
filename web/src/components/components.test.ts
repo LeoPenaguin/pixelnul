@@ -139,16 +139,16 @@ describe('JumpPanel', () => {
   test('shows the history', async () => {
     const screen = await render(JumpPanel, {
       ...base,
-      info: { x: 3, y: -4, c: 2, changes: 3, lastChange: 100_000 - 120_000 },
+      info: { x: 3, y: -4, c: 2, changes: 3, lastChange: 100_000 - 120_000, by: 'Minou' },
     })
-    await expect.element(screen.getByText('3 changements · dernier il y a 2 minutes')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 1, lastChange: 40_000 } })
+    await expect.element(screen.getByText('3 changements · dernier il y a 2 minutes par Minou')).toBeVisible()
+    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 1, lastChange: 40_000, by: null } })
     await expect.element(screen.getByText('1 changement · dernier il y a 1 minute')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 0, lastChange: null } })
+    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Peint avant le suivi des changements')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null } })
+    await screen.rerender({ info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Jamais peint')).toBeVisible()
-    await screen.rerender({ colorLabel: 'Noir', info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null } })
+    await screen.rerender({ colorLabel: 'Noir', info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Noir ·')).toBeVisible()
   })
 })
@@ -406,11 +406,10 @@ describe('DownloadDialog', () => {
 })
 
 describe('HeatLegend', () => {
-  test('explains the colour steps', async () => {
-    const screen = await render(HeatLegend)
+  test('runs from 0 to the board maximum', async () => {
+    const screen = await render(HeatLegend, { max: 42 })
     const legend = screen.getByRole('group', { name: 'Légende de la carte de chaleur' })
-    for (const label of ['0', '3–4', '10+'])
-      await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
+    for (const label of ['0', '42']) await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
   })
 })
 
@@ -424,6 +423,10 @@ describe('StatsDialog', () => {
     hottest: { x: -4, y: 7, changes: 12 },
     colors: [900_000, 30, 10, 0, 60],
     hours: [...Array<number>(22).fill(0), 5, 1],
+    top: [
+      { pseudo: 'Minou', n: 12 },
+      { pseudo: 'Pixel', n: 1 },
+    ],
   }
 
   test('shows the figures, the activity, the colours and jumps to the hottest pixel', async () => {
@@ -446,6 +449,10 @@ describe('StatsDialog', () => {
       'Noir',
       'Rouge vif',
     ])
+    expect([...screen.container.querySelectorAll('.top li')].map((n) => n.textContent)).toEqual([
+      '1 Minou 12 pixels',
+      '2 Pixel 1 pixel',
+    ])
     await expect.element(screen.getByText('-4, 7 · peint 12 fois')).toBeVisible()
     await screen.getByRole('button', { name: 'Y aller' }).click()
     expect(onjump).toHaveBeenCalledWith(-4, 7)
@@ -461,6 +468,7 @@ describe('StatsDialog', () => {
         hottest: null,
         colors: [921_600, 0, 0, 0, 0],
         hours: Array<number>(24).fill(0),
+        top: [],
       })
     await screen.component.open()
     await expect.element(screen.getByText("Rien n'a encore été peint.")).toBeVisible()
@@ -468,6 +476,7 @@ describe('StatsDialog', () => {
     await expect.element(screen.getByText('0 %', { exact: true })).toBeVisible()
     await expect.element(screen.getByText('0 pixel en 24 h')).toBeVisible()
     await expect.element(screen.getByText('Pixel le plus disputé')).not.toBeInTheDocument()
+    await expect.element(screen.getByText("Meilleurs peintres aujourd'hui")).not.toBeInTheDocument()
 
     answer = () => new Response('', { status: 500 })
     await screen.component.open()

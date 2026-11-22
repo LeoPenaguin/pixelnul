@@ -106,6 +106,19 @@
       <p class="note">Rien n'a encore été peint.</p>
     {/if}
 
+    {#if s.top.length}
+      <h3>Meilleurs peintres aujourd'hui</h3>
+      <ol class="top">
+        {#each s.top as p, i (p.pseudo)}
+          <li>
+            <span class="rank">{i + 1}</span>
+            <span class="name">{p.pseudo}</span>
+            <span class="pct">{plural(p.n, 'pixel')}</span>
+          </li>
+        {/each}
+      </ol>
+    {/if}
+
     {#if s.hottest}
       {@const h = s.hottest}
       <h3>Pixel le plus disputé</h3>
@@ -219,6 +232,23 @@
     border-radius: 3px;
   }
   .pct {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .top {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 4px 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .top li {
+    display: contents;
+  }
+  .rank {
+    min-width: 2ch;
+    color: var(--muted-foreground);
     font-variant-numeric: tabular-nums;
     text-align: right;
   }
