@@ -1,0 +1,33 @@
+{
+  // Terminal > Run Task… (or Cmd+Shift+P "Tasks: Run Task"). Each task runs in its own terminal.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "back",
+      "detail": "Go server on :3007 (starts Redis if needed)",
+      "type": "shell",
+      "command": "(redis-cli ping >/dev/null 2>&1 || redis-server --daemonize yes) && go run .",
+      "options": { "cwd": "${workspaceFolder}/server" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated" }
+    },
+    {
+      "label": "front",
+      "detail": "Vite dev server on :5173",
+      "type": "shell",
+      "command": "pnpm dev",
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated" }
+    },
+    {
+      "label": "back + front",
+      "dependsOn": ["back", "front"],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}
