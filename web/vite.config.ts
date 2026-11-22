@@ -1,4 +1,7 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
+import tailwindcss from '@tailwindcss/vite'
+import Icons from 'unplugin-icons/vite'
+import { fileURLToPath } from 'node:url'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
 
@@ -7,7 +10,14 @@ import { defineConfig } from 'vitest/config'
 const api = `localhost:${process.env.API_PORT ?? '3007'}`
 
 export default defineConfig({
-  plugins: [svelte()],
+  // Icons: `import Name from '~icons/mingcute/<name>'`, compiled at build time (https://icones.js.org/collection/mingcute).
+  plugins: [tailwindcss(), svelte(), Icons({ compiler: 'svelte' })],
+  resolve: {
+    alias: {
+      $lib: fileURLToPath(new URL('src/lib', import.meta.url)),
+      $components: fileURLToPath(new URL('src/components', import.meta.url)),
+    },
+  },
   server: {
     proxy: {
       '/api': `http://${api}`,

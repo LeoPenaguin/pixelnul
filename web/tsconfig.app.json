@@ -4,7 +4,7 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "es2023",
     "module": "esnext",
-    "types": ["svelte", "vite/client", "@vitest/browser-playwright"],
+    "types": ["svelte", "vite/client", "@vitest/browser-playwright", "unplugin-icons/types/svelte"],
     "allowArbitraryExtensions": true,
     "noEmit": true,
     /**
@@ -15,7 +15,8 @@
      */
     "allowJs": true,
     "checkJs": true,
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    "paths": { "$lib/*": ["./src/lib/*"], "$components/*": ["./src/components/*"] }
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
 }

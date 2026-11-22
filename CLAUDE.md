@@ -13,6 +13,7 @@ server/                     Go module github.com/LeoPenaguin/pixels/server
 web/                        Svelte 5 + Vite + TypeScript, pnpm
   src/App.svelte            wiring only: engine, live connection, keyboard, panels
   src/components/           presentational Svelte components (PascalCase.svelte)
+  src/components/ui/        shadcn-svelte components (copied by its CLI, then owned and restyled here)
   src/lib/                  framework-free logic: api, live (WebSocket), keyboard, quota, colors, time
   src/lib/engine/           canvas engine: camera (pure maths), chunks (cache), minimap, world (rendering + input)
   src/test/fakes.ts         shared test doubles (fetch, WebSocket, frames)

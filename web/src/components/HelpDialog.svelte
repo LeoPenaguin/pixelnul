@@ -1,20 +1,46 @@
-<!-- Keyboard shortcut list. Native <dialog>: the browser traps focus, handles Escape and restores focus. -->
+<!-- Keyboard shortcut list. -->
 <script lang="ts">
-  let dialog: HTMLDialogElement
+  import Plus from '~icons/mingcute/add-fill'
+  import ArrowDown from '~icons/mingcute/arrow-down-fill'
+  import ArrowLeft from '~icons/mingcute/arrow-left-fill'
+  import ArrowRight from '~icons/mingcute/arrow-right-fill'
+  import ArrowUp from '~icons/mingcute/arrow-up-fill'
+  import Minus from '~icons/mingcute/minimize-fill'
+  import KeyCap, { type Key } from './KeyCap.svelte'
+  import Modal from './Modal.svelte'
+
+  let modal: { open: () => void; isOpen: () => boolean }
 
   export function open() {
-    dialog.showModal()
+    modal.open()
   }
 
   export function isOpen() {
-    return dialog.open
+    return modal.isOpen()
   }
 
-  const SHORTCUTS: [keys: string[], joiner: string, label: string][] = [
-    [['←', '↑', '→', '↓'], ' ', 'Déplacer le curseur (la vue suit)'],
+  // Keys that are symbols use library icons; keys that are words or characters stay text.
+  const SHORTCUTS: [keys: Key[], joiner: string, label: string][] = [
+    [
+      [
+        { icon: ArrowLeft, name: 'flèche gauche' },
+        { icon: ArrowUp, name: 'flèche haut' },
+        { icon: ArrowRight, name: 'flèche droite' },
+        { icon: ArrowDown, name: 'flèche bas' },
+      ],
+      ' ',
+      'Déplacer le curseur (la vue suit)',
+    ],
     [['Maj', 'flèches'], ' + ', 'Déplacer de 10 pixels'],
     [['Entrée', 'Espace'], ' ou ', 'Poser un pixel sous le curseur'],
-    [['+', '−'], ' ', 'Zoomer, dézoomer'],
+    [
+      [
+        { icon: Plus, name: 'plus' },
+        { icon: Minus, name: 'moins' },
+      ],
+      ' ',
+      'Zoomer, dézoomer',
+    ],
     [['0'], '', 'Revenir en 0, 0'],
     [['C'], '', 'Ouvrir ou fermer les couleurs (flèches pour choisir)'],
     [['G'], '', 'Afficher ou cacher la grille'],
@@ -24,90 +50,63 @@
   ]
 </script>
 
-<!-- A click on the backdrop (outside the content) closes the dialog; Escape does the same. -->
-<dialog
-  class="panel help"
-  bind:this={dialog}
-  aria-labelledby="help-title"
-  onclick={(e) => {
-    if (e.target === dialog) dialog.close()
-  }}
->
-  <div class="head">
-    <h2 id="help-title">Raccourcis clavier</h2>
-    <button
-      type="button"
-      class="icon"
-      aria-label="Fermer"
-      title="Fermer (Échap)"
-      onclick={() => {
-        dialog.close()
-      }}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <path d="M6 6l12 12M18 6L6 18" />
-      </svg>
-    </button>
-  </div>
+<Modal bind:this={modal} title="Raccourcis clavier">
   <dl>
     {#each SHORTCUTS as [keys, joiner, label] (label)}
-      <dt>
-        {#each keys as k, i (k)}{#if i}{joiner}{/if}<kbd>{k}</kbd>{/each}
-      </dt>
-      <dd>{label}</dd>
+      <!-- One element per row (valid in a <dl>): its border is the full-width line between rows. -->
+      <div class="row">
+        <dt>
+          {#each keys as k, i (i)}{#if i}{joiner}{/if}<kbd><KeyCap key={k} /></kbd>{/each}
+        </dt>
+        <dd>{label}</dd>
+      </div>
     {/each}
   </dl>
-</dialog>
+</Modal>
 
 <style>
-  .help {
-    max-width: min(440px, calc(100vw - 32px));
-    padding: 16px 18px;
-    border: 0;
-    line-height: 1.4;
-  }
-  .help::backdrop {
-    background: rgb(0 0 0 / 0.35);
-  }
-  .head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  h2 {
-    margin: 0;
-    font-size: 15px;
-  }
   dl {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 8px 16px;
+    column-gap: 16px;
     margin: 0;
+  }
+  /* Each row spans both columns and shares the list's columns, so keys and labels stay aligned. */
+  .row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--ink);
+  }
+  .row:first-child {
+    padding-top: 0;
+    border-top: 0;
   }
   dt {
     white-space: nowrap;
   }
   dd {
     margin: 0;
-    color: #c8c8c8;
+    color: var(--muted-foreground);
     font-weight: 400;
   }
+  /* Fixed height and an equal minimum width: one-character keys are square, words grow wider. */
   kbd {
-    display: inline-block;
-    min-width: 1.4em;
-    padding: 2px 5px;
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 5px;
     border-radius: 4px;
-    background: #333;
+    border: 2px solid var(--ink);
+    background: var(--highlight);
     font: inherit;
-    text-align: center;
+    line-height: 1;
+  }
+  /* Icon keys: no side padding, so they stay square like one-character keys. */
+  kbd:has(:global(svg)) {
+    padding: 0;
   }
 </style>

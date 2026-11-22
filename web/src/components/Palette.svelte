@@ -25,7 +25,7 @@
 </script>
 
 <div class="panel popover" id="palette-panel">
-  <div class="grid" role="radiogroup" aria-label="Couleur" tabindex="-1" onkeydown={keydown}>
+  <div class="swatches" role="radiogroup" aria-label="Couleur" tabindex="-1" onkeydown={keydown}>
     {#each rows as row, r (r)}
       {#each row as hex, i (hex)}
         {@const index = starts[r] + i}
@@ -53,7 +53,7 @@
     position: static;
     padding: 10px;
   }
-  .grid {
+  .swatches {
     display: grid;
     grid-auto-columns: 26px;
     grid-auto-rows: 26px;
@@ -61,7 +61,7 @@
   }
   .swatch {
     border-radius: 6px;
-    border: 1px solid rgb(255 255 255 / 0.18);
+    border: 2px solid var(--ink);
     cursor: pointer;
     padding: 0;
   }
@@ -70,7 +70,7 @@
   }
   .swatch:focus-visible,
   .swatch.selected {
-    outline: 2px solid #f2f2f2;
+    outline: var(--stroke) solid var(--focus);
     outline-offset: 1px;
   }
   @media (prefers-reduced-motion: reduce) {

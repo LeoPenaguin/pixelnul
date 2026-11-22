@@ -1,10 +1,12 @@
 <!-- Application: wires the board engine, the real-time connection, the keyboard and the panels. -->
 <script lang="ts">
   import { onMount } from 'svelte'
+  import AboutDialog from './components/AboutDialog.svelte'
   import HelpDialog from './components/HelpDialog.svelte'
   import JumpPanel from './components/JumpPanel.svelte'
   import NavControls from './components/NavControls.svelte'
   import ServerDown from './components/ServerDown.svelte'
+  import SitePanel from './components/SitePanel.svelte'
   import Toolbar from './components/Toolbar.svelte'
   import { fetchConfig, fetchPixelInfo, type Config, type PixelInfo } from './lib/api'
   import { colorName } from './lib/colors'
@@ -21,7 +23,8 @@
   let minimap: HTMLCanvasElement
   // Methods exposed by the components (bind:this).
   let toolbar = $state<{ toggle: () => Promise<void>; close: () => void }>()
-  let help: { open: () => void; isOpen: () => boolean }
+  let help: { open: () => void }
+  let about: { open: () => void }
   let world: World | undefined
   let live: Live | undefined
 
@@ -141,8 +144,8 @@
   }
 
   function keydown(e: KeyboardEvent) {
-    // Typing coordinates, key already handled (palette) or help open (it handles Escape): leave it.
-    if (e.target instanceof HTMLInputElement || e.defaultPrevented || help.isOpen()) return
+    // Typing coordinates, key already handled (palette) or a dialog open (it handles Escape): leave it.
+    if (e.target instanceof HTMLInputElement || e.defaultPrevented || document.querySelector('dialog[open]')) return
     const a = shortcut(e, e.target === canvas || e.target === document.body)
     if (!a) return
     e.preventDefault()
@@ -223,18 +226,28 @@
      is bound before the engine starts. -->
 <canvas class="panel minimap" bind:this={minimap} hidden={!cfg} aria-hidden="true"></canvas>
 <HelpDialog bind:this={help} />
+<AboutDialog bind:this={about} />
 
-{#if down}
+<!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. -->
+{#if down || lost}
   <ServerDown />
 {/if}
 
-{#if lost}
-  <div class="panel offline" role="status">Connexion perdue, reconnexion…</div>
-{/if}
+<!-- Top-left column: the site panel, then the X / Y panel (once loaded) which grows on its own. -->
+<div class="top-left">
+  <SitePanel onabout={() => about.open()} />
+  {#if cfg}
+    <JumpPanel
+      position={hover ?? center}
+      info={shownInfo}
+      {now}
+      onjump={(x: number, y: number) => world?.jumpTo(x, y)}
+    />
+  {/if}
+</div>
 
 <!-- Controls only once the board is loaded: before that they would do nothing. -->
 {#if cfg}
-  <JumpPanel position={hover ?? center} info={shownInfo} {now} onjump={(x: number, y: number) => world?.jumpTo(x, y)} />
   <NavControls
     onzoomin={() => world?.zoomBy(1.5)}
     onzoomout={() => world?.zoomBy(1 / 1.5)}
@@ -264,8 +277,17 @@
     touch-action: none;
   }
   .world:focus-visible {
-    outline: 3px solid #1e1e1e;
+    outline: var(--stroke) solid var(--focus);
     outline-offset: -3px;
+  }
+  .top-left {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
   .minimap {
     top: 12px;
@@ -276,15 +298,11 @@
     touch-action: none;
   }
   @media (max-width: 480px) {
+    /* Below the top-left column, which takes most of the width. */
     .minimap {
+      top: 160px;
       width: 96px;
       height: 96px;
     }
-  }
-  .offline {
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 8px 12px;
   }
 </style>

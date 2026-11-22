@@ -1,4 +1,6 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+  // Read by the shadcn-svelte CLI; the compiler uses the copy in tsconfig.app.json.
+  "compilerOptions": { "paths": { "$lib/*": ["./src/lib/*"], "$components/*": ["./src/components/*"] } }
 }

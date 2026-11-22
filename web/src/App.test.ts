@@ -67,8 +67,8 @@ describe('painting pixels', () => {
     const { ws } = await start()
     await page.getByRole('button', { name: /^Couleurs/ }).click()
     await page.getByRole('radio', { name: 'Rouge vif' }).click()
-    const center = board().getBoundingClientRect()
-    click(center.width / 2, center.height / 2)
+    const r = board().getBoundingClientRect()
+    click(r.left + r.width / 2, r.top + r.height / 2)
     expect(ws.sent).toEqual([{ x: 0, y: 0, c: 6 }])
     await announced('Rouge vif posé en 0, 0')
     await expect.element(page.getByRole('radiogroup')).not.toBeInTheDocument()
@@ -96,14 +96,14 @@ describe('painting pixels', () => {
   test('offline: nothing is sent, the disconnection and then the reconnection are shown', async () => {
     const { ws } = await start()
     ws.close()
-    await expect.element(page.getByRole('status')).toHaveTextContent('Connexion perdue, reconnexion…')
+    await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).toBeVisible()
     click(10, 10)
     await announced('Hors ligne, pixel non posé')
     await vi.waitFor(() => {
       expect(FakeWebSocket.instances).toHaveLength(2)
     })
     FakeWebSocket.last.open()
-    await expect.element(page.getByRole('status')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).not.toBeInTheDocument()
   })
 
   test('without a quota limit, no gauge or countdown', async () => {
@@ -121,7 +121,9 @@ describe('targeted pixel history', () => {
     const { ws } = await start()
     info = { c: 5, changes: 2, lastChange: Date.now() - 5000 }
     const r = board().getBoundingClientRect()
-    board().dispatchEvent(new PointerEvent('pointermove', { clientX: r.width / 2, clientY: r.height / 2 }))
+    board().dispatchEvent(
+      new PointerEvent('pointermove', { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }),
+    )
     await expect.element(page.getByText('2 changements · dernier il y a 5 secondes')).toBeVisible()
     expect(fields()).toEqual([0, 0])
 
@@ -188,6 +190,15 @@ describe('keyboard', () => {
     await expect.element(page.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'false')
     await userEvent.keyboard('{Escape}')
     press('x') // key without a shortcut
+  })
+
+  test('the site panel opens the about dialog, which disables the shortcuts', async () => {
+    await start()
+    await page.getByRole('button', { name: 'À propos' }).click()
+    await expect.element(page.getByRole('heading', { name: 'À propos' })).toBeVisible()
+    press('g')
+    await expect.element(page.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.keyboard('{Escape}')
   })
 
   test('the X / Y fields keep their keys and allow jumping', async () => {

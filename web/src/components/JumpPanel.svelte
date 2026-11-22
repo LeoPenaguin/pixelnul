@@ -1,5 +1,6 @@
 <!-- Top-left panel: coordinates of the targeted pixel (editable to jump there) and its history. -->
 <script lang="ts">
+  import ArrowRight from '~icons/mingcute/arrow-right-fill'
   import type { PixelInfo } from '../lib/api'
   import type { Point } from '../lib/engine/camera'
   import { ago } from '../lib/time'
@@ -36,7 +37,7 @@
   const plural = (n: number) => (n > 1 ? 's' : '')
 </script>
 
-<div class="panel top-left">
+<div class="panel jump">
   <form
     class="row"
     aria-label="Aller à un pixel"
@@ -49,17 +50,7 @@
     <label>X <input type="number" step="1" bind:value={fx} onkeydown={cancel} aria-label="Coordonnée X" /></label>
     <label>Y <input type="number" step="1" bind:value={fy} onkeydown={cancel} aria-label="Coordonnée Y" /></label>
     <button class="icon" type="submit" title="Aller à ces coordonnées (Entrée)" aria-label="Aller à ces coordonnées">
-      <svg
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <path d="M5 12h14M13 6l6 6-6 6" />
-      </svg>
+      <ArrowRight width="16" height="16" aria-hidden="true" />
     </button>
   </form>
   {#if info}
@@ -76,9 +67,9 @@
 </div>
 
 <style>
-  .top-left {
-    top: 12px;
-    left: 12px;
+  /* Positioned by App, in the top-left column. */
+  .jump {
+    position: static;
     padding: 4px 4px 4px 10px;
   }
   .row {
@@ -87,28 +78,28 @@
     align-items: center;
   }
   .info {
-    padding: 2px 6px 6px 0;
+    padding: 10px 6px 6px 0;
     font-weight: 400;
-    color: #a0a0a0;
+    color: var(--muted-foreground);
   }
   label {
     display: flex;
     align-items: center;
     gap: 4px;
-    color: #a0a0a0;
+    font-weight: 700;
   }
   input {
     width: 8ch;
     padding: 4px 6px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: #2c2c2c;
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    background: var(--highlight);
     font: inherit;
-    color: #f2f2f2;
+    color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
   input:focus {
-    outline: none;
-    border-color: #f2f2f2;
+    outline: var(--stroke) solid var(--focus);
+    outline-offset: 1px;
   }
 </style>

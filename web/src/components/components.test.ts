@@ -2,12 +2,14 @@ import { describe, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-svelte'
 import { config } from '../test/fakes'
+import AboutDialog from './AboutDialog.svelte'
 import HelpDialog from './HelpDialog.svelte'
 import JumpPanel from './JumpPanel.svelte'
 import NavControls from './NavControls.svelte'
 import Palette from './Palette.svelte'
 import Quota from './Quota.svelte'
 import ServerDown from './ServerDown.svelte'
+import SitePanel from './SitePanel.svelte'
 import Toolbar from './Toolbar.svelte'
 
 describe('NavControls', () => {
@@ -19,6 +21,27 @@ describe('NavControls', () => {
     await screen.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
+  })
+
+  test('shows the label and shortcut of a focused button', async () => {
+    const screen = await render(NavControls, {
+      onzoomin: vi.fn(),
+      onzoomout: vi.fn(),
+      onrecenter: vi.fn(),
+      onhelp: vi.fn(),
+    })
+    // Icon keys are read by their name ("plus"), text keys as they are.
+    const tips = {
+      Zoomer: 'Zoomer plus',
+      Dézoomer: 'Dézoomer moins',
+      'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
+      'Raccourcis clavier': 'Raccourcis clavier ?',
+    }
+    for (const [name, description] of Object.entries(tips)) {
+      const button = screen.getByRole('button', { name })
+      button.element().focus()
+      await expect.element(button).toHaveAccessibleDescription(description)
+    }
   })
 })
 
@@ -135,14 +158,25 @@ describe('Quota', () => {
     const rules = { burst: 3, refillMs: 1000 }
     const screen = await render(Quota, { rules, snapshot: { n: 3, at: 0 }, now: 0 })
     await expect.element(screen.getByText('3 pixels disponibles sur 3')).toBeInTheDocument()
-    await expect.element(screen.getByText('max 3')).toBeVisible()
     await screen.rerender({ snapshot: { n: 0.5, at: 0 } })
     await expect.element(screen.getByText('0 pixel disponible sur 3, prochain dans 1 secondes')).toBeInTheDocument()
-    await expect.element(screen.getByText('+1 dans 1 s')).toBeVisible()
-    // The ring loops once per missing pixel, half-way through the first one.
-    const ring = screen.container.querySelector<SVGElement>('.progress')!
-    expect(ring.style.animationIterationCount).toBe('3')
-    expect(ring.style.animationDelay).toBe('-500ms')
+  })
+
+  test('fills one block per available pixel and the next one by its refill', async () => {
+    const screen = await render(Quota, { rules: { burst: 3, refillMs: 1000 }, snapshot: { n: 1.5, at: 0 }, now: 0 })
+    const fills = [...screen.container.querySelectorAll<HTMLElement>('.fill')].map((f) => f.style.height)
+    expect(fills).toEqual(['100%', '50%', '0%'])
+    await expect.element(screen.getByText('1', { exact: true })).toBeVisible()
+  })
+
+  test('animates a refill, not a painted pixel', async () => {
+    const screen = await render(Quota, { rules: { burst: 3, refillMs: 1000 }, snapshot: { n: 1.5, at: 0 }, now: 0 })
+    const fill = () => screen.container.querySelectorAll('.fill')[1]
+    expect(fill()).not.toHaveClass('rising')
+    await screen.rerender({ now: 250 }) // refilling
+    expect(fill()).toHaveClass('rising')
+    await screen.rerender({ snapshot: { n: 0.75, at: 250 } }) // a pixel painted
+    expect(fill()).not.toHaveClass('rising')
   })
 })
 
@@ -190,5 +224,27 @@ describe('Toolbar', () => {
     const screen = await render(Toolbar, { ...props, quota: null, ontogglegrid: vi.fn() })
     await expect.element(screen.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'true')
     await expect.element(screen.getByText(/disponible/)).not.toBeInTheDocument()
+  })
+})
+
+describe('SitePanel', () => {
+  test('shows the site name, opens the about dialog and links to donations', async () => {
+    const onabout = vi.fn()
+    const screen = await render(SitePanel, { onabout })
+    await expect.element(screen.getByText('Pixels')).toBeVisible()
+    await expect.element(screen.getByRole('link', { name: 'Faire un don' })).toBeVisible()
+    await screen.getByRole('button', { name: 'À propos' }).click()
+    expect(onabout).toHaveBeenCalledOnce()
+  })
+})
+
+describe('AboutDialog', () => {
+  test('opens on the site rules with a link to the code', async () => {
+    const screen = await render(AboutDialog)
+    screen.component.open()
+    await expect.element(screen.getByRole('heading', { name: 'À propos' })).toBeVisible()
+    await expect
+      .element(screen.getByRole('link', { name: 'GitHub' }))
+      .toHaveAttribute('href', 'https://github.com/LeoPenaguin/pixels')
   })
 })

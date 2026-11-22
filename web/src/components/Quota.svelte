@@ -1,4 +1,4 @@
-<!-- Quota gauge: the ring shows the next pixel's refill, the number the available pixels. -->
+<!-- Quota gauge: one block per pixel of the burst, the refilling one filling up, and the count. -->
 <script lang="ts">
   import { quotaAt, type QuotaRules, type QuotaSnapshot } from '../lib/quota'
 
@@ -6,11 +6,16 @@
   const { rules, snapshot, now }: Props = $props()
 
   const q = $derived(quotaAt(rules, snapshot, now))
-  // The ring runs on a CSS animation, not on `now` (which ticks every 250 ms): one loop per pixel
-  // regained, phased on the snapshot, stopping full. Restarted only when a new snapshot arrives.
-  const ring = $derived.by(() => {
-    const q0 = quotaAt(rules, snapshot, snapshot.at)
-    return { delay: -q0.progress * rules.refillMs, loops: rules.burst - q0.available }
+  // Fill level of each block: 1 when available, the refill progress for the next one, 0 beyond.
+  const blocks = $derived(
+    Array.from({ length: rules.burst }, (_, i) => (i < q.available ? 1 : i === q.available ? q.progress : 0)),
+  )
+  // Only a refill animates: a painted pixel just disappears.
+  let previous: number[] = []
+  const rising = $derived.by(() => {
+    const r = blocks.map((fill, i) => fill > (previous[i] ?? fill))
+    previous = blocks
+    return r
   })
   const s = (n: number) => (n > 1 ? 's' : '')
 </script>
@@ -21,34 +26,15 @@
       q.full ? '' : `, prochain dans ${String(q.nextIn)} secondes`
     }`}
   </span>
-  <span class="ring" aria-hidden="true">
-    <svg viewBox="0 0 36 36" width="34" height="34">
-      <circle class="track" cx="18" cy="18" r="15" />
-      <!-- Recreated on each snapshot: the animation restarts in phase. The attribute is the
-           fallback without animation (full, or reduced motion). -->
-      {#key snapshot}
-        <circle
-          class="progress"
-          class:filling={ring.loops > 0}
-          cx="18"
-          cy="18"
-          r="15"
-          pathLength="100"
-          stroke-dasharray="100"
-          stroke-dashoffset={100 - q.progress * 100}
-          transform="rotate(-90 18 18)"
-          style:animation-duration={`${String(rules.refillMs)}ms`}
-          style:animation-delay={`${String(ring.delay)}ms`}
-          style:animation-iteration-count={ring.loops}
-        />
-      {/key}
-    </svg>
-    <span class="num">{q.available}</span>
+  <!-- ponytail: 5 blocks per row fits the toolbar up to a burst of ~10-15; switch to a bar for bigger bursts. -->
+  <span class="blocks" aria-hidden="true">
+    {#each blocks as fill, i (i)}
+      <span class="block" class:full={fill === 1}
+        ><span class="fill" class:rising={rising[i]} style:height={`${String(fill * 100)}%`}></span></span
+      >
+    {/each}
   </span>
-  <span class="label" aria-hidden="true">
-    <span>{`pixel${s(q.available)}`}</span>
-    <span class="sub">{q.full ? `max ${String(rules.burst)}` : `+1 dans ${String(q.nextIn)} s`}</span>
-  </span>
+  <span class="num" aria-hidden="true">{q.available}</span>
 </div>
 
 <style>
@@ -56,62 +42,57 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-right: 10px;
-    --q: #f2f2f2;
+    padding: 0 6px 0 4px;
+    --q: var(--ink);
   }
   .quota.empty {
-    --q: #8a8a8a;
+    --q: var(--muted-foreground);
   }
-  .ring {
-    position: relative;
+  .blocks {
     display: grid;
-    place-items: center;
+    grid-template-columns: repeat(5, 12px);
+    gap: 3px;
   }
-  .ring circle {
-    fill: none;
-    stroke-width: 3.5;
+  .block {
+    display: flex;
+    align-items: flex-end;
+    height: 12px;
+    border: 2px solid var(--ink);
+    border-radius: 2px;
+    background: var(--paper);
+    overflow: hidden;
   }
-  .track {
-    stroke: #3a3a3a;
+  /* A refilled pixel pops; adding the class (re)starts the animation. */
+  .block.full {
+    animation: pop 260ms cubic-bezier(0.3, 1.8, 0.5, 1);
   }
-  .progress {
-    stroke: var(--q);
-    stroke-linecap: round;
-  }
-  .filling {
-    animation-name: fill;
-    animation-timing-function: linear;
-    animation-fill-mode: both;
-  }
-  @keyframes fill {
-    from {
-      stroke-dashoffset: 100;
+  @keyframes pop {
+    40% {
+      transform: scale(1.35);
     }
-    to {
-      stroke-dashoffset: 0;
-    }
+  }
+  .fill {
+    width: 100%;
+    background: var(--focus);
+  }
+  /* `now` ticks every 250 ms: the transition smooths the refill between ticks. */
+  .fill.rising {
+    transition: height 250ms linear;
+  }
+  .full .fill {
+    background: var(--active);
   }
   .num {
-    position: absolute;
-    font-size: 13px;
-    font-weight: 600;
+    min-width: 2ch;
+    font-size: 18px;
+    font-weight: 700;
     color: var(--q);
     font-variant-numeric: tabular-nums;
   }
-  .label {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 64px;
-  }
-  .sub {
-    font-size: 11px;
-    font-weight: 400;
-    color: #8a8a8a;
-    font-variant-numeric: tabular-nums;
-  }
   @media (prefers-reduced-motion: reduce) {
-    .filling {
+    .fill.rising,
+    .block.full {
+      transition: none;
       animation: none;
     }
   }

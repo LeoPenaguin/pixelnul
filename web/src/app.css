@@ -1,4 +1,59 @@
-/* Styles shared by the components. The UI is charcoal grey: only the board is in colour. */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/space-grotesk';
+
+/* Single light theme: shadcn's `dark:` classes must never apply, so the variant targets a class we never set. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Theme "neo-brutal pop": white panels, thick ink borders, hard offset shadows, flat bright accents (lime, electric blue, red).
+   Only the panels are themed; the board keeps neutral colours so painted pixels stay faithful. */
+:root {
+  --ink: #111;
+  --paper: #fff;
+  --highlight: #d9ff66; /* lime: hover, fields, keys */
+  --active: #5b7cfa; /* electric blue: active controls, available pixels, donate heart, links */
+  --focus: #ff4d4d; /* red: keyboard focus, refilling pixel */
+  --red: #e5484d;
+  --stroke: 3px;
+  --shadow: 4px 4px 0 var(--ink);
+  --font: 'Space Grotesk Variable', system-ui, sans-serif;
+
+  /* Read by the shadcn-svelte components (src/components/ui). */
+  --radius: 6px;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+  --secondary: var(--highlight);
+  --secondary-foreground: var(--ink);
+  --muted: var(--highlight);
+  --muted-foreground: #555;
+  --accent: var(--active);
+  --border: var(--ink);
+  --input: #fff8dc;
+  --ring: var(--focus);
+  --destructive: var(--red);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+}
+
 html,
 body {
   margin: 0;
@@ -8,13 +63,12 @@ body {
 
 .panel {
   position: fixed;
-  background: #1e1e1e;
-  border-radius: 10px;
-  box-shadow: 0 2px 12px rgb(0 0 0 / 0.25);
-  font:
-    500 13px/1 system-ui,
-    sans-serif;
-  color: #f2f2f2;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font: 500 13px/1 var(--font);
+  color: var(--ink);
 }
 
 .icon {
@@ -23,20 +77,19 @@ body {
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: transparent;
   color: inherit;
   cursor: pointer;
 }
 .icon:hover {
-  background: #333;
+  background: var(--highlight);
 }
 .icon.active {
-  color: #fff;
-  background: #444;
+  background: var(--active);
 }
 .icon:focus-visible {
-  outline: 2px solid #f2f2f2;
+  outline: var(--stroke) solid var(--focus);
   outline-offset: 1px;
 }
 

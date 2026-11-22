@@ -1,5 +1,7 @@
 <!-- Bottom toolbar: the palette button (opens its panel above), the quota, then the view toggles. -->
 <script lang="ts">
+  import Grid from '~icons/mingcute/grid-3x3-fill'
+  import PaletteIcon from '~icons/mingcute/palette-fill'
   import { tick } from 'svelte'
   import { colorName } from '../lib/colors'
   import type { QuotaRules, QuotaSnapshot } from '../lib/quota'
@@ -59,26 +61,11 @@
       aria-controls="palette-panel"
       onclick={toggle}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="20"
-        height="20"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path
-          d="M12 21a9 9 0 0 1 0-18c4.97 0 9 3.58 9 8 0 1.06-.47 2.08-1.32 2.83-.84.75-1.99 1.17-3.18 1.17H14a2 2 0 0 0-1 3.75A1.3 1.3 0 0 1 12 21"
-        />
-        <circle cx="7.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="12" cy="7.5" r=".5" fill="currentColor" />
-        <circle cx="16.5" cy="10.5" r=".5" fill="currentColor" />
-      </svg>
+      <PaletteIcon width="20" height="20" aria-hidden="true" />
       <span class="current" style:background={hex}></span>
     </button>
     {#if quota}
+      <span class="sep" aria-hidden="true"></span>
       <Quota rules={quota} {snapshot} {now} />
     {/if}
     <span class="sep" aria-hidden="true"></span>
@@ -92,17 +79,7 @@
       aria-pressed={showGrid}
       onclick={ontogglegrid}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="20"
-        height="20"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <rect x="4" y="4" width="16" height="16" rx="1" /><path d="M9.33 4v16M14.67 4v16M4 9.33h16M4 14.67h16" />
-      </svg>
+      <Grid width="20" height="20" aria-hidden="true" />
     </button>
   </div>
 </div>
@@ -141,12 +118,12 @@
     width: 18px;
     height: 18px;
     border-radius: 4px;
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.35);
+    border: 2px solid var(--ink);
   }
   .sep {
-    width: 1px;
+    width: 2px;
     align-self: stretch;
-    margin: 6px 4px;
-    background: #3a3a3a;
+    margin: -4px 4px; /* joins the panel border, like the NavControls separators */
+    background: var(--ink);
   }
 </style>
