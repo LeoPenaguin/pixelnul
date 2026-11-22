@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-1920 × 1080 collaborative pixel canvas (r/place-like, navigated like Figma). Go + Redis server, Svelte 5 front.
+1280 × 720 collaborative pixel canvas (r/place-like, navigated like Figma). Go + Redis server, Svelte 5 front.
 User-facing behaviour, protocol and configuration are described in [README.md](README.md); this file is about how to work on the code.
 
 ## Layout

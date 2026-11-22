@@ -8,10 +8,11 @@
   type Props = {
     position: Point // targeted pixel, or view centre
     info: PixelInfo | null // history of `position`, once loaded
+    colorLabel: string | null // colour name of a painted pixel, when colour names are on
     now: number
     onjump: (x: number, y: number) => void
   }
-  const { position, info, now, onjump }: Props = $props()
+  const { position, info, colorLabel, now, onjump }: Props = $props()
 
   // The fields follow `position`, except while being edited.
   let editing = $state(false)
@@ -50,18 +51,21 @@
     <label>X <input type="number" step="1" bind:value={fx} onkeydown={cancel} aria-label="Coordonnée X" /></label>
     <label>Y <input type="number" step="1" bind:value={fy} onkeydown={cancel} aria-label="Coordonnée Y" /></label>
     <button class="icon" type="submit" title="Aller à ces coordonnées (Entrée)" aria-label="Aller à ces coordonnées">
-      <ArrowRight width="16" height="16" aria-hidden="true" />
+      <ArrowRight width="20" height="20" aria-hidden="true" />
     </button>
   </form>
   {#if info}
     <div class="info">
-      {#if info.lastChange}
-        {`${String(info.changes)} changement${plural(info.changes)} · dernier ${ago(info.lastChange, now)}`}
-      {:else if info.c}
-        Peint avant le suivi des changements
-      {:else}
-        Jamais peint
-      {/if}
+      {#if colorLabel}<strong>{`${colorLabel} · `}</strong>{/if}
+      <span>
+        {#if info.lastChange}
+          {`${String(info.changes)} changement${plural(info.changes)} · dernier ${ago(info.lastChange, now)}`}
+        {:else if info.c}
+          Peint avant le suivi des changements
+        {:else}
+          Jamais peint
+        {/if}
+      </span>
     </div>
   {/if}
 </div>
@@ -79,14 +83,18 @@
   }
   .info {
     padding: 10px 6px 6px 0;
-    font-weight: 400;
+    font-weight: var(--font-weight-normal);
     color: var(--muted-foreground);
+  }
+  strong {
+    font-weight: var(--font-weight-bold);
+    color: var(--ink);
   }
   label {
     display: flex;
     align-items: center;
     gap: 4px;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
   input {
     width: 8ch;

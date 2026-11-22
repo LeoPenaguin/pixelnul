@@ -5,7 +5,7 @@ export type Point = { x: number; y: number }
 export type Cam = Point & { zoom: number }
 export type Viewport = { w: number; h: number }
 
-export const MIN_ZOOM = 0.5 // max zoom out: the whole 1920 × 1080 world fits in 960 × 540 screen px
+export const MIN_ZOOM = 0.5 // max zoom out: the whole 1280 × 720 world fits in 640 × 360 screen px
 export const MAX_ZOOM = 24 // max zoom in: enough to aim, more adds nothing
 export const HOME: Cam = { x: 0, y: 0, zoom: 12 }
 const MAX_FLIGHT_SCREENS = 3 // beyond that, "teleport" near the target then animate the rest

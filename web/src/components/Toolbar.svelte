@@ -1,7 +1,5 @@
-<!-- Bottom toolbar: the palette button (opens its panel above), the quota, then the view toggles. -->
+<!-- Bottom toolbar, for painting only: the current colour (opens the palette above), then the quota. -->
 <script lang="ts">
-  import Grid from '~icons/mingcute/grid-3x3-fill'
-  import PaletteIcon from '~icons/mingcute/palette-fill'
   import { tick } from 'svelte'
   import { colorName } from '../lib/colors'
   import type { QuotaRules, QuotaSnapshot } from '../lib/quota'
@@ -12,13 +10,12 @@
     rows: string[][]
     color: number
     open: boolean // palette is open
-    showGrid: boolean
-    ontogglegrid: () => void
+    colorNames: boolean // write the colour name next to the swatch
     quota: QuotaRules | null // null: no limit
     snapshot: QuotaSnapshot
     now: number
   }
-  let { rows, color = $bindable(), open = $bindable(), showGrid, ontogglegrid, quota, snapshot, now }: Props = $props()
+  let { rows, color = $bindable(), open = $bindable(), colorNames, quota, snapshot, now }: Props = $props()
 
   let button: HTMLButtonElement
   let palette = $state<{ focus: () => void }>()
@@ -45,7 +42,7 @@
 
 <div class="dock">
   {#if open}
-    <Palette bind:this={palette} {rows} bind:color />
+    <Palette bind:this={palette} {rows} bind:color {colorNames} />
   {/if}
 
   <div class="panel toolbar" role="group" aria-label="Outils">
@@ -53,6 +50,7 @@
       type="button"
       bind:this={button}
       class="icon tool"
+      class:named={colorNames}
       class:active={open}
       title="Couleurs (C)"
       aria-label={`Couleurs, couleur actuelle : ${colorName(hex)}`}
@@ -61,26 +59,13 @@
       aria-controls="palette-panel"
       onclick={toggle}
     >
-      <PaletteIcon width="20" height="20" aria-hidden="true" />
       <span class="current" style:background={hex}></span>
+      {#if colorNames}<span aria-hidden="true">{colorName(hex)}</span>{/if}
     </button>
     {#if quota}
       <span class="sep" aria-hidden="true"></span>
       <Quota rules={quota} {snapshot} {now} />
     {/if}
-    <span class="sep" aria-hidden="true"></span>
-    <button
-      type="button"
-      class="icon square"
-      class:active={showGrid}
-      title="Afficher / cacher la grille (G)"
-      aria-label="Grille"
-      aria-keyshortcuts="G"
-      aria-pressed={showGrid}
-      onclick={ontogglegrid}
-    >
-      <Grid width="20" height="20" aria-hidden="true" />
-    </button>
   </div>
 </div>
 
@@ -103,21 +88,21 @@
     gap: 4px;
   }
   .tool {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: auto;
-    height: 40px;
-    padding: 0 10px;
-  }
-  .square {
     width: 40px;
     height: 40px;
   }
+  .named {
+    display: flex;
+    gap: 8px;
+    width: auto;
+    padding: 0 10px 0 7px;
+    white-space: nowrap;
+  }
+  /* The current colour is the main state while painting: a large swatch, no extra icon. */
   .current {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius);
     border: 2px solid var(--ink);
   }
   .sep {

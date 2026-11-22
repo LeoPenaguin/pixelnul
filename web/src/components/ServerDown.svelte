@@ -263,17 +263,18 @@
 
   h1 {
     margin: 0 0 8px;
-    font-size: 17px;
-    font-weight: 600;
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
   }
   p {
     margin: 0;
-    font-weight: 400;
+    font-weight: var(--font-weight-normal);
     color: var(--muted-foreground);
   }
   .retry {
     margin-top: 12px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
   }
   .dots {

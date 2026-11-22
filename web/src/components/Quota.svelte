@@ -84,8 +84,8 @@
   }
   .num {
     min-width: 2ch;
-    font-size: 18px;
-    font-weight: 700;
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
     color: var(--q);
     font-variant-numeric: tabular-nums;
   }

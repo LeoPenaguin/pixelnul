@@ -11,7 +11,7 @@
 
 <Modal bind:this={modal} title="À propos">
   <p>
-    Pixels est une toile collaborative de 1920 × 1080 pixels : chacun peut y poser des pixels, en direct avec tout le
+    Pixels est une toile collaborative de 1280 × 720 pixels : chacun peut y poser des pixels, en direct avec tout le
     monde.
   </p>
   <p>
@@ -28,14 +28,14 @@
 <style>
   p {
     margin: 0 0 10px;
-    font-weight: 400;
+    font-weight: var(--font-weight-normal);
   }
   p:last-child {
     margin-bottom: 0;
   }
   a {
     color: var(--active);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-decoration: underline;
     text-underline-offset: 2px;
   }

@@ -28,16 +28,18 @@
   /* Fixed width, wider than its content; the links sit on the right. */
   .site {
     position: static;
-    width: min(380px, calc(100vw - 24px));
+    /* The panel is zoomed by the interface size setting: divide the screen width by it. */
+    width: min(380px, calc((100vw - 24px) / var(--ui-scale, 1)));
     display: flex;
+    flex-wrap: wrap; /* enlarged interface on a phone: the links go to a second line, never off-screen */
     align-items: center;
     gap: 8px;
     padding: 4px 4px 4px 10px;
   }
   .name {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
   }
   nav {
     display: flex;
@@ -50,15 +52,13 @@
     gap: 6px;
     height: 32px;
     padding: 0 10px;
-    border: 2px solid var(--ink);
     border-radius: var(--radius);
-    background: transparent;
-    font-size: 14px;
     color: var(--ink);
     white-space: nowrap;
   }
+  /* Same weight as the "À propos" button next to it: only the heart is in colour. */
   .donate:hover {
-    background: var(--active);
+    background: var(--highlight);
   }
   .donate:focus-visible {
     outline: var(--stroke) solid var(--focus);
@@ -66,8 +66,5 @@
   }
   .donate :global(svg) {
     color: var(--active);
-  }
-  .donate:hover :global(svg) {
-    color: var(--ink);
   }
 </style>

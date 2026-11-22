@@ -35,6 +35,16 @@
   --destructive: var(--red);
 }
 
+/* Type scale, shared with the Tailwind classes of the shadcn components (text-xs, text-sm, font-bold…).
+   Sizes: xs = keys, tooltips, small print; sm = all text and controls; base = titles; lg = the quota count.
+   Weights: normal = secondary text, medium = body, bold = titles and emphasis. Titles get tracking-tight. */
+@theme {
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 16px;
+  --text-lg: 18px;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -67,8 +77,12 @@ body {
   border: var(--stroke) solid var(--ink);
   border-radius: 8px;
   box-shadow: var(--shadow);
-  font: 500 13px/1 var(--font);
+  font: var(--font-weight-medium) var(--text-sm) / 1 var(--font);
   color: var(--ink);
+  zoom: var(--ui-scale, 1); /* "Taille de l'interface" setting; the minimap canvas keeps its size */
+}
+canvas.panel {
+  zoom: 1;
 }
 
 .icon {
@@ -91,6 +105,40 @@ body {
 .icon:focus-visible {
   outline: var(--stroke) solid var(--focus);
   outline-offset: 1px;
+}
+
+/* Segmented control: the radios are hidden, their labels are the buttons. */
+/* Segmented control (radios in labels): the radios are hidden, their labels are the buttons. */
+.segmented {
+  display: flex;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.segmented label {
+  flex: 1;
+  padding: 6px 0;
+  text-align: center;
+  cursor: pointer;
+}
+.segmented label + label {
+  border-left: 2px solid var(--ink);
+}
+.segmented label:hover {
+  background: var(--highlight);
+}
+.segmented label:has(:checked) {
+  background: var(--active);
+  font-weight: var(--font-weight-bold);
+}
+.segmented label:has(:focus-visible) {
+  outline: var(--stroke) solid var(--focus);
+  outline-offset: -3px;
+}
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Visible to screen readers only. */

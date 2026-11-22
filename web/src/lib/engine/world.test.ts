@@ -75,7 +75,7 @@ describe('rendering', () => {
     await frames()
     expect(rgbAt(canvas, 220, 175)).toEqual([0, 0, 0]) // hovered pixel outline (left edge)
 
-    w.toggleGrid()
+    w.setGrid(false)
     expect(w.showGrid).toBe(false)
     w.setCam({ x: 1, y: 1, zoom: 2 }) // zoomed out: the minimap changes step smoothly
     await frames(10)
@@ -83,7 +83,7 @@ describe('rendering', () => {
 
   test('live pixels and reload', async () => {
     const w = setup()
-    w.toggleGrid() // no grid: exact colours
+    w.setGrid(false) // no grid: exact colours
     w.setCam({ x: 0, y: 0, zoom: 20 })
     await vi.waitFor(async () => {
       await frames()
@@ -100,11 +100,11 @@ describe('rendering', () => {
 
   test('chunks sticking out of the world are clipped at its edge', async () => {
     stubFetch({
-      '/api/chunks/-4/0': () => new Response(new Uint8Array(256 * 256).fill(1)), // all black, x from -1024
+      '/api/chunks/-3/0': () => new Response(new Uint8Array(256 * 256).fill(1)), // all black, x from -768
       '/api/chunks/': () => new Response(new Uint8Array()),
     })
     const w = setup()
-    w.toggleGrid()
+    w.setGrid(false)
     w.setCam({ x: -HX, y: 10, zoom: 12 }) // the world's left edge is at screen x = 200
     await vi.waitFor(async () => {
       await frames()

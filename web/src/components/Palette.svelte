@@ -4,8 +4,8 @@
   import { colorName } from '../lib/colors'
   import { paletteMove } from '../lib/keyboard'
 
-  type Props = { rows: string[][]; color: number }
-  let { rows, color = $bindable() }: Props = $props()
+  type Props = { rows: string[][]; color: number; colorNames: boolean }
+  let { rows, color = $bindable(), colorNames }: Props = $props()
 
   const swatches: HTMLButtonElement[] = $state([])
   const starts = $derived(rows.map((_, r) => rows.slice(0, r).flat().length))
@@ -46,6 +46,8 @@
       {/each}
     {/each}
   </div>
+  <!-- The radios already carry the names for screen readers: this one is for the eyes. -->
+  {#if colorNames}<p class="caption" aria-hidden="true">{colorName(rows.flat()[color])}</p>{/if}
 </div>
 
 <style>
@@ -58,6 +60,10 @@
     grid-auto-columns: 26px;
     grid-auto-rows: 26px;
     gap: 4px;
+  }
+  .caption {
+    margin: 10px 0 0;
+    text-align: center;
   }
   .swatch {
     border-radius: 6px;

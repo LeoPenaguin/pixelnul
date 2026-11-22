@@ -3,22 +3,33 @@ import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-svelte'
 import { config } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
+import DownloadDialog from './DownloadDialog.svelte'
 import HelpDialog from './HelpDialog.svelte'
 import JumpPanel from './JumpPanel.svelte'
 import NavControls from './NavControls.svelte'
 import Palette from './Palette.svelte'
 import Quota from './Quota.svelte'
 import ServerDown from './ServerDown.svelte'
+import SettingsDialog from './SettingsDialog.svelte'
 import SitePanel from './SitePanel.svelte'
 import Toolbar from './Toolbar.svelte'
 
 describe('NavControls', () => {
   test('each button calls its action', async () => {
-    const props = { onzoomin: vi.fn(), onzoomout: vi.fn(), onrecenter: vi.fn(), onhelp: vi.fn() }
+    const props = {
+      onzoomin: vi.fn(),
+      onzoomout: vi.fn(),
+      onrecenter: vi.fn(),
+      ondownload: vi.fn(),
+      onsettings: vi.fn(),
+      onhelp: vi.fn(),
+    }
     const screen = await render(NavControls, props)
     await screen.getByRole('button', { name: 'Zoomer' }).click()
     await screen.getByRole('button', { name: 'Dézoomer' }).click()
     await screen.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
+    await screen.getByRole('button', { name: "Télécharger l'image" }).click()
+    await screen.getByRole('button', { name: 'Paramètres' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
   })
@@ -28,6 +39,8 @@ describe('NavControls', () => {
       onzoomin: vi.fn(),
       onzoomout: vi.fn(),
       onrecenter: vi.fn(),
+      ondownload: vi.fn(),
+      onsettings: vi.fn(),
       onhelp: vi.fn(),
     })
     // Icon keys are read by their name ("plus"), text keys as they are.
@@ -35,6 +48,7 @@ describe('NavControls', () => {
       Zoomer: 'Zoomer plus',
       Dézoomer: 'Dézoomer moins',
       'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
+      Paramètres: 'Paramètres', // no shortcut
       'Raccourcis clavier': 'Raccourcis clavier ?',
     }
     for (const [name, description] of Object.entries(tips)) {
@@ -69,7 +83,7 @@ describe('HelpDialog', () => {
 })
 
 describe('JumpPanel', () => {
-  const base = { position: { x: 3, y: -4 }, info: null, now: 100_000, onjump: vi.fn() }
+  const base = { position: { x: 3, y: -4 }, info: null, colorLabel: null, now: 100_000, onjump: vi.fn() }
 
   test('the fields follow the position, except while typing', async () => {
     const onjump = vi.fn()
@@ -121,6 +135,8 @@ describe('JumpPanel', () => {
     await expect.element(screen.getByText('Peint avant le suivi des changements')).toBeVisible()
     await screen.rerender({ info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null } })
     await expect.element(screen.getByText('Jamais peint')).toBeVisible()
+    await screen.rerender({ colorLabel: 'Noir', info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null } })
+    await expect.element(screen.getByText('Noir ·')).toBeVisible()
   })
 })
 
@@ -135,7 +151,7 @@ describe('ServerDown', () => {
 
 describe('Palette', () => {
   test('named radio buttons, arrow navigation', async () => {
-    const screen = await render(Palette, { rows: config.palette, color: 1 })
+    const screen = await render(Palette, { rows: config.palette, color: 1, colorNames: false })
     const black = screen.getByRole('radio', { name: 'Noir' })
     await expect.element(black).toBeChecked()
     await expect.element(black).toHaveAttribute('tabindex', '0')
@@ -150,6 +166,13 @@ describe('Palette', () => {
 
     await screen.getByRole('radio', { name: 'Blanc' }).click()
     await expect.element(screen.getByRole('radio', { name: 'Blanc' })).toBeChecked()
+  })
+
+  test('writes the selected colour name when colour names are on', async () => {
+    const screen = await render(Palette, { rows: config.palette, color: 1, colorNames: false })
+    expect(screen.container.querySelector('.caption')).toBeNull()
+    await screen.rerender({ colorNames: true })
+    await expect.element(screen.getByText('Noir', { exact: true })).toBeVisible()
   })
 })
 
@@ -185,15 +208,14 @@ describe('Toolbar', () => {
     rows: config.palette,
     color: 1,
     open: false,
-    showGrid: true,
+    colorNames: false,
     quota: { burst: 2, refillMs: 1000 },
     snapshot: { n: 2, at: 0 },
     now: 0,
   }
 
   test('opens the palette with focus inside, closes it handing focus back', async () => {
-    const ontogglegrid = vi.fn()
-    const screen = await render(Toolbar, { ...props, ontogglegrid })
+    const screen = await render(Toolbar, props)
     const button = screen.getByRole('button', { name: /^Couleurs/ })
     await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Noir')
     await expect.element(button).toHaveAttribute('aria-expanded', 'false')
@@ -215,14 +237,17 @@ describe('Toolbar', () => {
     screen.component.close() // focus elsewhere: left alone
     await expect.element(button).not.toHaveFocus()
 
-    await screen.getByRole('button', { name: 'Grille' }).click()
-    expect(ontogglegrid).toHaveBeenCalledOnce()
     await expect.element(screen.getByText('2 pixels disponibles sur 2')).toBeInTheDocument()
   })
 
+  test('writes the colour name next to the swatch when colour names are on', async () => {
+    const screen = await render(Toolbar, { ...props, colorNames: true })
+    await expect.element(screen.getByRole('button', { name: /^Couleurs/ })).toHaveTextContent('Noir')
+  })
+
   test('without a limit, no gauge', async () => {
-    const screen = await render(Toolbar, { ...props, quota: null, ontogglegrid: vi.fn() })
-    await expect.element(screen.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'true')
+    const screen = await render(Toolbar, { ...props, quota: null })
+    await expect.element(screen.getByRole('button', { name: /^Couleurs/ })).toBeVisible()
     await expect.element(screen.getByText(/disponible/)).not.toBeInTheDocument()
   })
 })
@@ -246,5 +271,55 @@ describe('AboutDialog', () => {
     await expect
       .element(screen.getByRole('link', { name: 'GitHub' }))
       .toHaveAttribute('href', 'https://github.com/LeoPenaguin/pixels')
+  })
+})
+
+describe('SettingsDialog', () => {
+  test('changes the settings it is bound to', async () => {
+    const settings = { grid: true, colorNames: false, scale: 1 }
+    const screen = await render(SettingsDialog, { settings })
+    screen.component.open()
+    const grid = screen.getByRole('checkbox', { name: 'Grille' })
+    await expect.element(grid).toBeChecked()
+    await expect.element(grid).toHaveAccessibleDescription(/touche G/)
+    await grid.click()
+    await screen.getByRole('checkbox', { name: 'Noms des couleurs' }).click()
+    await screen.getByText('125 %').click() // the label: the radio itself is visually hidden
+    expect(settings).toEqual({ grid: false, colorNames: true, scale: 1.25 })
+  })
+})
+
+describe('DownloadDialog', () => {
+  test('downloads in the chosen format and size, says when it is busy or failed', async () => {
+    let finish = (): void => undefined
+    const ondownload = vi.fn<(type: string, scale: number) => Promise<void>>(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const screen = await render(DownloadDialog, { width: 1280, height: 720, ondownload })
+    screen.component.open()
+    await expect.element(screen.getByText(/1280 × 720 pixels/)).toBeVisible()
+    // The labels: the radios themselves are visually hidden.
+    await screen.getByText('×3').click()
+    await expect.element(screen.getByText(/3840 × 2160 pixels/)).toBeVisible()
+    await screen.getByText('JPEG').click()
+    await expect.element(screen.getByText(/un peu flous/)).toBeVisible()
+    const button = screen.getByRole('button', { name: 'Télécharger' })
+    const status = screen.getByRole('status')
+    await button.click()
+    expect(ondownload).toHaveBeenCalledWith('image/jpeg', 3)
+    await expect.element(status).toHaveTextContent("Préparation de l'image…")
+    await expect.element(button).toBeDisabled()
+    finish()
+    await expect.element(button).toBeEnabled()
+    await expect.element(status).toBeEmptyDOMElement()
+
+    ondownload.mockRejectedValueOnce(new Error('offline'))
+    await button.click()
+    await expect.element(status).toHaveTextContent('Échec du téléchargement, réessaie dans un instant.')
+    screen.component.open() // reopening clears the error
+    await expect.element(status).toBeEmptyDOMElement()
   })
 })

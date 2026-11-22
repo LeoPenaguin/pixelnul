@@ -2,11 +2,11 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 type PixelInfo = { x: number; y: number; c: number; changes: number }
 
-/** A random white pixel of the 1920 × 1080 world, so painting it black is always a change,
+/** A random white pixel of the 1280 × 720 world, so painting it black is always a change,
  *  whatever earlier runs left in Redis. Returns its current history too. */
 async function whitePixel(request: APIRequestContext): Promise<PixelInfo> {
   for (;;) {
-    const [x, y] = [1920, 1080].map((size) => Math.floor(Math.random() * size) - size / 2)
+    const [x, y] = [1280, 720].map((size) => Math.floor(Math.random() * size) - size / 2)
     const res = await request.get(`/api/pixels/${String(x)}/${String(y)}`)
     const info = (await res.json()) as PixelInfo
     if (info.c === 0) return info
@@ -19,7 +19,7 @@ const changes = (n: number) => `${String(n)} changement${n > 1 ? 's' : ''} · de
 async function open(page: Page) {
   await page.bringToFront() // several players: the front page receives the keyboard
   await page.goto('/')
-  await expect(page.getByRole('button', { name: 'Grille' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Zoomer', exact: true })).toBeVisible()
 }
 
 async function jumpTo(page: Page, { x, y }: { x: number; y: number }) {
@@ -61,7 +61,7 @@ test('palette, grid and help from the keyboard', async ({ page }) => {
   await open(page)
   await page.getByRole('application', { name: 'Board de pixels' }).focus()
   await page.keyboard.press('g')
-  await expect(page.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('checkbox', { name: 'Grille', includeHidden: true })).not.toBeChecked()
 
   await page.keyboard.press('c')
   const radios = page.getByRole('radio')

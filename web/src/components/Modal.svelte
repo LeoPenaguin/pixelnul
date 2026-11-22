@@ -37,7 +37,7 @@
         dialog.close()
       }}
     >
-      <Close width="16" height="16" aria-hidden="true" />
+      <Close width="20" height="20" aria-hidden="true" />
     </button>
   </div>
   {@render children()}
@@ -61,6 +61,8 @@
   }
   h2 {
     margin: 0;
-    font-size: 15px;
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
   }
 </style>

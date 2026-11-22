@@ -2,19 +2,23 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import AboutDialog from './components/AboutDialog.svelte'
+  import DownloadDialog from './components/DownloadDialog.svelte'
   import HelpDialog from './components/HelpDialog.svelte'
   import JumpPanel from './components/JumpPanel.svelte'
   import NavControls from './components/NavControls.svelte'
   import ServerDown from './components/ServerDown.svelte'
+  import SettingsDialog from './components/SettingsDialog.svelte'
   import SitePanel from './components/SitePanel.svelte'
   import Toolbar from './components/Toolbar.svelte'
   import { fetchConfig, fetchPixelInfo, type Config, type PixelInfo } from './lib/api'
   import { colorName } from './lib/colors'
+  import { downloadBoard, type ImageType } from './lib/download'
   import type { Point } from './lib/engine/camera'
   import { World } from './lib/engine/world'
   import { shortcut, type Action } from './lib/keyboard'
   import { Live } from './lib/live'
   import { quotaAt } from './lib/quota'
+  import { loadSettings, saveSettings } from './lib/settings'
 
   const RETRY_MS = 2000 // server unreachable on load: retry
   const INFO_DELAY_MS = 200 // a pixel's history loads after a short pause on it
@@ -25,13 +29,15 @@
   let toolbar = $state<{ toggle: () => Promise<void>; close: () => void }>()
   let help: { open: () => void }
   let about: { open: () => void }
+  let settingsDialog: { open: () => void }
+  let downloadDialog = $state<{ open: () => void }>()
   let world: World | undefined
   let live: Live | undefined
 
   let cfg = $state<Config>()
   let color = $state(5) // black
   let paletteOpen = $state(false)
-  let showGrid = $state(true)
+  let settings = $state(loadSettings())
   let hover = $state<Point | null>(null) // targeted pixel (mouse or keyboard cursor)
   let center = $state<Point>({ x: 0, y: 0 }) // pixel at the view centre
   let info = $state<PixelInfo | null>(null)
@@ -44,7 +50,18 @@
   let colors: string[] = [] // flattened palette, filled when the configuration loads
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
   const shownInfo = $derived(info && isHovered(info) ? info : null)
+  const colorLabel = $derived(settings.colorNames && shownInfo?.c ? colorName(colors[shownInfo.c]) : null)
   const canPaint = $derived(!lost && (!limits || quotaAt(limits, quota, now).available >= 1))
+  $effect(() => {
+    saveSettings($state.snapshot(settings))
+  })
+  $effect(() => {
+    const on = settings.grid // read first, as below
+    world?.setGrid(on)
+  })
+  $effect(() => {
+    document.documentElement.style.setProperty('--ui-scale', String(settings.scale))
+  })
   $effect(() => {
     const v = canPaint // read first: `world?.` would skip it, and the effect would never re-run
     world?.setCanPaint(v)
@@ -105,11 +122,6 @@
     loadInfo(true)
   }
 
-  function toggleGrid() {
-    world?.toggleGrid()
-    showGrid = !showGrid
-  }
-
   function run(a: Action) {
     switch (a.type) {
       case 'move':
@@ -129,7 +141,7 @@
         world?.recenter()
         break
       case 'grid':
-        toggleGrid()
+        settings.grid = !settings.grid
         break
       case 'palette':
         void toolbar?.toggle()
@@ -160,6 +172,7 @@
       colors = conf.palette.flat()
       quota = { n: conf.quota.burst, at: Date.now() }
       const w = new World(canvas, conf)
+      w.setGrid(settings.grid)
       world = w
       w.onHover = (p) => {
         hover = p
@@ -227,6 +240,7 @@
 <canvas class="panel minimap" bind:this={minimap} hidden={!cfg} aria-hidden="true"></canvas>
 <HelpDialog bind:this={help} />
 <AboutDialog bind:this={about} />
+<SettingsDialog bind:this={settingsDialog} bind:settings />
 
 <!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. -->
 {#if down || lost}
@@ -240,6 +254,7 @@
     <JumpPanel
       position={hover ?? center}
       info={shownInfo}
+      {colorLabel}
       {now}
       onjump={(x: number, y: number) => world?.jumpTo(x, y)}
     />
@@ -248,10 +263,19 @@
 
 <!-- Controls only once the board is loaded: before that they would do nothing. -->
 {#if cfg}
+  {@const conf = cfg}
+  <DownloadDialog
+    bind:this={downloadDialog}
+    width={conf.worldWidth}
+    height={conf.worldHeight}
+    ondownload={(type: ImageType, scale: number) => downloadBoard(conf, type, scale)}
+  />
   <NavControls
     onzoomin={() => world?.zoomBy(1.5)}
     onzoomout={() => world?.zoomBy(1 / 1.5)}
     onrecenter={() => world?.recenter()}
+    ondownload={() => downloadDialog?.open()}
+    onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}
   />
   <Toolbar
@@ -259,8 +283,7 @@
     rows={cfg.palette}
     bind:color
     bind:open={paletteOpen}
-    {showGrid}
-    ontogglegrid={toggleGrid}
+    colorNames={settings.colorNames}
     quota={limits}
     snapshot={quota}
     {now}
@@ -296,6 +319,12 @@
     height: 160px;
     cursor: pointer;
     touch-action: none;
+  }
+  /* Small touch screens: the board is already small, the minimap would only cover it (pinch and drag instead). */
+  @media (pointer: coarse) and (max-width: 640px) {
+    .minimap {
+      display: none;
+    }
   }
   @media (max-width: 480px) {
     /* Below the top-left column, which takes most of the width. */

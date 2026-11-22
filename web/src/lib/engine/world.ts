@@ -104,8 +104,8 @@ export class World {
     this.chunks.clear()
   }
 
-  toggleGrid() {
-    this.showGrid = !this.showGrid
+  setGrid(on: boolean) {
+    this.showGrid = on
     this.redraw()
   }
 

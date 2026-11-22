@@ -19,6 +19,7 @@ let info: Partial<PixelInfo> = {}
 let configResponse: () => Response | Promise<Response>
 
 beforeEach(() => {
+  localStorage.clear() // settings
   info = {}
   configResponse = () => Response.json(config)
   stubWebSocket()
@@ -41,12 +42,13 @@ const announced = (text: string) =>
   vi.waitFor(() => {
     expect(document.querySelector('[aria-live]')?.textContent).toBe(text)
   })
-const fields = () => [...document.querySelectorAll<HTMLInputElement>('input')].map((i) => i.valueAsNumber)
+const grid = () => page.getByRole('checkbox', { name: 'Grille', includeHidden: true })
+const fields = () => [...document.querySelectorAll<HTMLInputElement>('input[type=number]')].map((i) => i.valueAsNumber)
 
 /** Renders the app, waits for the configuration and opens the real-time connection. */
 async function start() {
   const screen = await render(App)
-  await expect.element(page.getByRole('button', { name: 'Grille' })).toBeVisible()
+  await expect.element(page.getByRole('button', { name: 'Zoomer' })).toBeVisible()
   const c = board()
   c.setPointerCapture = vi.fn()
   FakeWebSocket.last.open()
@@ -135,6 +137,17 @@ describe('targeted pixel history', () => {
     await expect.element(page.getByText(/changements/)).not.toBeInTheDocument()
   })
 
+  test('names the colour of the pixel when colour names are on', async () => {
+    localStorage.setItem('pixels:settings', JSON.stringify({ colorNames: true }))
+    await start()
+    info = { c: 5, changes: 1, lastChange: Date.now() }
+    const r = board().getBoundingClientRect()
+    board().dispatchEvent(
+      new PointerEvent('pointermove', { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }),
+    )
+    await expect.element(page.getByText('Noir ·')).toBeVisible()
+  })
+
   test('hover too short, or server down: nothing is shown', async () => {
     await start()
     board().dispatchEvent(new PointerEvent('pointermove', { clientX: 5, clientY: 5 }))
@@ -177,7 +190,7 @@ describe('keyboard', () => {
     press('-')
     press('0')
     press('g')
-    await expect.element(page.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'false')
+    await expect.element(grid()).not.toBeChecked()
     press('c')
     await expect.element(page.getByRole('radio', { name: 'Noir' })).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}') // handled by the palette, not the board
@@ -187,9 +200,39 @@ describe('keyboard', () => {
     press('?')
     await expect.element(page.getByRole('heading', { name: 'Raccourcis clavier' })).toBeVisible()
     press('g') // help open: shortcuts are disabled
-    await expect.element(page.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'false')
+    await expect.element(grid()).not.toBeChecked()
     await userEvent.keyboard('{Escape}')
     press('x') // key without a shortcut
+  })
+
+  test('the settings are applied and remembered', async () => {
+    await start()
+    await page.getByRole('button', { name: 'Paramètres' }).click()
+    await page.getByRole('checkbox', { name: 'Grille' }).click()
+    await page.getByRole('checkbox', { name: 'Noms des couleurs' }).click()
+    await page.getByText('150 %').click() // the label: the radio itself is visually hidden
+    expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1.5')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('button', { name: /^Couleurs/ })).toHaveTextContent('Noir')
+    expect(JSON.parse(localStorage.getItem('pixels:settings') ?? '')).toEqual({
+      grid: false,
+      colorNames: true,
+      scale: 1.5,
+    })
+  })
+
+  test('the download button opens the download dialog', async () => {
+    await start()
+    await page.getByRole('button', { name: "Télécharger l'image" }).click()
+    await expect.element(page.getByRole('heading', { name: "Télécharger l'image" })).toBeVisible()
+    const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    await page.getByText('×2').click()
+    await page.getByRole('button', { name: 'Télécharger', exact: true }).click()
+    await vi.waitFor(() => {
+      expect(save).toHaveBeenCalledOnce()
+    })
+    save.mockRestore()
+    await userEvent.keyboard('{Escape}')
   })
 
   test('the site panel opens the about dialog, which disables the shortcuts', async () => {
@@ -197,7 +240,7 @@ describe('keyboard', () => {
     await page.getByRole('button', { name: 'À propos' }).click()
     await expect.element(page.getByRole('heading', { name: 'À propos' })).toBeVisible()
     press('g')
-    await expect.element(page.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'true')
+    await expect.element(grid()).toBeChecked()
     await userEvent.keyboard('{Escape}')
   })
 
@@ -235,7 +278,7 @@ describe('loading', () => {
     await expect.element(page.getByRole('button', { name: 'Zoomer', exact: true })).not.toBeInTheDocument()
     for (const k of ['ArrowUp', 'Enter', '+', '-', '0', 'g', 'c', 'Escape']) press(k)
     fail = false
-    await expect.element(page.getByRole('button', { name: 'Grille' }), { timeout: 3000 }).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Zoomer' }), { timeout: 3000 }).toBeVisible()
     await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
     await screen.unmount()
   })

@@ -90,7 +90,7 @@
   dd {
     margin: 0;
     color: var(--muted-foreground);
-    font-weight: 400;
+    font-weight: var(--font-weight-normal);
   }
   /* Fixed height and an equal minimum width: one-character keys are square, words grow wider. */
   kbd {

@@ -1,9 +1,11 @@
-<!-- Bottom-right navigation buttons: zoom, recenter, keyboard help. -->
+<!-- Bottom-right controls: zoom, recenter, download, settings, keyboard help. -->
 <script lang="ts">
   import type { Component } from 'svelte'
   import Plus from '~icons/mingcute/add-fill'
+  import Download from '~icons/mingcute/download-2-fill'
   import Keyboard from '~icons/mingcute/keyboard-fill'
   import Minus from '~icons/mingcute/minimize-fill'
+  import Gear from '~icons/mingcute/settings-1-fill'
   import KeyCap, { type Key } from './KeyCap.svelte'
   import { Button } from './ui/button'
   import * as Tooltip from './ui/tooltip'
@@ -12,11 +14,14 @@
     onzoomin: () => void
     onzoomout: () => void
     onrecenter: () => void
+    ondownload: () => void
+    onsettings: () => void
     onhelp: () => void
   }
-  const { onzoomin, onzoomout, onrecenter, onhelp }: Props = $props()
+  const { onzoomin, onzoomout, onrecenter, ondownload, onsettings, onhelp }: Props = $props()
 </script>
 
+<!-- `key` (shown) and `keys` (aria-keyshortcuts): empty when the button has no shortcut. -->
 {#snippet tool(label: string, key: Key, keys: string, onclick: () => void, Icon: Component | string, dialog = false)}
   <Tooltip.Root>
     <Tooltip.Trigger>
@@ -26,20 +31,23 @@
           variant="ghost"
           size="icon-lg"
           aria-label={label}
-          aria-keyshortcuts={keys}
+          aria-keyshortcuts={keys || undefined}
           aria-haspopup={dialog ? 'dialog' : undefined}
           {onclick}
         >
           {#if typeof Icon === 'string'}
             <span class="text" aria-hidden="true">{Icon}</span>
           {:else}
-            <Icon width="18" height="18" aria-hidden="true" />
+            <!-- size-* class: the shadcn button shrinks unsized icons to 16 px --><Icon
+              class="size-[22px]"
+              aria-hidden="true"
+            />
           {/if}
         </Button>
       {/snippet}
     </Tooltip.Trigger>
     <Tooltip.Content side="left" sideOffset={8}
-      ><span>{label}</span><kbd><KeyCap {key} size={12} /></kbd></Tooltip.Content
+      ><span>{label}</span>{#if key}<kbd><KeyCap {key} size={12} /></kbd>{/if}</Tooltip.Content
     >
   </Tooltip.Root>
 {/snippet}
@@ -52,7 +60,10 @@
     <hr />
     {@render tool('Recentrer sur 0, 0', '0', '0', onrecenter, '0,0')}
     <hr />
-    {@render tool('Raccourcis clavier', '?', 'Shift+?', onhelp, Keyboard, true)}
+    {@render tool("Télécharger l'image", '', '', ondownload, Download, true)}
+    {@render tool('Paramètres', '', '', onsettings, Gear, true)}
+    <hr class="help" />
+    <span class="help">{@render tool('Raccourcis clavier', '?', 'Shift+?', onhelp, Keyboard, true)}</span>
   </div>
 </Tooltip.Provider>
 
@@ -65,6 +76,22 @@
     flex-direction: column;
     gap: 2px;
   }
+  span.help {
+    display: contents;
+  }
+  /* Phones: above the toolbar, which takes the width. Zoomed with the panel, so it scales with the toolbar. */
+  @media (max-width: 480px) {
+    .controls {
+      bottom: 76px;
+    }
+  }
+  /* No keyboard on small touch screens: the shortcut list is useless there. */
+  @media (pointer: coarse) and (max-width: 640px) {
+    hr.help,
+    span.help {
+      display: none;
+    }
+  }
   /* Same look as the toolbar separator: 2 px, joining the panel border (cancels the 4 px padding). */
   hr {
     margin: 2px -4px;
@@ -73,8 +100,8 @@
   }
   /* Text face ("0,0"): clearer than any icon for "back to the origin". */
   .text {
-    font: 700 13px var(--font);
-    letter-spacing: -0.02em;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
   }
   kbd {
     display: inline-flex;
@@ -83,6 +110,6 @@
     border-radius: 4px;
     background: var(--highlight);
     color: var(--ink);
-    font: 700 12px var(--font);
+    font: var(--font-weight-bold) var(--text-xs) var(--font);
   }
 </style>

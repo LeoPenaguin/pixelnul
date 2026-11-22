@@ -1,6 +1,6 @@
 # Pixels
 
-A 1920 × 1080 collaborative pixel canvas in the spirit of r/place, navigated like a Figma board.
+A 1280 × 720 collaborative pixel canvas in the spirit of r/place, navigated like a Figma board.
 
 - **server/**: Go. HTTP + WebSocket, storage in Redis.
 - **web/**: Svelte 5 + Vite. One full-screen `<canvas>`. The UI is in French.
@@ -47,13 +47,15 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 ## Controls
 
 - Drag, wheel or two fingers: pan. Ctrl + wheel, pinch or `+` / `-`: zoom.
-- Click (without dragging): paint a pixel with the selected colour. Outside the 1920 × 1080 world (grey area), nothing is painted.
+- Click (without dragging): paint a pixel with the selected colour. Outside the 1280 × 720 world (grey area), nothing is painted.
 - The cursor shows what a click would do: crosshair = paint, hand = outside the world (pan only), forbidden = no pixel left or offline, closed hand while dragging.
-- Bottom toolbar: palette button (`C`), with a swatch of the current colour; Escape closes it. Quota gauge. Grid toggle (`G`).
-- Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), shortcut list (`?`).
+- Bottom toolbar: palette button (`C`), showing the current colour; Escape closes it. Quota gauge.
+- Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), download, settings, shortcut list (`?`, hidden on small touch screens).
+- Download: an image of the whole board, ×1 to ×4 (pixels stay square), in PNG, WebP or JPEG. Built in the browser from the chunks.
+- Settings (remembered in the browser): grid (`G`), colour names written in the toolbar, palette and X / Y panel (colour blindness), interface size 100 / 125 / 150 % (the board is not affected).
 - X / Y fields (top left) follow the pointer; type coordinates and press Enter to jump there. Escape cancels.
 - Recenter, button / keyboard zoom and jumps are animated; a far jump starts a few screens before the target.
-- Minimap (top right): drag to pan, click to fly there.
+- Minimap (top right, hidden on small touch screens): drag to pan, click to fly there.
 - On load, the view opens on 0, 0.
 - Keyboard: arrows move a cursor (Shift: 10 pixels, the view follows), Enter or Space paints.
 - Accessibility: every control has a name (colours have French names), the board announces the targeted and painted pixels to screen readers, and animations are disabled when the system asks for reduced motion.
@@ -61,7 +63,7 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 
 ## How it works
 
-- The world is 1920 × 1080 (16:9) and centred on 0, 0: x from -960 to 959, y from -540 to 539. It is stored in 256×256 chunks (8 × 6, the border ones partly outside). The size is `WorldWidth` / `WorldHeight` in `server/internal/board/pixel.go`; growing it later needs no data migration.
+- The world is 1280 × 720 (16:9) and centred on 0, 0: x from -640 to 639, y from -360 to 359. It is stored in 256×256 chunks (6 × 4, the border ones partly outside). The size is `WorldWidth` / `WorldHeight` in `server/internal/board/pixel.go`; resizing needs no data migration (pixels outside a smaller world stay in Redis, hidden, and come back if it grows again).
 - Each chunk is a Redis string `chunk:{cx}:{cy}` of 65,536 bytes, one byte = palette index (0 = white = never painted).
 - History lives in the hash `meta:{cx}:{cy}`: `n:{offset}` = paint count, `t:{offset}` = time of the last paint (Unix ms).
 - Painting runs an atomic Lua script: it writes the byte (`SETRANGE`), bumps the counter and timestamps the paint. Repainting the same colour counts too: it costs a pixel and is broadcast like any other.
@@ -84,4 +86,4 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 | `ADDR` | `:3007` |
 | `REDIS_URL` | `redis://localhost:6379` |
 | `PIXEL_BURST` | `10` (pixels in a row) |
-| `PIXEL_REFILL_MS` | `2000` (time to regain one pixel; `0` = unlimited, handy in dev: `PIXEL_REFILL_MS=0 go run .`) |
+| `PIXEL_REFILL_MS` | `1000` (time to regain one pixel; `0` = unlimited, handy in dev: `PIXEL_REFILL_MS=0 go run .`) |

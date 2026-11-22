@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { fetchConfig, fetchPixelInfo } from './api'
 import { colorName } from './colors'
 import { quotaAt } from './quota'
+import { loadSettings, saveSettings } from './settings'
 import { ago } from './time'
 
 afterEach(() => {
@@ -41,4 +42,21 @@ test('the API returns the server JSON and fails on an HTTP error', async () => {
 
   fetch.mockImplementation(() => Promise.resolve(new Response('', { status: 500 })))
   await expect(fetchConfig()).rejects.toThrow('/api/config : 500')
+})
+
+test('settings: defaults, remembered, safe when storage fails', () => {
+  localStorage.clear()
+  expect(loadSettings()).toEqual({ grid: true, colorNames: false, scale: 1 })
+  saveSettings({ grid: false, colorNames: true, scale: 1.25 })
+  expect(loadSettings()).toEqual({ grid: false, colorNames: true, scale: 1.25 })
+  localStorage.setItem('pixels:settings', '{oops')
+  expect(loadSettings().grid).toBe(true)
+  const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('blocked')
+  })
+  expect(() => {
+    saveSettings({ grid: true, colorNames: false, scale: 1 })
+  }).not.toThrow()
+  set.mockRestore()
+  localStorage.clear()
 })
