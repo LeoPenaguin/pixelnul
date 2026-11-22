@@ -1,12 +1,4 @@
-<!-- Placeholder logo: a 3 × 3 pixel mosaic in the theme colours. Also the favicon. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" shape-rendering="crispEdges">
-  <rect x="0" y="0" width="7" height="7" fill="#5b7cfa"/>
-  <rect x="8.5" y="0" width="7" height="7" fill="#d9ff66"/>
-  <rect x="17" y="0" width="7" height="7" fill="#ff4d4d"/>
-  <rect x="0" y="8.5" width="7" height="7" fill="#ff4d4d"/>
-  <rect x="8.5" y="8.5" width="7" height="7" fill="#111"/>
-  <rect x="17" y="8.5" width="7" height="7" fill="#5b7cfa"/>
-  <rect x="0" y="17" width="7" height="7" fill="#d9ff66"/>
-  <rect x="8.5" y="17" width="7" height="7" fill="#5b7cfa"/>
-  <rect x="17" y="17" width="7" height="7" fill="#111"/>
+<!-- Logo: the head of Pixel, the author's cat. One solid shape, eyes and nose cut out. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <path fill="#111" fill-rule="evenodd" d="M2.5 20.5C2.5 16 4.6 12 7 10L7.2 3.5l5.6 3.3Q14.4 6.4 16 6.4t3.2.4l5.6-3.3L25 10c2.4 2 4.5 6 4.5 10.5 0 5.2-5.6 8.3-13.5 8.3S2.5 25.7 2.5 20.5zM8.6 18.5a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0zM18.6 18.5a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0zM14.6 22.4h2.8L16 24z"/>
 </svg>
