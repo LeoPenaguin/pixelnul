@@ -17,6 +17,7 @@ import (
 // and for the whole world:
 //
 //	stats:hourly hash, "{Unix hour}" = paints during that hour (counted since this key exists)
+//	log          stream, one entry per paint: x, y, c (colour), p (previous colour), u (user id, "" if anonymous), t (Unix ms)
 type Store struct{ rdb redis.UniversalClient }
 
 // NewStore stores the world in the given Redis.
@@ -31,25 +32,29 @@ type Info struct {
 	LastChange *int64 `json:"lastChange"`
 }
 
-// Atomic paint: writes the byte, bumps the counters and timestamps the change. Every paint
-// counts, same colour included: repainting a pixel is a deliberate (and paid) move.
-// ponytail: stats:hourly keeps one field per hour forever (~9k a year); trim it if that ever matters.
+// Atomic paint: writes the byte, bumps the counters, timestamps the change and logs it. Every
+// paint counts, same colour included: repainting a pixel is a deliberate (and paid) move.
+// ponytail: stats:hourly keeps one field per hour forever (~9k a year), and the log one entry per
+// paint (~100 bytes): trim them (XTRIM MINID) once history that old is no longer needed.
 var paintScript = redis.NewScript(`
 local off = tonumber(ARGV[1])
+local prev = redis.call('GETRANGE', KEYS[1], off, off)
+prev = prev == '' and 0 or string.byte(prev)
 redis.call('SETRANGE', KEYS[1], off, string.char(tonumber(ARGV[2])))
 redis.call('HINCRBY', KEYS[2], 'n:' .. off, 1)
 redis.call('HSET', KEYS[2], 't:' .. off, ARGV[3])
 redis.call('HINCRBY', KEYS[3], ARGV[4], 1)
+redis.call('XADD', KEYS[4], '*', 'x', ARGV[5], 'y', ARGV[6], 'c', ARGV[2], 'p', prev, 'u', ARGV[7], 't', ARGV[3])
 return 1
 `)
 
 const hourMs = 3_600_000
 
-// Paint sets a pixel at time `at` (Unix ms).
-func (s *Store) Paint(ctx context.Context, p Pixel, at int64) error {
+// Paint sets a pixel at time `at` (Unix ms) for a user ("" if anonymous).
+func (s *Store) Paint(ctx context.Context, p Pixel, at int64, user string) error {
 	id, off := Locate(p.X, p.Y)
-	keys := []string{"chunk:" + id, "meta:" + id, "stats:hourly"}
-	return paintScript.Run(ctx, s.rdb, keys, off, p.C, at, at/hourMs).Err()
+	keys := []string{"chunk:" + id, "meta:" + id, "stats:hourly", "log"}
+	return paintScript.Run(ctx, s.rdb, keys, off, p.C, at, at/hourMs, p.X, p.Y, user).Err()
 }
 
 // Chunk returns a chunk's raw bytes; empty if it was never painted.

@@ -1,6 +1,6 @@
 // Small stateless modules: colours, dates, quota, API.
 import { afterEach, expect, test, vi } from 'vitest'
-import { fetchConfig, fetchPixelInfo } from './api'
+import { deleteAccount, fetchConfig, fetchMe, fetchPixelInfo, savePseudo, signOut } from './api'
 import { colorName } from './colors'
 import { HEAT_COLORS, HEAT_STEPS } from './heat'
 import { quotaAt } from './quota'
@@ -43,6 +43,36 @@ test('the API returns the server JSON and fails on an HTTP error', async () => {
 
   fetch.mockImplementation(() => Promise.resolve(new Response('', { status: 500 })))
   await expect(fetchConfig()).rejects.toThrow('/api/config : 500')
+})
+
+test('account calls: refusals are explained, other failures throw', async () => {
+  const fetch = vi.fn((url: string, init?: RequestInit) => {
+    if (url === '/api/me' && !init) return Promise.resolve(Response.json(null))
+    return Promise.resolve(new Response(null, { status: 204 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  await expect(fetchMe()).resolves.toBeNull()
+  await expect(savePseudo('Minou')).resolves.toBeNull()
+  expect(fetch).toHaveBeenLastCalledWith('/api/me/pseudo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"pseudo":"Minou"}',
+  })
+  await signOut()
+  expect(fetch).toHaveBeenLastCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' }))
+  await deleteAccount()
+  expect(fetch).toHaveBeenLastCalledWith('/api/me', expect.objectContaining({ method: 'DELETE' }))
+
+  for (const [status, reason] of [
+    [409, 'ce pseudo est déjà pris'],
+    [400, 'trop court'],
+  ] as const) {
+    fetch.mockImplementationOnce(() => Promise.resolve(new Response(`${reason}\n`, { status })))
+    await expect(savePseudo('x')).resolves.toBe(reason)
+  }
+  fetch.mockImplementation(() => Promise.resolve(new Response('', { status: 500 })))
+  await expect(savePseudo('x')).resolves.toBe("Impossible d'enregistrer pour le moment")
+  await expect(signOut()).rejects.toThrow('/api/auth/logout : 500')
 })
 
 test('settings: defaults, remembered, safe when storage fails', () => {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LeoPenaguin/pixels/server/internal/account"
 	"github.com/LeoPenaguin/pixels/server/internal/board"
 
 	"golang.org/x/time/rate"
@@ -24,20 +25,23 @@ const (
 	statsMaxAge  = 10 * time.Second // the stats scan the whole world: computed at most this often
 )
 
-// Options tunes the pixel quota.
+// Options tunes the pixel quota and the sign-in.
 type Options struct {
 	Burst  int           // pixels that can be painted in a row
 	Refill time.Duration // time to regain one pixel; 0 = unlimited
+	Google *Google       // sign-in; nil = off
 }
 
 // Server is the state shared by the routes (storage, quotas, connections, broadcast).
 type Server struct {
-	store   *board.Store
-	opts    Options
-	quotas  *quotas
-	lookups *quotas // pixel history requests, per IP
-	conns   *connLimit
-	hub     *hub
+	store    *board.Store
+	accounts *account.Store
+	google   *Google
+	opts     Options
+	quotas   *quotas // per account when sign-in is on, per IP otherwise
+	lookups  *quotas // pixel history requests, per IP
+	conns    *connLimit
+	hub      *hub
 
 	// ponytail: global lock around painting so Redis order = broadcast order.
 	// Tops out around 20k pixels/s locally; beyond that, lock per chunk.
@@ -53,7 +57,7 @@ type Server struct {
 }
 
 // New creates a server; Loop must run for pixels to be broadcast.
-func New(store *board.Store, o Options) *Server {
+func New(store *board.Store, accounts *account.Store, o Options) *Server {
 	o.Burst = max(o.Burst, 1)
 	every := rate.Inf
 	if o.Refill > 0 {
@@ -61,6 +65,8 @@ func New(store *board.Store, o Options) *Server {
 	}
 	return &Server{
 		store:       store,
+		accounts:    accounts,
+		google:      o.Google,
 		opts:        o,
 		quotas:      newQuotas(o.Burst, every),
 		lookups:     newQuotas(lookupsBurst, lookupsRate),
@@ -81,6 +87,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/stats", s.statsRoute)
 	mux.HandleFunc("GET /api/pixels/{x}/{y}", s.pixelInfo)
 	mux.HandleFunc("GET /ws", s.ws)
+	mux.HandleFunc("GET /api/me", s.me)
+	if s.google != nil {
+		mux.HandleFunc("GET /api/auth/login", s.login)
+		mux.HandleFunc("GET /api/auth/callback", s.callback)
+		mux.HandleFunc("POST /api/auth/logout", s.logout)
+		mux.HandleFunc("POST /api/me/pseudo", s.setPseudo)
+		mux.HandleFunc("DELETE /api/me", s.deleteMe)
+	}
 	return mux
 }
 
@@ -103,19 +117,25 @@ func (s *Server) Loop(ctx context.Context) {
 	}
 }
 
-// place paints a pixel for an IP if its quota allows it, and returns the remaining quota.
-func (s *Server) place(ctx context.Context, ip string, p board.Pixel, reply chan []byte) {
-	q := s.quotas.get(ip)
-	ok := q.Allow()
+// sendQuota tells a client how many pixels its quota holds.
+func (s *Server) sendQuota(q *rate.Limiter, reply chan []byte) {
 	if s.opts.Refill > 0 {
 		trySend(reply, mustJSON(map[string]any{"t": "q", "n": q.Tokens()}))
 	}
+}
+
+// place paints a pixel for a user ("" if anonymous) if its quota (counted under `key`) allows
+// it, and returns the remaining quota.
+func (s *Server) place(ctx context.Context, key, user string, p board.Pixel, reply chan []byte) {
+	q := s.quotas.get(key)
+	ok := q.Allow()
+	s.sendQuota(q, reply)
 	if !ok {
 		return
 	}
 	s.paintMu.Lock()
 	defer s.paintMu.Unlock()
-	if err := s.store.Paint(ctx, p, s.now().UnixMilli()); err == nil {
+	if err := s.store.Paint(ctx, p, s.now().UnixMilli(), user); err == nil {
 		s.hub.queue(p)
 	}
 }
@@ -127,6 +147,7 @@ func (s *Server) config(w http.ResponseWriter, _ *http.Request) {
 		"worldHeight": board.WorldHeight,
 		"palette":     board.PaletteRows,
 		"quota":       map[string]any{"burst": s.opts.Burst, "refillMs": s.opts.Refill.Milliseconds()},
+		"auth":        s.google != nil,
 	})
 }
 

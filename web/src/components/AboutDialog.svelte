@@ -16,7 +16,7 @@
   </p>
   <p>
     Pour que chacun ait sa place, on dispose d'un nombre limité de pixels d'affilée ; le compteur en bas de l'écran se
-    recharge avec le temps. Pas de compte : les limites s'appliquent par connexion.
+    recharge avec le temps. Pour peindre, on se connecte avec Google et on choisit un pseudo ; regarder reste libre.
   </p>
   <p>
     Le code source est sur <a href="https://github.com/LeoPenaguin/pixels" target="_blank" rel="noopener noreferrer"

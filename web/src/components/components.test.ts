@@ -4,6 +4,7 @@ import { render } from 'vitest-browser-svelte'
 import type { Stats } from '../lib/api'
 import { config, stubFetch } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
+import AccountDialog from './AccountDialog.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HeatLegend from './HeatLegend.svelte'
 import HelpDialog from './HelpDialog.svelte'
@@ -268,13 +269,78 @@ describe('SitePanel', () => {
   test('shows the site name, opens the about dialog and links to donations', async () => {
     const onabout = vi.fn()
     const onstats = vi.fn()
-    const screen = await render(SitePanel, { onabout, onstats })
+    const screen = await render(SitePanel, { onabout, onstats, auth: false, user: null, onaccount: vi.fn() })
     await expect.element(screen.getByText('Pixels')).toBeVisible()
     await expect.element(screen.getByRole('link', { name: 'Faire un don' })).toBeVisible()
     await screen.getByRole('button', { name: 'À propos' }).click()
     expect(onabout).toHaveBeenCalledOnce()
     await screen.getByRole('button', { name: 'Stats' }).click()
     expect(onstats).toHaveBeenCalledOnce()
+  })
+
+  test('sign-in on: a sign-in button, then the pseudo once signed in', async () => {
+    const onaccount = vi.fn()
+    const props = { onabout: vi.fn(), onstats: vi.fn(), auth: true, onaccount }
+    const screen = await render(SitePanel, { ...props, user: null })
+    await screen.getByRole('button', { name: 'Se connecter' }).click()
+    expect(onaccount).toHaveBeenCalledOnce()
+    await screen.rerender({ ...props, user: { id: 'u1', pseudo: '' } })
+    await expect.element(screen.getByRole('button', { name: 'Mon compte : pseudo à choisir' })).toBeVisible()
+    await screen.rerender({ ...props, user: { id: 'u1', pseudo: 'Minou' } })
+    await expect.element(screen.getByRole('button', { name: 'Mon compte : Minou' })).toHaveTextContent('Minou')
+  })
+})
+
+describe('AccountDialog', () => {
+  const props = () => ({
+    onsave: vi.fn(() => Promise.resolve<string | null>(null)),
+    onsignout: vi.fn(() => Promise.resolve()),
+    ondelete: vi.fn(() => Promise.resolve()),
+  })
+
+  test('signed out: explains and links to Google', async () => {
+    const screen = await render(AccountDialog, { ...props(), user: null })
+    screen.component.open()
+    await expect.element(screen.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+    await expect
+      .element(screen.getByRole('link', { name: 'Continuer avec Google' }))
+      .toHaveAttribute('href', '/api/auth/login')
+  })
+
+  test('first sign-in: the pseudo is chosen, a refusal says why', async () => {
+    const p = props()
+    p.onsave.mockResolvedValueOnce('ce pseudo est déjà pris')
+    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: '' } })
+    screen.component.open()
+    await expect.element(screen.getByRole('heading', { name: 'Choisis ton pseudo' })).toBeVisible()
+    const input = screen.getByRole('textbox', { name: 'Pseudo' })
+    await expect.element(input).toHaveFocus()
+    await input.fill(' Minou ')
+    await screen.getByRole('button', { name: 'Enregistrer' }).click()
+    expect(p.onsave).toHaveBeenCalledWith('Minou')
+    await expect.element(screen.getByRole('alert')).toHaveTextContent('ce pseudo est déjà pris')
+    await expect.element(input).toHaveAttribute('aria-invalid', 'true')
+    await screen.getByRole('button', { name: 'Enregistrer' }).click()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('signed in: signs out, or deletes after a confirmation', async () => {
+    const p = props()
+    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: 'Minou' } })
+    screen.component.open()
+    await expect.element(screen.getByRole('textbox', { name: 'Pseudo' })).toHaveValue('Minou')
+    await screen.getByRole('button', { name: 'Se déconnecter' }).click()
+    expect(p.onsignout).toHaveBeenCalledOnce()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+
+    screen.component.open()
+    await screen.getByRole('button', { name: 'Supprimer mon compte' }).click()
+    await screen.getByRole('button', { name: 'Annuler' }).click()
+    await screen.getByRole('button', { name: 'Supprimer mon compte' }).click()
+    await expect.element(screen.getByText(/Tes pixels restent sur la toile/)).toBeVisible()
+    await screen.getByRole('button', { name: 'Supprimer définitivement' }).click()
+    expect(p.ondelete).toHaveBeenCalledOnce()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
 })
 

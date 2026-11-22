@@ -53,6 +53,17 @@ export class Live {
     return true
   }
 
+  /** Opens a new connection without signalling a disconnection: the server reads the account
+   *  when a connection opens, so this follows a sign-in, a pseudo or a sign-out. */
+  reconnect() {
+    const old = this.ws
+    if (old) {
+      old.onclose = null
+      old.close()
+    }
+    this.connect()
+  }
+
   close() {
     this.stopped = true
     this.ws?.close()

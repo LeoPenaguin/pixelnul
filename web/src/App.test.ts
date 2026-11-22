@@ -3,7 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-svelte'
 import './app.css'
 import App from './App.svelte'
-import type { PixelInfo } from './lib/api'
+import type { PixelInfo, User } from './lib/api'
 import { FakeWebSocket, config as baseConfig, frames, stubFetch, stubWebSocket } from './test/fakes'
 
 // The default colour is index 5 (black): a full row of greys is needed.
@@ -17,13 +17,22 @@ const config = {
 
 let info: Partial<PixelInfo> = {}
 let configResponse: () => Response | Promise<Response>
+let me: User | null = null
+let accountStatus = 204 // answer of the account actions (pseudo, sign out, delete)
 
 beforeEach(() => {
   localStorage.clear() // settings
   info = {}
   configResponse = () => Response.json(config)
+  me = null
+  accountStatus = 204
   stubWebSocket()
   stubFetch({
+    '/api/me/pseudo': () =>
+      new Response(accountStatus === 204 ? null : 'ce pseudo est déjà pris', { status: accountStatus }),
+    '/api/me': (_, init) =>
+      init?.method === 'DELETE' ? new Response(null, { status: accountStatus }) : Response.json(me),
+    '/api/auth/logout': () => new Response(null, { status: accountStatus }),
     '/api/config': () => configResponse(),
     '/api/chunks/': () => new Response(new Uint8Array()),
     '/api/stats': () =>
@@ -125,6 +134,75 @@ describe('painting pixels', () => {
     click(10, 10)
     expect(ws.sent).toHaveLength(2)
     await expect.element(page.getByText(/disponible/)).not.toBeInTheDocument()
+  })
+})
+
+describe('accounts', () => {
+  const withAuth = () => (configResponse = () => Response.json({ ...config, auth: true }))
+
+  test('signed out: a click on the board asks to sign in, nothing is sent', async () => {
+    withAuth()
+    const { ws } = await start()
+    click(10, 10)
+    await expect.element(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+    expect(ws.sent).toEqual([])
+    await expect.element(page.getByText(/disponible/)).not.toBeInTheDocument() // no quota without an account
+    board().dispatchEvent(new PointerEvent('pointermove', { clientX: 10, clientY: 10 }))
+    await vi.waitFor(() => {
+      expect(board().style.cursor).toBe('not-allowed')
+    })
+    await expect.element(page.getByRole('button', { name: 'Se connecter', exact: true })).toBeInTheDocument()
+  })
+
+  test('first sign-in: the pseudo is asked for, then painting works on a new connection', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: '' }
+    await start()
+    await expect.element(page.getByRole('heading', { name: 'Choisis ton pseudo' })).toBeVisible()
+    await page.getByRole('textbox', { name: 'Pseudo' }).fill('Minou')
+    await page.getByRole('button', { name: 'Enregistrer' }).click()
+    await announced('Bienvenue Minou, tu peux peindre')
+    expect(FakeWebSocket.instances).toHaveLength(2)
+    FakeWebSocket.last.open()
+    click(10, 10)
+    expect(FakeWebSocket.last.sent).toHaveLength(1)
+    await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).not.toBeInTheDocument()
+  })
+
+  test('signed in: changes the pseudo, signs out, deletes; a failure is announced', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Minou' }
+    await start()
+    const account = () => page.getByRole('button', { name: /^Mon compte/ })
+    await account().click()
+    accountStatus = 409
+    await page.getByRole('textbox', { name: 'Pseudo' }).fill('Pixel')
+    await page.getByRole('button', { name: 'Enregistrer' }).click()
+    await expect.element(page.getByRole('alert')).toHaveTextContent('ce pseudo est déjà pris')
+    accountStatus = 204
+    await page.getByRole('button', { name: 'Enregistrer' }).click()
+    await announced('Pseudo changé en Pixel')
+    await expect.element(account()).toHaveTextContent('Pixel')
+
+    accountStatus = 500
+    await account().click()
+    await page.getByRole('button', { name: 'Se déconnecter' }).click()
+    await announced('Impossible pour le moment, réessaie')
+    accountStatus = 204
+    await account().click()
+    await page.getByRole('button', { name: 'Supprimer mon compte' }).click()
+    await page.getByRole('button', { name: 'Supprimer définitivement' }).click()
+    await announced('Compte supprimé')
+    await expect.element(page.getByRole('button', { name: 'Se connecter' })).toBeVisible()
+  })
+
+  test('signs out', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Minou' }
+    await start()
+    await page.getByRole('button', { name: /^Mon compte/ }).click()
+    await page.getByRole('button', { name: 'Se déconnecter' }).click()
+    await announced('Déconnecté')
   })
 })
 

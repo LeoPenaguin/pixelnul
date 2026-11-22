@@ -11,9 +11,16 @@ import (
 )
 
 // Protocol: the client sends {"x","y","c"}; the server answers {"t":"q","n"} (remaining quota)
-// and broadcasts {"t":"b","p":[…]} batches.
+// and broadcasts {"t":"b","p":[…]} batches. With sign-in on, only a signed-in user with a pseudo
+// can paint, and its quota (sent on connection) follows the account across tabs and devices;
+// the user is read once, at connection: the front reconnects after signing in or out.
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
+	key, user, canPaint := ip, "", true
+	if s.google != nil {
+		u, ok := s.user(r)
+		key, user, canPaint = "u:"+u.ID, u.ID, ok && u.Pseudo != ""
+	}
 	if !s.conns.acquire(ip) {
 		http.Error(w, "too many connections", http.StatusTooManyRequests)
 		return
@@ -36,6 +43,9 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	send := s.hub.subscribe()
 	defer s.hub.unsubscribe(send)
 	go writeLoop(ctx, conn, send)
+	if canPaint && user != "" {
+		s.sendQuota(s.quotas.get(key), send)
+	}
 
 	flood := rate.NewLimiter(10, 20) // messages per second: beyond that, the connection is closed
 	for {
@@ -47,8 +57,8 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			_ = conn.Close(websocket.StatusPolicyViolation, "rate limit")
 			return
 		}
-		if p, ok := board.ParsePixel(data); ok {
-			s.place(ctx, ip, p, send)
+		if p, ok := board.ParsePixel(data); ok && canPaint {
+			s.place(ctx, key, user, p, send)
 		}
 	}
 }

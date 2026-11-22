@@ -11,15 +11,16 @@ export const config: Config = {
     ['#E52521', '#1F5BFF', '#2ECC40'],
   ],
   quota: { burst: 2, refillMs: 1000 },
+  auth: false,
 }
 
-type Route = (url: string) => Response | Promise<Response>
+type Route = (url: string, init?: RequestInit) => Response | Promise<Response>
 
-/** Replaces fetch: `routes` maps a URL prefix to a response; anything else answers 404. */
+/** Replaces fetch: `routes` maps a URL prefix (first match wins) to a response; anything else answers 404. */
 export function stubFetch(routes: Record<string, Route>) {
-  const fetch = vi.fn((url: string) => {
+  const fetch = vi.fn((url: string, init?: RequestInit) => {
     const prefix = Object.keys(routes).find((p) => url.startsWith(p))
-    return Promise.resolve(prefix ? routes[prefix](url) : new Response('', { status: 404 }))
+    return Promise.resolve(prefix ? routes[prefix](url, init) : new Response('', { status: 404 }))
   })
   vi.stubGlobal('fetch', fetch)
   return fetch

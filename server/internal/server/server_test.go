@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LeoPenaguin/pixels/server/internal/account"
 	"github.com/LeoPenaguin/pixels/server/internal/board"
 
 	"github.com/alicebob/miniredis/v2"
@@ -26,7 +27,7 @@ func newTestEnv(t *testing.T, o Options) testEnv {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr(), MaxRetries: -1})
-	s := New(board.NewStore(rdb), o)
+	s := New(board.NewStore(rdb), account.NewStore(rdb), o)
 	s.flushEvery = 5 * time.Millisecond
 	s.forgetEvery = 5 * time.Millisecond
 	s.now = func() time.Time { return time.UnixMilli(42) }
@@ -54,7 +55,7 @@ func get(t *testing.T, url string) (code int, body []byte) {
 }
 
 func TestNewDefaults(t *testing.T) {
-	s := New(nil, Options{Burst: 0})
+	s := New(nil, nil, Options{Burst: 0})
 	if s.opts.Burst != 1 {
 		t.Error("the quota must allow at least one pixel")
 	}
@@ -143,7 +144,7 @@ func TestPixelRouteRateLimit(t *testing.T) {
 func TestPlaceIgnoresRedisErrors(t *testing.T) {
 	e := newTestEnv(t, Options{Burst: 1})
 	e.mr.Close()
-	e.s.place(context.Background(), "ip", board.Pixel{X: 1, Y: 1, C: 1}, make(chan []byte, 1))
+	e.s.place(context.Background(), "ip", "", board.Pixel{X: 1, Y: 1, C: 1}, make(chan []byte, 1))
 	e.s.hub.pendMu.Lock()
 	defer e.s.hub.pendMu.Unlock()
 	if len(e.s.hub.pending) != 0 {
@@ -171,7 +172,7 @@ func TestForgetLoop(t *testing.T) {
 
 func TestHeatRoute(t *testing.T) {
 	e := newTestEnv(t, Options{Burst: 1})
-	_ = e.s.store.Paint(context.Background(), board.Pixel{X: 0, Y: 0, C: 1}, 0)
+	_ = e.s.store.Paint(context.Background(), board.Pixel{X: 0, Y: 0, C: 1}, 0, "")
 	if code, body := get(t, e.url+"/api/heat/0/0"); code != 200 || len(body) != board.ChunkSize*board.ChunkSize || body[0] != 1 {
 		t.Errorf("heat = %d, %d bytes", code, len(body))
 	}
@@ -201,7 +202,7 @@ func TestStatsRoute(t *testing.T) {
 	if code, st := stats(); code != 200 || st.Placed != 0 || st.Online != 1 || st.Pixels != board.WorldWidth*board.WorldHeight {
 		t.Errorf("stats = %d %+v", code, st)
 	}
-	_ = e.s.store.Paint(context.Background(), board.Pixel{X: 0, Y: 0, C: 1}, 0)
+	_ = e.s.store.Paint(context.Background(), board.Pixel{X: 0, Y: 0, C: 1}, 0, "")
 	if _, st := stats(); st.Placed != 0 {
 		t.Error("within statsMaxAge, the cached answer is served")
 	}
