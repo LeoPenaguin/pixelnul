@@ -39,7 +39,7 @@
         <div {...props}>
           <div
             class={cn(
-              'size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] z-50 translate-y-[calc(-50%_-_2px)] bg-foreground fill-foreground',
+              'size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px] z-50 translate-y-[calc(-50%-2px)] bg-foreground fill-foreground',
               arrowClasses,
             )}
             data-side={props['data-side']}

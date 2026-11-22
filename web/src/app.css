@@ -4,6 +4,12 @@
 
 /* Single light theme: shadcn's `dark:` classes must never apply, so the variant targets a class we never set. */
 @custom-variant dark (&:where(.dark, .dark *));
+/* shadcn-svelte's components use these short state variants; bits-ui exposes the states as attributes. */
+@custom-variant data-open (&:where([data-state='open']));
+@custom-variant data-closed (&:where([data-state='closed']));
+@custom-variant data-checked (&:where([data-state='checked']));
+@custom-variant data-horizontal (&:where([data-orientation='horizontal']));
+@custom-variant data-vertical (&:where([data-orientation='vertical']));
 
 /* Theme "neo-brutal pop": white panels, thick ink borders, hard offset shadows, flat bright accents (lime, electric blue, red).
    Only the panels are themed; the board keeps neutral colours so painted pixels stay faithful. */
@@ -83,74 +89,6 @@ body {
 }
 canvas.panel {
   zoom: 1;
-}
-
-.icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: var(--radius);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.icon:hover {
-  background: var(--highlight);
-}
-.icon.active {
-  background: var(--active);
-}
-.icon:focus-visible {
-  outline: var(--stroke) solid var(--focus);
-  outline-offset: 1px;
-}
-
-/* Segmented control (radios in labels): the radios are hidden, their labels are the buttons. */
-.segmented {
-  display: flex;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.segmented label {
-  flex: 1;
-  padding: 6px 0;
-  text-align: center;
-  cursor: pointer;
-}
-.segmented label + label {
-  border-left: 2px solid var(--ink);
-}
-.segmented label:hover {
-  background: var(--highlight);
-}
-.segmented label:has(:checked) {
-  background: var(--active);
-  font-weight: var(--font-weight-bold);
-}
-.segmented label:has(:focus-visible) {
-  outline: var(--stroke) solid var(--focus);
-  outline-offset: -3px;
-}
-.segmented input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Text field. */
-.field {
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: var(--highlight);
-  font: inherit;
-  color: var(--ink);
-}
-.field:focus {
-  outline: var(--stroke) solid var(--focus);
-  outline-offset: 1px;
 }
 
 /* Secondary text: hints, notes, statuses. */

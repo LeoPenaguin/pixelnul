@@ -1,20 +1,15 @@
-<!-- Downloads an image of the whole board, in the chosen format and size. -->
+<!-- Downloads a PNG of the whole board (lossless: pixel art stays sharp), in the chosen size. -->
 <script lang="ts">
-  import { IMAGE_SCALES, type ImageType } from '../lib/download'
+  import { IMAGE_SCALES } from '../lib/download'
   import Modal from './Modal.svelte'
   import { Button } from './ui/button'
+  import * as ToggleGroup from './ui/toggle-group'
 
-  type Props = { width: number; height: number; ondownload: (type: ImageType, scale: number) => Promise<void> }
+  type Props = { width: number; height: number; ondownload: (scale: number) => Promise<void> }
   const { width, height, ondownload }: Props = $props()
 
-  const FORMATS: [type: ImageType, name: string, hint: string][] = [
-    ['image/png', 'PNG', 'Sans perte : chaque pixel reste net. Le plus sûr.'],
-    ['image/webp', 'WebP', 'Sans perte visible, fichier plus léger.'],
-    ['image/jpeg', 'JPEG', 'Le plus léger, mais les bords des pixels deviennent un peu flous.'],
-  ]
-
+  const id = $props.id()
   let modal: { open: () => void }
-  let chosen = $state(0) // index in FORMATS
   let scale = $state(1)
   let status = $state<'idle' | 'busy' | 'failed'>('idle')
 
@@ -26,7 +21,7 @@
   async function download() {
     status = 'busy'
     try {
-      await ondownload(FORMATS[chosen][0], scale)
+      await ondownload(scale)
       status = 'idle'
     } catch {
       status = 'failed'
@@ -35,33 +30,26 @@
 </script>
 
 <Modal bind:this={modal} title="Télécharger l'image">
-  <p>Toute la toile, telle qu'elle est en ce moment.</p>
-  <fieldset>
-    <legend>Taille</legend>
-    <div class="segmented">
+  <p>Toute la toile, telle qu'elle est en ce moment, en PNG.</p>
+  <!-- Clicking the chosen option again must not unselect it: empty values are ignored. -->
+  <div class="group">
+    <p id={`${id}-size`} class="legend">Taille</p>
+    <ToggleGroup.Root
+      type="single"
+      aria-labelledby={`${id}-size`}
+      value={String(scale)}
+      onValueChange={(v) => {
+        if (v) scale = Number(v)
+      }}
+    >
       {#each IMAGE_SCALES as s (s)}
-        <label>
-          <input type="radio" name="size" checked={scale === s} onchange={() => (scale = s)} />
-          <span>{`×${String(s)}`}</span>
-        </label>
+        <ToggleGroup.Item value={String(s)}>{`×${String(s)}`}</ToggleGroup.Item>
       {/each}
-    </div>
+    </ToggleGroup.Root>
     <p class="hint">
       {`${String(width * scale)} × ${String(height * scale)} pixels : chaque pixel de la toile devient un carré de ${String(scale)} × ${String(scale)}.`}
     </p>
-  </fieldset>
-  <fieldset>
-    <legend>Format</legend>
-    <div class="segmented">
-      {#each FORMATS as [t, name], i (t)}
-        <label>
-          <input type="radio" name="format" checked={chosen === i} onchange={() => (chosen = i)} />
-          <span>{name}</span>
-        </label>
-      {/each}
-    </div>
-    <p class="hint">{FORMATS[chosen][2]}</p>
-  </fieldset>
+  </div>
   <div class="actions">
     <!-- Announced: preparing the image can take a moment, and it can fail. -->
     <span class="hint status" role="status">
@@ -77,12 +65,10 @@
     margin: 0 0 12px;
     font-weight: var(--font-weight-normal);
   }
-  fieldset {
+  .group {
     margin: 0 0 14px;
-    padding: 0;
-    border: 0;
   }
-  legend {
+  .legend {
     margin-bottom: 8px;
   }
   .hint {

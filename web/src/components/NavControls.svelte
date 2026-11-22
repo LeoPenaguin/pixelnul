@@ -9,6 +9,8 @@
   import Gear from '~icons/mingcute/settings-1-fill'
   import KeyCap, { type Key } from './KeyCap.svelte'
   import { Button } from './ui/button'
+  import { Kbd } from './ui/kbd'
+  import { Separator } from './ui/separator'
   import * as Tooltip from './ui/tooltip'
 
   type Props = {
@@ -60,7 +62,7 @@
       {/snippet}
     </Tooltip.Trigger>
     <Tooltip.Content side="left" sideOffset={8}
-      ><span>{label}</span>{#if key}<kbd><KeyCap {key} size={12} /></kbd>{/if}</Tooltip.Content
+      ><span>{label}</span>{#if key}<Kbd><KeyCap {key} size={12} /></Kbd>{/if}</Tooltip.Content
     >
   </Tooltip.Root>
 {/snippet}
@@ -70,13 +72,13 @@
   <div class="panel controls" role="group" aria-label="Navigation">
     {@render tool('Zoomer', { icon: Plus, name: 'plus' }, '+', onzoomin, Plus)}
     {@render tool('Dézoomer', { icon: Minus, name: 'moins' }, '-', onzoomout, Minus)}
-    <hr />
+    <Separator class="sep" />
     {@render tool('Recentrer sur 0, 0', '0', '0', onrecenter, '0,0')}
-    <hr />
-    {@render tool('Carte de chaleur', 'H', 'H', onheat, Fire, false, heat)}
+    <Separator class="sep" />
+    {@render tool('Heatmap', 'H', 'H', onheat, Fire, false, heat)}
     {@render tool("Télécharger l'image", '', '', ondownload, Download, true)}
     {@render tool('Paramètres', '', '', onsettings, Gear, true)}
-    <hr class="help" />
+    <Separator class="sep help" />
     <span class="help">{@render tool('Raccourcis clavier', '?', 'Shift+?', onhelp, Keyboard, true)}</span>
   </div>
 </Tooltip.Provider>
@@ -105,29 +107,18 @@
   }
   /* No keyboard on small touch screens: the shortcut list is useless there. */
   @media (pointer: coarse) and (max-width: 640px) {
-    hr.help,
-    span.help {
+    .controls :global(.help) {
       display: none;
     }
   }
   /* Same look as the toolbar separator: 2 px, joining the panel border (cancels the 4 px padding). */
-  hr {
+  .controls :global(.sep) {
+    width: auto;
     margin: 2px -4px;
-    border: 0;
-    border-top: 2px solid var(--ink);
   }
   /* Text face ("0,0"): clearer than any icon for "back to the origin". */
   .text {
     font-weight: var(--font-weight-bold);
     letter-spacing: var(--tracking-tight);
-  }
-  kbd {
-    display: inline-flex;
-    align-items: center;
-    padding: 0 5px;
-    border-radius: 4px;
-    background: var(--highlight);
-    color: var(--ink);
-    font: var(--font-weight-bold) var(--text-xs) var(--font);
   }
 </style>
