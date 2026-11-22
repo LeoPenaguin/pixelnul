@@ -59,24 +59,29 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 - On load, the view opens on 0, 0.
 - Keyboard: arrows move a cursor (Shift: 10 pixels, the view follows), Enter or Space paints.
 - Accessibility: every control has a name (colours have French names), the board announces the targeted and painted pixels to screen readers, and animations are disabled when the system asks for reduced motion.
-- Hovering a pixel shows how many times it was painted and when it was last painted.
+- Hovering a pixel shows how many times it was painted, when it was last painted and by whom (pseudo).
 - Heatmap (`H`, flame button): the board shows how many times each pixel was painted instead of its colour; painting is off meanwhile. A snapshot, reloaded each time it is turned on.
-- Stats (site panel): paints in total, share of the board painted, connected tabs, paints per hour over the last 24 h, colours on the board, the most disputed pixel.
+- Accounts (when Google sign-in is configured): watching is free, painting needs a Google sign-in and a pseudo chosen at the first one. The account menu changes the pseudo, signs out, or deletes the account (its past pixels stay, anonymous). Without Google configured, anyone can paint, counted by IP.
+- Stats (site panel): paints in total, share of the board painted, connected tabs, paints per hour over the last 24 h, colours on the board, the day's 10 best painters (UTC day), the most disputed pixel.
 
 ## How it works
 
 - The world is 1280 × 720 (16:9) and centred on 0, 0: x from -640 to 639, y from -360 to 359. It is stored in 256×256 chunks (6 × 4, the border ones partly outside). The size is `WorldWidth` / `WorldHeight` in `server/internal/board/pixel.go`; resizing needs no data migration (pixels outside a smaller world stay in Redis, hidden, and come back if it grows again).
 - Each chunk is a Redis string `chunk:{cx}:{cy}` of 65,536 bytes, one byte = palette index (0 = white = never painted).
-- History lives in the hash `meta:{cx}:{cy}`: `n:{offset}` = paint count, `t:{offset}` = time of the last paint (Unix ms).
+- History lives in the hash `meta:{cx}:{cy}`: `n:{offset}` = paint count, `t:{offset}` = time of the last paint (Unix ms), `u:{offset}` = user id of the last painter (missing when anonymous).
+- The sorted set `top:{day}` (UTC day = Unix ms / 86,400,000) counts each user's paints that day; it expires after 2 days.
 - The hash `stats:hourly` counts paints per Unix hour (`{hour}` = count), from the moment it was introduced.
-- Painting runs an atomic Lua script: it writes the byte (`SETRANGE`), bumps the counter and timestamps the paint. Repainting the same colour counts too: it costs a pixel and is broadcast like any other.
-- `GET /api/config` returns the palette and quota; `GET /api/chunks/{cx}/{cy}` the raw chunk bytes (gzipped when the client accepts it); `GET /api/pixels/{x}/{y}` returns `{x, y, c, changes, lastChange}`; `GET /api/heat/{cx}/{cy}` the paint counts of a chunk, one byte per pixel (capped at 255); `GET /api/stats` the world statistics (recomputed at most every 10 s).
-- WebSocket `/ws`: the client sends `{"x","y","c"}`. The server answers `{"t":"q","n"}` (remaining quota) and broadcasts every 100 ms a batch `{"t":"b","p":[x,y,c, x,y,c, …]}` of every pixel painted meanwhile. Messages over 512 bytes are compressed (permessage-deflate) when the browser supports it.
+- The stream `log` keeps every paint: `x`, `y`, `c` (colour), `p` (previous colour), `u` (user id, empty when anonymous), `t` (Unix ms). It is the base for per-user history and rollback.
+- Painting runs an atomic Lua script: it writes the byte (`SETRANGE`), bumps the counter, timestamps the paint and logs it. Repainting the same colour counts too: it costs a pixel and is broadcast like any other.
+- Accounts: `google:{sub}` → user id; `user:{id}` hash (`google`, `pseudo`, `pkey`, `created`); `pseudo:{lower-case pseudo}` → user id (unique regardless of case); `session:{token}` → user id, 30 days. Only Google's account id is requested (scope `openid`): no name, no e-mail.
+- `GET /api/config` returns the palette and quota; `GET /api/chunks/{cx}/{cy}` the raw chunk bytes (gzipped when the client accepts it); `GET /api/pixels/{x}/{y}` returns `{x, y, c, changes, lastChange, by}` (`by` = pseudo of the last painter, or null); `GET /api/heat/{cx}/{cy}` the paint counts of a chunk, one byte per pixel (capped at 255); `GET /api/stats` the world statistics (recomputed at most every 10 s).
+- Sign-in: `GET /api/auth/login` → Google → `GET /api/auth/callback`, which sets an `HttpOnly`, `SameSite=Lax` session cookie (`Secure` when `PUBLIC_URL` is https). `GET /api/me` returns `{id, pseudo}` or `null`; `POST /api/me/pseudo` `{"pseudo"}` (400 invalid, 409 taken); `POST /api/auth/logout`; `DELETE /api/me` deletes the account.
+- WebSocket `/ws`: the client sends `{"x","y","c"}`. With sign-in on, the account is read when the connection opens (the front reconnects after signing in or out), pixels from a connection without an account with a pseudo are ignored, and the quota is sent right away. The server answers `{"t":"q","n"}` (remaining quota) and broadcasts every 100 ms a batch `{"t":"b","p":[x,y,c, x,y,c, …]}` of every pixel painted meanwhile. Messages over 512 bytes are compressed (permessage-deflate) when the browser supports it.
 
-## Protections (no user accounts)
+## Protections
 
 - Strict validation: integers, within world bounds, colour in the palette.
-- Per-IP quota (token bucket): 10 pixels in a row, then one more every 2 s. The quota survives disconnection.
+- Quota (token bucket): 10 pixels in a row, then one more every second, per account (shared by its tabs and devices), or per IP without sign-in. The quota survives disconnection.
 - Batched broadcast every 100 ms: outgoing messages no longer scale with clicks.
 - Anti-flood: 10 messages/s (burst 20) per connection, beyond that the connection is closed; messages are 256 bytes max.
 - 10 WebSocket connections max per IP; cross-origin WebSockets are refused.
@@ -84,9 +89,14 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 
 ## Server configuration (environment variables)
 
+Also read from `server/.env` (ignored by Git; template: `server/.env.example`). Variables already set in the environment win.
+
 | Variable | Default |
 |---|---|
 | `ADDR` | `:3007` |
 | `REDIS_URL` | `redis://localhost:6379` |
 | `PIXEL_BURST` | `10` (pixels in a row) |
 | `PIXEL_REFILL_MS` | `1000` (time to regain one pixel; `0` = unlimited, handy in dev: `PIXEL_REFILL_MS=0 go run .`) |
+| `GOOGLE_CLIENT_ID` | empty: sign-in off, anyone paints |
+| `GOOGLE_CLIENT_SECRET` | required with `GOOGLE_CLIENT_ID` |
+| `PUBLIC_URL` | `http://localhost:5173` (the site's address; Google calls back `{PUBLIC_URL}/api/auth/callback`) |

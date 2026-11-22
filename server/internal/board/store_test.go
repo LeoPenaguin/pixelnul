@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -20,7 +21,7 @@ func TestPaint(t *testing.T) {
 	s, mr := newTestStore(t)
 	ctx := context.Background()
 	for i, c := range []int{5, 5, 7} {
-		if err := s.Paint(ctx, Pixel{300, 1, c}, int64(i)); err != nil {
+		if err := s.Paint(ctx, Pixel{300, 1, c}, int64(i), ""); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -30,6 +31,52 @@ func TestPaint(t *testing.T) {
 	}
 	if info, _ := s.Info(ctx, 300, 1); info.Changes != 3 {
 		t.Errorf("changes = %d; want 3: repainting the same colour counts too", info.Changes)
+	}
+}
+
+func TestPaintLogsWhoAndWhat(t *testing.T) {
+	s, _ := newTestStore(t)
+	ctx := context.Background()
+	_ = s.Paint(ctx, Pixel{-3, 4, 9}, 1234, "u1")
+	_ = s.Paint(ctx, Pixel{-3, 4, 2}, 5678, "")
+	log, err := s.rdb.XRange(ctx, "log", "-", "+").Result()
+	if err != nil || len(log) != 2 {
+		t.Fatal(log, err)
+	}
+	want := []map[string]any{
+		{"x": "-3", "y": "4", "c": "9", "p": "0", "u": "u1", "t": "1234"},
+		{"x": "-3", "y": "4", "c": "2", "p": "9", "u": "", "t": "5678"},
+	}
+	for i, e := range log {
+		for k, v := range want[i] {
+			if e.Values[k] != v {
+				t.Errorf("entry %d: %s = %v; want %v", i, k, e.Values[k], v)
+			}
+		}
+	}
+}
+
+func TestPaintRemembersTheLastPainterAndTheDayTop(t *testing.T) {
+	s, mr := newTestStore(t)
+	ctx := context.Background()
+	const day = 20_000 * dayMs
+	_ = s.Paint(ctx, Pixel{1, 1, 3}, day+5, "u1")
+	_ = s.Paint(ctx, Pixel{2, 1, 3}, day+6, "u1")
+	_ = s.Paint(ctx, Pixel{2, 1, 4}, day+7, "u2")
+	if info, _ := s.Info(ctx, 2, 1); info.User != "u2" {
+		t.Errorf("last painter = %q; want u2", info.User)
+	}
+	_ = s.Paint(ctx, Pixel{2, 1, 5}, day+8, "")
+	if info, _ := s.Info(ctx, 2, 1); info.User != "" {
+		t.Errorf("repainted anonymously: last painter = %q; want none", info.User)
+	}
+	_ = s.Paint(ctx, Pixel{3, 1, 5}, day+dayMs, "u2") // tomorrow: another top
+	st, _ := s.Stats(ctx, day+9)
+	if len(st.Top) != 2 || st.Top[0] != (Score{"u1", 2}) || st.Top[1] != (Score{"u2", 1}) {
+		t.Errorf("top = %+v; want u1 2, u2 1", st.Top)
+	}
+	if ttl := mr.TTL("top:20000"); ttl != 48*time.Hour {
+		t.Errorf("top TTL = %v; want 2 days", ttl)
 	}
 }
 
@@ -58,8 +105,8 @@ func TestInfo(t *testing.T) {
 		t.Errorf("never-painted pixel: %+v, %v", info, err)
 	}
 
-	_ = s.Paint(ctx, Pixel{-3, 4, 9}, 1234)
-	_ = s.Paint(ctx, Pixel{-3, 4, 2}, 5678)
+	_ = s.Paint(ctx, Pixel{-3, 4, 9}, 1234, "")
+	_ = s.Paint(ctx, Pixel{-3, 4, 2}, 5678, "")
 	info, err = s.Info(ctx, -3, 4)
 	if err != nil || info.C != 2 || info.Changes != 2 || info.LastChange == nil || *info.LastChange != 5678 {
 		t.Errorf("Info = %+v, %v; want colour 2, 2 changes, last at 5678", info, err)
@@ -78,7 +125,7 @@ func TestHeat(t *testing.T) {
 		t.Errorf("never-painted chunk: %v, %v; want empty", heat, err)
 	}
 	for range 3 {
-		_ = s.Paint(ctx, Pixel{1, 2, 5}, 0)
+		_ = s.Paint(ctx, Pixel{1, 2, 5}, 0, "")
 	}
 	// Capped at 255; malformed fields (another writer, a future format) are skipped.
 	mr.HSet("meta:0:0", "n:7", "300", "n:x", "1", "n:70000", "1", "n:9", "y")
@@ -104,7 +151,7 @@ func TestStats(t *testing.T) {
 
 	paint := func(x, y, c int, at int64) {
 		t.Helper()
-		if e := s.Paint(ctx, Pixel{x, y, c}, at); e != nil {
+		if e := s.Paint(ctx, Pixel{x, y, c}, at, ""); e != nil {
 			t.Fatal(e)
 		}
 	}

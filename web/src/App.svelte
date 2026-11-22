@@ -2,6 +2,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import AboutDialog from './components/AboutDialog.svelte'
+  import AccountDialog from './components/AccountDialog.svelte'
   import DownloadDialog from './components/DownloadDialog.svelte'
   import HeatLegend from './components/HeatLegend.svelte'
   import HelpDialog from './components/HelpDialog.svelte'
@@ -12,7 +13,18 @@
   import SitePanel from './components/SitePanel.svelte'
   import StatsDialog from './components/StatsDialog.svelte'
   import Toolbar from './components/Toolbar.svelte'
-  import { fetchConfig, fetchPixelInfo, type Config, type PixelInfo } from './lib/api'
+  import {
+    deleteAccount,
+    fetchConfig,
+    fetchMe,
+    fetchPixelInfo,
+    fetchStats,
+    savePseudo,
+    signOut,
+    type Config,
+    type PixelInfo,
+    type User,
+  } from './lib/api'
   import { colorName } from './lib/colors'
   import { downloadBoard, type ImageType } from './lib/download'
   import type { Point } from './lib/engine/camera'
@@ -32,16 +44,19 @@
   let help: { open: () => void }
   let about: { open: () => void }
   let settingsDialog: { open: () => void }
+  let accountDialog: { open: () => void }
   let downloadDialog = $state<{ open: () => void }>()
   let statsDialog = $state<{ open: () => Promise<void> }>()
   let world: World | undefined
   let live: Live | undefined
 
   let cfg = $state<Config>()
+  let user = $state<User | null>(null) // signed-in user (sign-in on only)
   let color = $state(5) // black
   let paletteOpen = $state(false)
   let settings = $state(loadSettings())
   let heat = $state(false) // heatmap shown instead of the colours (painting off)
+  let heatMax = $state(1) // change count of the most painted pixel: top of the heatmap scale
   let hover = $state<Point | null>(null) // targeted pixel (mouse or keyboard cursor)
   let center = $state<Point>({ x: 0, y: 0 }) // pixel at the view centre
   let info = $state<PixelInfo | null>(null)
@@ -55,7 +70,8 @@
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
   const shownInfo = $derived(info && isHovered(info) ? info : null)
   const colorLabel = $derived(settings.colorNames && shownInfo?.c ? colorName(colors[shownInfo.c]) : null)
-  const canPaint = $derived(!lost && !heat && (!limits || quotaAt(limits, quota, now).available >= 1))
+  const needsAccount = $derived(cfg?.auth === true && !user?.pseudo) // sign-in on: painting needs a pseudo
+  const canPaint = $derived(!lost && !heat && !needsAccount && (!limits || quotaAt(limits, quota, now).available >= 1))
   $effect(() => {
     saveSettings($state.snapshot(settings))
   })
@@ -95,7 +111,8 @@
       info = i
       if (!speak || !isHovered(i)) return
       const changes = i.changes ? `, ${String(i.changes)} changement${i.changes > 1 ? 's' : ''}` : ''
-      announce(`${String(i.x)}, ${String(i.y)} : ${colorName(colors[i.c])}${changes}`)
+      const by = i.by ? `, par ${i.by}` : ''
+      announce(`${String(i.x)}, ${String(i.y)} : ${colorName(colors[i.c])}${changes}${by}`)
     } catch {
       // harmless: the info comes back on the next hover
     }
@@ -104,6 +121,10 @@
   function place(x: number, y: number) {
     if (heat) {
       announce('Carte de chaleur affichée : appuie sur H pour revenir aux couleurs et peindre')
+      return
+    }
+    if (needsAccount) {
+      accountDialog.open() // explains how to start: sign in, or choose a pseudo
       return
     }
     if (!live?.open) {
@@ -130,10 +151,37 @@
     loadInfo(true)
   }
 
-  function toggleHeat() {
+  async function toggleHeat() {
     heat = !heat
-    world?.setHeat(heat)
     announce(heat ? 'Carte de chaleur affichée' : 'Couleurs affichées')
+    if (heat) {
+      // The chunk bytes stop at 255; without the stats, the scale stays at its last top.
+      const s = await fetchStats().catch(() => null)
+      if (s) heatMax = Math.min(255, Math.max(1, s.hottest?.changes ?? 1))
+    }
+    world?.setHeat(heat, heatMax) // `heat` read again: H may have been pressed meanwhile
+  }
+
+  async function choosePseudo(pseudo: string) {
+    const refusal = await savePseudo(pseudo)
+    if (refusal || !user) return refusal
+    const first = !user.pseudo
+    user.pseudo = pseudo
+    live?.reconnect() // the server reads the account when the connection opens
+    announce(first ? `Bienvenue ${pseudo}, tu peux peindre` : `Pseudo changé en ${pseudo}`)
+    return null
+  }
+
+  /** Signs out, or deletes the account: either way, back to watching. */
+  async function leave(action: () => Promise<void>, done: string) {
+    try {
+      await action()
+      user = null
+      live?.reconnect()
+      announce(done)
+    } catch {
+      announce('Impossible pour le moment, réessaie')
+    }
   }
 
   function run(a: Action) {
@@ -158,7 +206,7 @@
         settings.grid = !settings.grid
         break
       case 'heat':
-        toggleHeat()
+        void toggleHeat()
         break
       case 'palette':
         void toolbar?.toggle()
@@ -183,11 +231,14 @@
 
   async function init() {
     try {
-      const conf = await fetchConfig()
+      // /api/me answers null when signed out, or when sign-in is off.
+      const [conf, me] = await Promise.all([fetchConfig(), fetchMe()])
       down = false
       cfg = conf
       colors = conf.palette.flat()
       quota = { n: conf.quota.burst, at: Date.now() }
+      user = me
+      if (me && !me.pseudo) setTimeout(() => accountDialog.open()) // first sign-in: choose a pseudo
       const w = new World(canvas, conf)
       w.setGrid(settings.grid)
       world = w
@@ -258,6 +309,13 @@
 <HelpDialog bind:this={help} />
 <AboutDialog bind:this={about} />
 <SettingsDialog bind:this={settingsDialog} bind:settings />
+<AccountDialog
+  bind:this={accountDialog}
+  {user}
+  onsave={choosePseudo}
+  onsignout={() => leave(signOut, 'Déconnecté')}
+  ondelete={() => leave(deleteAccount, 'Compte supprimé')}
+/>
 
 <!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. -->
 {#if down || lost}
@@ -266,7 +324,13 @@
 
 <!-- Top-left column: the site panel, then the X / Y panel (once loaded) which grows on its own. -->
 <div class="top-left">
-  <SitePanel onabout={() => about.open()} onstats={() => void statsDialog?.open()} />
+  <SitePanel
+    onabout={() => about.open()}
+    onstats={() => void statsDialog?.open()}
+    auth={cfg?.auth === true}
+    {user}
+    onaccount={() => accountDialog.open()}
+  />
   {#if cfg}
     <JumpPanel
       position={hover ?? center}
@@ -282,7 +346,7 @@
 {#if cfg}
   {@const conf = cfg}
   {#if heat}
-    <HeatLegend />
+    <HeatLegend max={heatMax} />
   {/if}
   <StatsDialog
     bind:this={statsDialog}
@@ -300,7 +364,7 @@
     onzoomout={() => world?.zoomBy(1 / 1.5)}
     onrecenter={() => world?.recenter()}
     {heat}
-    onheat={toggleHeat}
+    onheat={() => void toggleHeat()}
     ondownload={() => downloadDialog?.open()}
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}
@@ -311,7 +375,7 @@
     bind:color
     bind:open={paletteOpen}
     colorNames={settings.colorNames}
-    quota={limits}
+    quota={needsAccount ? null : limits}
     snapshot={quota}
     {now}
   />

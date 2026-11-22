@@ -1,8 +1,8 @@
 // Small stateless modules: colours, dates, quota, API.
 import { afterEach, expect, test, vi } from 'vitest'
-import { fetchConfig, fetchPixelInfo } from './api'
+import { deleteAccount, fetchConfig, fetchMe, fetchPixelInfo, savePseudo, signOut } from './api'
 import { colorName } from './colors'
-import { HEAT_COLORS, HEAT_STEPS } from './heat'
+import { HEAT_NONE, HEAT_RAMP, heatColors, heatLevel, rampColor } from './heat'
 import { quotaAt } from './quota'
 import { loadSettings, saveSettings } from './settings'
 import { ago } from './time'
@@ -45,6 +45,36 @@ test('the API returns the server JSON and fails on an HTTP error', async () => {
   await expect(fetchConfig()).rejects.toThrow('/api/config : 500')
 })
 
+test('account calls: refusals are explained, other failures throw', async () => {
+  const fetch = vi.fn((url: string, init?: RequestInit) => {
+    if (url === '/api/me' && !init) return Promise.resolve(Response.json(null))
+    return Promise.resolve(new Response(null, { status: 204 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  await expect(fetchMe()).resolves.toBeNull()
+  await expect(savePseudo('Minou')).resolves.toBeNull()
+  expect(fetch).toHaveBeenLastCalledWith('/api/me/pseudo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"pseudo":"Minou"}',
+  })
+  await signOut()
+  expect(fetch).toHaveBeenLastCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' }))
+  await deleteAccount()
+  expect(fetch).toHaveBeenLastCalledWith('/api/me', expect.objectContaining({ method: 'DELETE' }))
+
+  for (const [status, reason] of [
+    [409, 'ce pseudo est déjà pris'],
+    [400, 'trop court'],
+  ] as const) {
+    fetch.mockImplementationOnce(() => Promise.resolve(new Response(`${reason}\n`, { status })))
+    await expect(savePseudo('x')).resolves.toBe(reason)
+  }
+  fetch.mockImplementation(() => Promise.resolve(new Response('', { status: 500 })))
+  await expect(savePseudo('x')).resolves.toBe("Impossible d'enregistrer pour le moment")
+  await expect(signOut()).rejects.toThrow('/api/auth/logout : 500')
+})
+
 test('settings: defaults, remembered, safe when storage fails', () => {
   localStorage.clear()
   expect(loadSettings()).toEqual({ grid: true, colorNames: false, scale: 1 })
@@ -62,7 +92,21 @@ test('settings: defaults, remembered, safe when storage fails', () => {
   localStorage.clear()
 })
 
-test('heat colours: one per change count, by steps', () => {
-  expect(HEAT_COLORS).toHaveLength(256)
-  expect([0, 1, 4, 9, 255].map((n) => HEAT_COLORS[n])).toEqual([0, 1, 3, 4, 5].map((step) => HEAT_STEPS[step][1]))
+test('heat colours: scaled from 1 to the board maximum, logarithmic', () => {
+  expect(rampColor(0)).toBe(HEAT_RAMP[0])
+  expect(rampColor(0.5)).toBe(HEAT_RAMP[2])
+  expect(rampColor(1)).toBe(HEAT_RAMP[4])
+  expect(rampColor(0.125)).toBe('#772785') // halfway between the first two stops
+  expect(heatLevel(10, 100)).toBe(0.5)
+  expect(heatLevel(500, 100)).toBe(1) // above the maximum: the top
+  expect(heatLevel(1, 1)).toBe(1) // everything painted once: all at the top
+  const colors = heatColors(16)
+  expect(colors).toHaveLength(256)
+  expect([colors[0], colors[1], colors[4], colors[16], colors[255]]).toEqual([
+    HEAT_NONE,
+    HEAT_RAMP[0],
+    HEAT_RAMP[2],
+    HEAT_RAMP[4],
+    HEAT_RAMP[4],
+  ])
 })

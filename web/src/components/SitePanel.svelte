@@ -1,13 +1,16 @@
-<!-- Site panel (top left, above the X / Y panel): brand, then site links. -->
+<!-- Site panel (top left, above the X / Y panel): brand, site links, then the account. -->
 <script lang="ts">
   import Heart from '~icons/mingcute/heart-fill'
+  import UserIcon from '~icons/mingcute/user-3-fill'
+  import type { User } from '../lib/api'
   import { Button } from './ui/button'
 
   // ponytail: placeholder (the code repository) until a donation page exists; put its URL here.
   const DONATE_URL = 'https://github.com/LeoPenaguin/pixels'
 
-  type Props = { onabout: () => void; onstats: () => void }
-  const { onabout, onstats }: Props = $props()
+  // auth: sign-in on (otherwise no account button). user: null when signed out.
+  type Props = { onabout: () => void; onstats: () => void; auth: boolean; user: User | null; onaccount: () => void }
+  const { onabout, onstats, auth, user, onaccount }: Props = $props()
 </script>
 
 <header class="panel site">
@@ -22,6 +25,19 @@
       Faire un don
     </a>
   </nav>
+  {#if auth}
+    <!-- Signed in: the pseudo is the name; signed out, a filled button: it is how painting starts. -->
+    <Button
+      class="account"
+      variant={user ? 'outline' : 'default'}
+      aria-haspopup="dialog"
+      aria-label={user ? `Mon compte : ${user.pseudo || 'pseudo à choisir'}` : undefined}
+      onclick={onaccount}
+    >
+      <UserIcon aria-hidden="true" />
+      <span>{user ? user.pseudo || 'Mon compte' : 'Se connecter'}</span>
+    </Button>
+  {/if}
 </header>
 
 <style>

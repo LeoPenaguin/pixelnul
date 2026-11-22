@@ -7,10 +7,22 @@ export type Config = {
   worldHeight: number
   palette: string[][]
   quota: { burst: number; refillMs: number } // refillMs = 0: unlimited
+  auth: boolean // sign-in on: painting needs an account with a pseudo
 }
 
-/** A pixel's history; lastChange (Unix ms) is null if its colour never changed. */
-export type PixelInfo = { x: number; y: number; c: number; changes: number; lastChange: number | null }
+/** Signed-in user; pseudo is empty until chosen. */
+export type User = { id: string; pseudo: string }
+
+/** A pixel's history; lastChange (Unix ms) is null if its colour never changed; by = pseudo of the
+ *  last painter, null if anonymous or deleted. */
+export type PixelInfo = {
+  x: number
+  y: number
+  c: number
+  changes: number
+  lastChange: number | null
+  by: string | null
+}
 
 async function getJSON<T>(url: string): Promise<T> {
   const r = await fetch(url)
@@ -28,6 +40,7 @@ export type Stats = {
   hottest: { x: number; y: number; changes: number } | null
   colors: number[]
   hours: number[]
+  top: { pseudo: string; n: number }[] // most paints today (UTC day), best first
 }
 
 export const fetchConfig = () => getJSON<Config>('/api/config')
@@ -35,3 +48,29 @@ export const fetchConfig = () => getJSON<Config>('/api/config')
 export const fetchStats = () => getJSON<Stats>('/api/stats')
 
 export const fetchPixelInfo = (x: number, y: number) => getJSON<PixelInfo>(`/api/pixels/${String(x)}/${String(y)}`)
+
+/** Signed-in user, or null. */
+export const fetchMe = () => getJSON<User | null>('/api/me')
+
+/** Chooses or changes the pseudo. Resolves to the reason of a refusal, or null once saved. */
+export async function savePseudo(pseudo: string): Promise<string | null> {
+  // JSON body: not a "simple" request, so another site cannot send it with our cookie.
+  const r = await fetch('/api/me/pseudo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pseudo }),
+  })
+  if (r.ok) return null
+  if (r.status === 400 || r.status === 409) return (await r.text()).trim()
+  return "Impossible d'enregistrer pour le moment"
+}
+
+async function send(method: string, url: string) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' } })
+  if (!r.ok) throw new Error(`${url} : ${String(r.status)}`)
+}
+
+export const signOut = () => send('POST', '/api/auth/logout')
+
+/** Deletes the account; its past pixels stay, anonymous. */
+export const deleteAccount = () => send('DELETE', '/api/me')

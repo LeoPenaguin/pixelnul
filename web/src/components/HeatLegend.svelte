@@ -1,14 +1,18 @@
-<!-- Legend of the heatmap mode, shown while it replaces the board. -->
+<!-- Legend of the heatmap mode, shown while it replaces the board: its scale runs up to the board's maximum. -->
 <script lang="ts">
-  import { HEAT_STEPS } from '../lib/heat'
+  import { HEAT_NONE, HEAT_RAMP } from '../lib/heat'
+
+  type Props = { max: number } // change count of the most painted pixel
+  const { max }: Props = $props()
 </script>
 
 <div class="panel legend" role="group" aria-label="Légende de la carte de chaleur">
   <span class="title">Carte de chaleur</span>
-  <span class="steps">
-    {#each HEAT_STEPS as [min, color, label] (min)}
-      <span class="step"><span class="swatch" style:background={color}></span>{label}</span>
-    {/each}
+  <span class="step"><span class="swatch" style:background={HEAT_NONE}></span>0</span>
+  <span class="step">
+    1
+    <span class="ramp" style:background={`linear-gradient(to right, ${HEAT_RAMP.join(', ')})`}></span>
+    <span>{String(max)}</span>
   </span>
   <span class="note">fois peint · H pour revenir</span>
 </div>
@@ -28,21 +32,23 @@
   .title {
     font-weight: var(--font-weight-bold);
   }
-  .steps {
-    display: flex;
-    gap: 8px;
-  }
   .step {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     font-variant-numeric: tabular-nums;
   }
-  .swatch {
-    width: 14px;
+  .swatch,
+  .ramp {
     height: 14px;
     border: 2px solid var(--ink);
     border-radius: 3px;
+  }
+  .swatch {
+    width: 14px;
+  }
+  .ramp {
+    width: 120px;
   }
   .note {
     font-weight: var(--font-weight-normal);
@@ -52,6 +58,9 @@
   @media (max-width: 640px) {
     .note {
       display: none;
+    }
+    .ramp {
+      width: 80px;
     }
   }
 </style>

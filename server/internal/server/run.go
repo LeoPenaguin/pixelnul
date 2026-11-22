@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/LeoPenaguin/pixels/server/internal/account"
 	"github.com/LeoPenaguin/pixels/server/internal/board"
 
 	"github.com/redis/go-redis/v9"
@@ -40,7 +41,20 @@ func Run(ctx context.Context, getenv func(string) string) error {
 		return fmt.Errorf("redis: %w", err)
 	}
 
-	s := New(board.NewStore(rdb), Options{Burst: burst, Refill: time.Duration(refillMs) * time.Millisecond})
+	o := Options{Burst: burst, Refill: time.Duration(refillMs) * time.Millisecond}
+	if id := getenv("GOOGLE_CLIENT_ID"); id != "" {
+		o.Google = &Google{ //nolint:gosec // G101: the secret comes from the environment
+			ClientID:  id,
+			Secret:    getenv("GOOGLE_CLIENT_SECRET"),
+			PublicURL: env("PUBLIC_URL", "http://localhost:5173"),
+			AuthURL:   "https://accounts.google.com/o/oauth2/v2/auth",
+			TokenURL:  "https://oauth2.googleapis.com/token",
+		}
+		if o.Google.Secret == "" {
+			return errors.New("GOOGLE_CLIENT_SECRET is required with GOOGLE_CLIENT_ID")
+		}
+	}
+	s := New(board.NewStore(rdb), account.NewStore(rdb), o)
 	srv := &http.Server{Addr: env("ADDR", ":3007"), Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go s.Loop(ctx)
 	go func() {

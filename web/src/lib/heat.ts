@@ -1,16 +1,32 @@
-// Heatmap colours: how many times a pixel was painted, from never (dark) to very disputed (bright).
+// Heatmap colours: how many times a pixel was painted, from never (dark) to the board's most
+// disputed pixel (bright). The scale follows the board: its top is the current maximum.
 
-/** [minimum change count, colour, legend label]: a few readable steps rather than a smooth ramp. */
-export const HEAT_STEPS: [min: number, color: string, label: string][] = [
-  [0, '#1c1c1c', '0'],
-  [1, '#4b1d8c', '1'],
-  [2, '#a3307e', '2'],
-  [3, '#e4505b', '3–4'],
-  [5, '#f99a3e', '5–9'],
-  [10, '#fde74c', '10+'],
-]
+export const HEAT_NONE = '#1c1c1c' // never painted
+/** From painted once to painted the most. */
+export const HEAT_RAMP = ['#4b1d8c', '#a3307e', '#e4505b', '#f99a3e', '#fde74c']
 
-/** Colour of each byte the server sends (change count, capped at 255). */
-export const HEAT_COLORS = Array.from({ length: 256 }, (_, n) =>
-  HEAT_STEPS.reduce((color, [min, c]) => (n >= min ? c : color), HEAT_STEPS[0][1]),
-)
+/** Position of a change count on the ramp, 0 to 1. Logarithmic: a few very disputed pixels must
+ *  not flatten everything else to the bottom colour. */
+export const heatLevel = (n: number, max: number) => (max <= 1 ? 1 : Math.log(Math.min(n, max)) / Math.log(max))
+
+const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+
+/** Colour at position t (0 to 1) of the ramp, as #rrggbb. */
+export function rampColor(t: number) {
+  const x = t * (HEAT_RAMP.length - 1)
+  const i = Math.min(Math.floor(x), HEAT_RAMP.length - 2)
+  const a = channels(HEAT_RAMP[i])
+  const b = channels(HEAT_RAMP[i + 1])
+  return `#${a
+    .map((v, k) =>
+      Math.round(v + (b[k] - v) * (x - i))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`
+}
+
+/** Colour of each byte the server sends (change count, capped at 255), for a board whose most
+ *  painted pixel was painted `max` times. */
+export const heatColors = (max: number) =>
+  Array.from({ length: 256 }, (_, n) => (n ? rampColor(heatLevel(n, max)) : HEAT_NONE))

@@ -4,6 +4,7 @@ import { render } from 'vitest-browser-svelte'
 import type { Stats } from '../lib/api'
 import { config, stubFetch } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
+import AccountDialog from './AccountDialog.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HeatLegend from './HeatLegend.svelte'
 import HelpDialog from './HelpDialog.svelte'
@@ -138,16 +139,16 @@ describe('JumpPanel', () => {
   test('shows the history', async () => {
     const screen = await render(JumpPanel, {
       ...base,
-      info: { x: 3, y: -4, c: 2, changes: 3, lastChange: 100_000 - 120_000 },
+      info: { x: 3, y: -4, c: 2, changes: 3, lastChange: 100_000 - 120_000, by: 'Minou' },
     })
-    await expect.element(screen.getByText('3 changements · dernier il y a 2 minutes')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 1, lastChange: 40_000 } })
+    await expect.element(screen.getByText('3 changements · dernier il y a 2 minutes par Minou')).toBeVisible()
+    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 1, lastChange: 40_000, by: null } })
     await expect.element(screen.getByText('1 changement · dernier il y a 1 minute')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 0, lastChange: null } })
+    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Peint avant le suivi des changements')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null } })
+    await screen.rerender({ info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Jamais peint')).toBeVisible()
-    await screen.rerender({ colorLabel: 'Noir', info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null } })
+    await screen.rerender({ colorLabel: 'Noir', info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Noir ·')).toBeVisible()
   })
 })
@@ -268,13 +269,78 @@ describe('SitePanel', () => {
   test('shows the site name, opens the about dialog and links to donations', async () => {
     const onabout = vi.fn()
     const onstats = vi.fn()
-    const screen = await render(SitePanel, { onabout, onstats })
+    const screen = await render(SitePanel, { onabout, onstats, auth: false, user: null, onaccount: vi.fn() })
     await expect.element(screen.getByText('Pixels')).toBeVisible()
     await expect.element(screen.getByRole('link', { name: 'Faire un don' })).toBeVisible()
     await screen.getByRole('button', { name: 'À propos' }).click()
     expect(onabout).toHaveBeenCalledOnce()
     await screen.getByRole('button', { name: 'Stats' }).click()
     expect(onstats).toHaveBeenCalledOnce()
+  })
+
+  test('sign-in on: a sign-in button, then the pseudo once signed in', async () => {
+    const onaccount = vi.fn()
+    const props = { onabout: vi.fn(), onstats: vi.fn(), auth: true, onaccount }
+    const screen = await render(SitePanel, { ...props, user: null })
+    await screen.getByRole('button', { name: 'Se connecter' }).click()
+    expect(onaccount).toHaveBeenCalledOnce()
+    await screen.rerender({ ...props, user: { id: 'u1', pseudo: '' } })
+    await expect.element(screen.getByRole('button', { name: 'Mon compte : pseudo à choisir' })).toBeVisible()
+    await screen.rerender({ ...props, user: { id: 'u1', pseudo: 'Minou' } })
+    await expect.element(screen.getByRole('button', { name: 'Mon compte : Minou' })).toHaveTextContent('Minou')
+  })
+})
+
+describe('AccountDialog', () => {
+  const props = () => ({
+    onsave: vi.fn(() => Promise.resolve<string | null>(null)),
+    onsignout: vi.fn(() => Promise.resolve()),
+    ondelete: vi.fn(() => Promise.resolve()),
+  })
+
+  test('signed out: explains and links to Google', async () => {
+    const screen = await render(AccountDialog, { ...props(), user: null })
+    screen.component.open()
+    await expect.element(screen.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+    await expect
+      .element(screen.getByRole('link', { name: 'Continuer avec Google' }))
+      .toHaveAttribute('href', '/api/auth/login')
+  })
+
+  test('first sign-in: the pseudo is chosen, a refusal says why', async () => {
+    const p = props()
+    p.onsave.mockResolvedValueOnce('ce pseudo est déjà pris')
+    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: '' } })
+    screen.component.open()
+    await expect.element(screen.getByRole('heading', { name: 'Choisis ton pseudo' })).toBeVisible()
+    const input = screen.getByRole('textbox', { name: 'Pseudo' })
+    await expect.element(input).toHaveFocus()
+    await input.fill(' Minou ')
+    await screen.getByRole('button', { name: 'Enregistrer' }).click()
+    expect(p.onsave).toHaveBeenCalledWith('Minou')
+    await expect.element(screen.getByRole('alert')).toHaveTextContent('ce pseudo est déjà pris')
+    await expect.element(input).toHaveAttribute('aria-invalid', 'true')
+    await screen.getByRole('button', { name: 'Enregistrer' }).click()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('signed in: signs out, or deletes after a confirmation', async () => {
+    const p = props()
+    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: 'Minou' } })
+    screen.component.open()
+    await expect.element(screen.getByRole('textbox', { name: 'Pseudo' })).toHaveValue('Minou')
+    await screen.getByRole('button', { name: 'Se déconnecter' }).click()
+    expect(p.onsignout).toHaveBeenCalledOnce()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+
+    screen.component.open()
+    await screen.getByRole('button', { name: 'Supprimer mon compte' }).click()
+    await screen.getByRole('button', { name: 'Annuler' }).click()
+    await screen.getByRole('button', { name: 'Supprimer mon compte' }).click()
+    await expect.element(screen.getByText(/Tes pixels restent sur la toile/)).toBeVisible()
+    await screen.getByRole('button', { name: 'Supprimer définitivement' }).click()
+    expect(p.ondelete).toHaveBeenCalledOnce()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
 })
 
@@ -340,11 +406,10 @@ describe('DownloadDialog', () => {
 })
 
 describe('HeatLegend', () => {
-  test('explains the colour steps', async () => {
-    const screen = await render(HeatLegend)
+  test('runs from 0 to the board maximum', async () => {
+    const screen = await render(HeatLegend, { max: 42 })
     const legend = screen.getByRole('group', { name: 'Légende de la carte de chaleur' })
-    for (const label of ['0', '3–4', '10+'])
-      await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
+    for (const label of ['0', '42']) await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
   })
 })
 
@@ -358,6 +423,10 @@ describe('StatsDialog', () => {
     hottest: { x: -4, y: 7, changes: 12 },
     colors: [900_000, 30, 10, 0, 60],
     hours: [...Array<number>(22).fill(0), 5, 1],
+    top: [
+      { pseudo: 'Minou', n: 12 },
+      { pseudo: 'Pixel', n: 1 },
+    ],
   }
 
   test('shows the figures, the activity, the colours and jumps to the hottest pixel', async () => {
@@ -380,6 +449,10 @@ describe('StatsDialog', () => {
       'Noir',
       'Rouge vif',
     ])
+    expect([...screen.container.querySelectorAll('.top li')].map((n) => n.textContent)).toEqual([
+      '1 Minou 12 pixels',
+      '2 Pixel 1 pixel',
+    ])
     await expect.element(screen.getByText('-4, 7 · peint 12 fois')).toBeVisible()
     await screen.getByRole('button', { name: 'Y aller' }).click()
     expect(onjump).toHaveBeenCalledWith(-4, 7)
@@ -395,6 +468,7 @@ describe('StatsDialog', () => {
         hottest: null,
         colors: [921_600, 0, 0, 0, 0],
         hours: Array<number>(24).fill(0),
+        top: [],
       })
     await screen.component.open()
     await expect.element(screen.getByText("Rien n'a encore été peint.")).toBeVisible()
@@ -402,6 +476,7 @@ describe('StatsDialog', () => {
     await expect.element(screen.getByText('0 %', { exact: true })).toBeVisible()
     await expect.element(screen.getByText('0 pixel en 24 h')).toBeVisible()
     await expect.element(screen.getByText('Pixel le plus disputé')).not.toBeInTheDocument()
+    await expect.element(screen.getByText("Meilleurs peintres aujourd'hui")).not.toBeInTheDocument()
 
     answer = () => new Response('', { status: 500 })
     await screen.component.open()

@@ -49,6 +49,19 @@ test('reconnects after a drop, not after close()', () => {
   expect(h.onClose).toHaveBeenCalledTimes(1)
 })
 
+test('reconnect() opens a new connection without signalling a drop', () => {
+  const h = handlers()
+  const live = new Live(h)
+  live.connect()
+  const first = FakeWebSocket.last
+  live.reconnect()
+  expect(first.readyState).toBe(3)
+  expect(FakeWebSocket.instances).toHaveLength(2)
+  expect(h.onClose).not.toHaveBeenCalled()
+  new Live(h).reconnect() // never connected: just connects
+  expect(FakeWebSocket.instances).toHaveLength(3)
+})
+
 test('uses wss over https', () => {
   expect(wsUrl({ protocol: 'https:', host: 'pixels.example' })).toBe('wss://pixels.example/ws')
   expect(wsUrl({ protocol: 'http:', host: 'localhost:5173' })).toBe('ws://localhost:5173/ws')
