@@ -26,7 +26,7 @@ func Run(ctx context.Context, getenv func(string) string) error {
 	if err != nil {
 		return fmt.Errorf("PIXEL_BURST: %w", err)
 	}
-	refillMs, err := strconv.Atoi(env("PIXEL_REFILL_MS", "2000"))
+	refillMs, err := strconv.Atoi(env("PIXEL_REFILL_MS", "1000"))
 	if err != nil {
 		return fmt.Errorf("PIXEL_REFILL_MS: %w", err)
 	}
