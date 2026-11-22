@@ -6,8 +6,9 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// quotas is a token bucket per IP: `burst` pixels in a row, then one more every `refill`
-// (refill = 0: unlimited). Buckets outlive disconnection, otherwise reconnecting would refill them.
+// quotas is a token bucket per key (an account, or an IP without sign-in): `burst` pixels in a
+// row, then one more every `refill` (refill = 0: unlimited). Buckets outlive disconnection,
+// otherwise reconnecting would refill them.
 type quotas struct {
 	burst int
 	every rate.Limit
@@ -20,24 +21,25 @@ func newQuotas(burst int, every rate.Limit) *quotas {
 	return &quotas{burst: burst, every: every, m: map[string]*rate.Limiter{}}
 }
 
-func (q *quotas) get(ip string) *rate.Limiter {
+func (q *quotas) get(key string) *rate.Limiter {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	l := q.m[ip]
+	l := q.m[key]
 	if l == nil {
 		l = rate.NewLimiter(q.every, q.burst)
-		q.m[ip] = l
+		q.m[key] = l
 	}
 	return l
 }
 
-// forgetIdle drops full buckets of disconnected IPs so the map does not grow forever.
-func (q *quotas) forgetIdle(connected func(ip string) bool) {
+// forgetIdle drops full buckets of disconnected keys so the map does not grow forever. A full
+// bucket is the same as a new one: dropping it changes nothing, even for a connected account.
+func (q *quotas) forgetIdle(connected func(key string) bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	for ip, l := range q.m {
-		if !connected(ip) && l.Tokens() >= float64(q.burst) {
-			delete(q.m, ip)
+	for key, l := range q.m {
+		if !connected(key) && l.Tokens() >= float64(q.burst) {
+			delete(q.m, key)
 		}
 	}
 }

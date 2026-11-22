@@ -1,5 +1,6 @@
 <!-- Quota gauge: one block per pixel of the burst, the refilling one filling up, and the count. -->
 <script lang="ts">
+  import { plural } from '../lib/format'
   import { quotaAt, type QuotaRules, type QuotaSnapshot } from '../lib/quota'
 
   type Props = { rules: QuotaRules; snapshot: QuotaSnapshot; now: number }
@@ -17,12 +18,11 @@
     previous = blocks
     return r
   })
-  const s = (n: number) => (n > 1 ? 's' : '')
 </script>
 
 <div class="quota" class:empty={q.available === 0}>
   <span class="sr-only">
-    {`${String(q.available)} pixel${s(q.available)} disponible${s(q.available)} sur ${String(rules.burst)}${
+    {`${plural(q.available, 'pixel disponible')} sur ${String(rules.burst)}${
       q.full ? '' : `, prochain dans ${String(q.nextIn)} secondes`
     }`}
   </span>

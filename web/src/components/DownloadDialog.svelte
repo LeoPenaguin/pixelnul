@@ -1,6 +1,6 @@
 <!-- Downloads an image of the whole board, in the chosen format and size. -->
 <script lang="ts">
-  import { SCALES, type ImageType } from '../lib/download'
+  import { IMAGE_SCALES, type ImageType } from '../lib/download'
   import Modal from './Modal.svelte'
   import { Button } from './ui/button'
 
@@ -39,7 +39,7 @@
   <fieldset>
     <legend>Taille</legend>
     <div class="segmented">
-      {#each SCALES as s (s)}
+      {#each IMAGE_SCALES as s (s)}
         <label>
           <input type="radio" name="size" checked={scale === s} onchange={() => (scale = s)} />
           <span>{`×${String(s)}`}</span>
@@ -64,7 +64,7 @@
   </fieldset>
   <div class="actions">
     <!-- Announced: preparing the image can take a moment, and it can fail. -->
-    <span class="status" role="status">
+    <span class="hint status" role="status">
       {#if status === 'busy'}Préparation de l'image…{:else if status === 'failed'}Échec du téléchargement, réessaie dans
         un instant.{/if}
     </span>
@@ -87,7 +87,6 @@
   }
   .hint {
     margin: 8px 0 0;
-    color: var(--muted-foreground);
   }
   .actions {
     display: flex;
@@ -97,7 +96,5 @@
   }
   .status {
     flex: 1;
-    font-weight: var(--font-weight-normal);
-    color: var(--muted-foreground);
   }
 </style>

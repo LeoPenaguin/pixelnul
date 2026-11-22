@@ -9,14 +9,10 @@
   import KeyCap, { type Key } from './KeyCap.svelte'
   import Modal from './Modal.svelte'
 
-  let modal: { open: () => void; isOpen: () => boolean }
+  let modal: { open: () => void }
 
   export function open() {
     modal.open()
-  }
-
-  export function isOpen() {
-    return modal.isOpen()
   }
 
   // Keys that are symbols use library icons; keys that are words or characters stay text.

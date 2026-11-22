@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { config, stubFetch } from '../../test/fakes'
-import { Chunks, decodeChunk, hexToRgb } from './chunks'
+import { hexToRgb, packColors } from '../colors'
+import { Chunks, decodeChunk } from './chunks'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -15,8 +16,7 @@ test('hexToRgb', () => {
 })
 
 test('decodeChunk: byte = colour index, missing or unknown = white', () => {
-  const rgb = [hexToRgb('#FFFFFF'), hexToRgb('#000000')]
-  const img = decodeChunk(new Uint8Array([1, 9]), rgb, 2)
+  const img = decodeChunk(new Uint8Array([1, 9]), packColors(['#FFFFFF', '#000000']), 2)
   expect(Array.from(img.data)).toEqual([0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255])
 })
 

@@ -17,6 +17,12 @@ export const clampZoom = (zoom: number) => clamp(zoom, MIN_ZOOM, MAX_ZOOM)
 
 // `half` is half the world size: the world, centred on 0, 0, spans [-half.x, half.x) × [-half.y, half.y).
 
+/** First and last chunk indexes along an axis of half-length `half`, for chunks of `size`. */
+export const chunkRange = (half: number, size: number): [number, number] => [
+  Math.floor(-half / size),
+  Math.ceil(half / size) - 1,
+]
+
 /** Is pixel p inside the world? */
 export const inWorld = (p: Point, half: Point) => p.x >= -half.x && p.x < half.x && p.y >= -half.y && p.y < half.y
 

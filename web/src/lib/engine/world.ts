@@ -5,6 +5,7 @@ import {
   HOME,
   clampCam,
   clampPixel,
+  chunkRange,
   clampZoom,
   ease,
   flightStart,
@@ -25,7 +26,7 @@ const DRAG_THRESHOLD = 4 // px: below this, it is a click
 const GRID_MIN_ZOOM = 6 // below this, grid lines would be too dense
 const ANIM_MS = 450
 const TARGET_MS = 2500 // highlight duration after a jump
-const BACKGROUND = '#e5e5e5' // outside the world
+const BACKGROUND = '#e5e5e5' // outside the world; same as the page background in app.css (no flash on load)
 
 // The UI stays monochrome: only the board is in colour. A black outline doubled with white
 // stays readable on any pixel, black included.
@@ -309,10 +310,10 @@ export class World {
     ctx.beginPath()
     ctx.rect(-half.x, -half.y, 2 * half.x, 2 * half.y)
     ctx.clip()
-    const range = (lo: number, hi: number, h: number) => [
-      Math.max(Math.floor(lo / S), Math.floor(-h / S)),
-      Math.min(Math.floor(hi / S), Math.ceil(h / S) - 1),
-    ]
+    const range = (lo: number, hi: number, h: number) => {
+      const [first, last] = chunkRange(h, S)
+      return [Math.max(Math.floor(lo / S), first), Math.min(Math.floor(hi / S), last)]
+    }
     const [cx0, cx1] = range(a.x, b.x, half.x)
     const [cy0, cy1] = range(a.y, b.y, half.y)
     for (let cy = cy0; cy <= cy1; cy++) {

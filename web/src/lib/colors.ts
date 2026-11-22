@@ -1,4 +1,18 @@
-// Colour names (French UI), read by screen readers and shown as tooltips.
+// Colours: French names (read by screen readers, shown as tooltips) and conversions.
+
+export type Rgb = [number, number, number]
+
+/** '#E52521' → [229, 37, 33]. */
+export const hexToRgb = (hex: string): Rgb => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as Rgb
+
+/** Colours as opaque RGBA pixels, ready to write into ImageData through a Uint32Array.
+ *  ponytail: assumes a little-endian CPU (every browser platform today). */
+export const packColors = (hexes: string[]) =>
+  Uint32Array.from(hexes, (hex) => {
+    const [r, g, b] = hexToRgb(hex)
+    return (0xff << 24) | (b << 16) | (g << 8) | r
+  })
+
 const NAMES: Record<string, string> = {
   '#FFFFFF': 'Blanc',
   '#CDCDCD': 'Gris très clair',

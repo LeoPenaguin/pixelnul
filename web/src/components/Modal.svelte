@@ -15,10 +15,6 @@
   export function close() {
     dialog.close()
   }
-
-  export function isOpen() {
-    return dialog.open
-  }
 </script>
 
 <!-- A click on the backdrop (outside the content) closes the dialog; Escape does the same. -->
@@ -62,6 +58,15 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+  }
+  /* Section titles of every dialog; the first one sits right under the title. */
+  .modal :global(h3) {
+    margin: 18px 0 8px;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+  }
+  .head + :global(h3) {
+    margin-top: 0;
   }
   h2 {
     margin: 0;

@@ -48,7 +48,7 @@
   {#if !user}
     <p>Connecte-toi pour poser des pixels. Regarder la toile reste libre, sans compte.</p>
     <a class="google" href="/api/auth/login">Continuer avec Google</a>
-    <p class="note">Seul un identifiant de compte Google est gardé : ni ton nom, ni ton e-mail.</p>
+    <p class="hint note">Seul un identifiant de compte Google est gardé : ni ton nom, ni ton e-mail.</p>
   {:else}
     {#if !user.pseudo}
       <p>Il s'affichera dans l'historique des pixels que tu poses. Tu pourras le changer plus tard.</p>
@@ -57,6 +57,7 @@
       <label for={`${id}-pseudo`}>Pseudo</label>
       <div class="row">
         <input
+          class="field"
           bind:this={input}
           id={`${id}-pseudo`}
           bind:value={draft}
@@ -68,7 +69,7 @@
         />
         <Button type="submit" disabled={saving}>Enregistrer</Button>
       </div>
-      <small id={`${id}-hint`} class:error role={error ? 'alert' : undefined}
+      <small id={`${id}-hint`} class="hint" class:error role={error ? 'alert' : undefined}
         >{error || '3 à 20 lettres, chiffres, points, tirets ou soulignés'}</small
       >
     </form>
@@ -116,7 +117,6 @@
   .note {
     margin: 12px 0 0;
     font-size: var(--text-sm);
-    color: var(--muted-foreground);
   }
   label {
     display: block;
@@ -132,22 +132,11 @@
     flex: 1;
     min-width: 0;
     padding: 4px 8px;
-    border: 2px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--highlight);
-    font: inherit;
-    color: var(--ink);
-  }
-  input:focus {
-    outline: var(--stroke) solid var(--focus);
-    outline-offset: 1px;
   }
   small {
     display: block;
     margin-top: 6px;
     font-size: var(--text-sm);
-    font-weight: var(--font-weight-normal);
-    color: var(--muted-foreground);
   }
   small.error {
     color: var(--destructive);
