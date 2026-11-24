@@ -152,3 +152,28 @@ func TestDisconnectReleasesSlot(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// slowPings: a ping every 5 ms, answered within 50 ms or the connection closes.
+func slowPings(s *Server) { s.pingEvery, s.writeTimeout = 5*time.Millisecond, 50*time.Millisecond }
+
+func TestKeepsAConnectionThatAnswersPings(t *testing.T) {
+	e := newTestEnv(t, Options{Burst: 1}, slowPings)
+	a := dial(t, e)
+	a.CloseRead(context.Background()) // reads in the background, which answers pings
+	time.Sleep(150 * time.Millisecond)
+	if !e.s.conns.connected("127.0.0.1") {
+		t.Error("a client answering pings must stay connected")
+	}
+}
+
+func TestClosesAConnectionThatDoesNotAnswerPings(t *testing.T) {
+	e := newTestEnv(t, Options{Burst: 1}, slowPings)
+	dial(t, e) // never reads: pings go unanswered
+	deadline := time.Now().Add(2 * time.Second)
+	for e.s.conns.connected("127.0.0.1") {
+		if time.Now().After(deadline) {
+			t.Fatal("a silent client must be disconnected")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}

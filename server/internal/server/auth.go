@@ -50,8 +50,11 @@ func call(req *http.Request, out any) error {
 		return err
 	}
 	defer func() { _ = res.Body.Close() }()
-	if derr := json.NewDecoder(res.Body).Decode(out); derr != nil || res.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s: %d %w", req.URL.Path, res.StatusCode, derr)
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s: status %d", req.URL.Path, res.StatusCode)
+	}
+	if err := json.NewDecoder(res.Body).Decode(out); err != nil {
+		return fmt.Errorf("%s: %w", req.URL.Path, err)
 	}
 	return nil
 }

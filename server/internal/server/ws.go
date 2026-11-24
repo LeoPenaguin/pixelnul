@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/LeoPenaguin/pixels/server/internal/board"
 
@@ -42,7 +43,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	send := s.hub.subscribe()
 	defer s.hub.unsubscribe(send)
-	go writeLoop(ctx, conn, send)
+	go s.writeLoop(ctx, conn, send)
 	if canPaint && user != "" {
 		s.sendQuota(s.quotas.get(key), send)
 	}
@@ -63,14 +64,27 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeLoop sends messages to the client. A failed write (dead connection) also fails the
-// read, which cancels ctx: no need to handle it here.
-func writeLoop(ctx context.Context, conn *websocket.Conn, send chan []byte) {
+// writeLoop sends messages to the client and pings it. A write or ping slower than writeTimeout
+// (client gone without a word, or no longer reading) closes the connection, which also fails the
+// read and frees its slot.
+func (s *Server) writeLoop(ctx context.Context, conn *websocket.Conn, send chan []byte) {
+	ping := time.NewTicker(s.pingEvery)
+	defer ping.Stop()
 	for {
+		var write func(context.Context) error
 		select {
 		case msg := <-send:
-			_ = conn.Write(ctx, websocket.MessageText, msg)
+			write = func(ctx context.Context) error { return conn.Write(ctx, websocket.MessageText, msg) }
+		case <-ping.C:
+			write = conn.Ping // answered by the browser while the connection reads
 		case <-ctx.Done():
+			return
+		}
+		wctx, cancel := context.WithTimeout(ctx, s.writeTimeout)
+		err := write(wctx)
+		cancel()
+		if err != nil {
+			_ = conn.CloseNow()
 			return
 		}
 	}

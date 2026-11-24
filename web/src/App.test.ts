@@ -136,9 +136,12 @@ describe('painting pixels', () => {
     await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).toBeVisible()
     click(10, 10)
     await announced('Hors ligne, pixel non posé')
-    await vi.waitFor(() => {
-      expect(FakeWebSocket.instances).toHaveLength(2)
-    })
+    await vi.waitFor(
+      () => {
+        expect(FakeWebSocket.instances).toHaveLength(2)
+      },
+      { timeout: 3000 }, // reconnects after 1 to 2 s
+    )
     FakeWebSocket.last.open()
     await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).not.toBeInTheDocument()
   })

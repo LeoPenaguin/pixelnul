@@ -40,8 +40,10 @@ test('reconnects after a drop, not after close()', () => {
   live.connect()
   FakeWebSocket.last.close()
   expect(h.onClose).toHaveBeenCalledTimes(1)
-  vi.advanceTimersByTime(1000)
-  expect(FakeWebSocket.instances).toHaveLength(2)
+  vi.advanceTimersByTime(999)
+  expect(FakeWebSocket.instances).toHaveLength(1) // at least 1 s
+  vi.advanceTimersByTime(1001)
+  expect(FakeWebSocket.instances).toHaveLength(2) // at most 2 s
 
   live.close()
   vi.advanceTimersByTime(5000)

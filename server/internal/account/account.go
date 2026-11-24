@@ -6,6 +6,7 @@ package account
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"regexp"
@@ -74,7 +75,7 @@ var Providers = []string{"google", "discord"}
 //	banned:{provider}:{sub}  user id banned with that provider's account: a new account from it
 //	                  (after a deletion) starts banned
 //	pseudo:{pkey}    user id owning a pseudo (regardless of case, accents and separators)
-//	session:{token}  user id, expires after SessionTTL
+//	session:{sha256(token)}  user id, expires after SessionTTL (hashed: a leaked dump opens no session)
 //
 // The scripts below touch keys they compute themselves: fine on a single Redis, not on a cluster.
 type Store struct{ rdb redis.UniversalClient }
@@ -88,7 +89,13 @@ func token(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// KEYS: {provider}:{sub}, session:{token}. ARGV: new user id, sub, now, session TTL (s), provider.
+// sessionKey is where a session token is kept: only its hash, so the Redis data alone cannot sign anyone in.
+func sessionKey(tok string) string {
+	h := sha256.Sum256([]byte(tok))
+	return "session:" + hex.EncodeToString(h[:])
+}
+
+// KEYS: {provider}:{sub}, session key. ARGV: new user id, sub, now, session TTL (s), provider.
 var signInScript = redis.NewScript(`
 local id = redis.call('GET', KEYS[1])
 if not id then
@@ -105,14 +112,14 @@ return id
 // and returns its token.
 func (s *Store) SignIn(ctx context.Context, provider, sub string, now time.Time) (string, error) {
 	tok := token(32)
-	keys := []string{provider + ":" + sub, "session:" + tok}
+	keys := []string{provider + ":" + sub, sessionKey(tok)}
 	err := signInScript.Run(ctx, s.rdb, keys, token(8), sub, now.UnixMilli(), int(SessionTTL.Seconds()), provider).Err()
 	return tok, err
 }
 
 // SessionUser returns the user of a session; false if the session or the user is gone.
 func (s *Store) SessionUser(ctx context.Context, tok string) (User, bool, error) {
-	id, err := s.rdb.Get(ctx, "session:"+tok).Result()
+	id, err := s.rdb.Get(ctx, sessionKey(tok)).Result()
 	if errors.Is(err, redis.Nil) {
 		return User{}, false, nil
 	}
@@ -160,18 +167,19 @@ func (s *Store) SetBanned(ctx context.Context, pseudo string, banned bool) error
 	return err
 }
 
-// Banned tells if a user is banned (false on a Redis error: painting fails then anyway).
-func (s *Store) Banned(ctx context.Context, id string) bool {
-	b, _ := s.rdb.HExists(ctx, "user:"+id, "banned").Result()
-	return b
+// CanPaint tells if a user still exists, has a pseudo and is not banned. Read on every paint: a ban or a
+// deletion applies at once, even to a connection opened before. False on a Redis error (painting would fail).
+func (s *Store) CanPaint(ctx context.Context, id string) bool {
+	v, err := s.rdb.HMGet(ctx, "user:"+id, "pseudo", "banned").Result()
+	return err == nil && v[0] != nil && v[1] == nil
 }
 
 // EndSession signs out.
 func (s *Store) EndSession(ctx context.Context, tok string) error {
-	return s.rdb.Del(ctx, "session:"+tok).Err()
+	return s.rdb.Del(ctx, sessionKey(tok)).Err()
 }
 
-// KEYS: session:{token}. ARGV: pseudo, its key, now (Unix ms), cooldown (ms).
+// KEYS: session key. ARGV: pseudo, its key, now (Unix ms), cooldown (ms).
 // Returns 0 (no session), 1 (taken), 2 (set), 3 (banned) or 4 (changed too recently).
 var pseudoScript = redis.NewScript(`
 local id = redis.call('GET', KEYS[1])
@@ -203,7 +211,7 @@ func (s *Store) SetPseudo(ctx context.Context, tok, pseudo string, now time.Time
 	if reserved[key] {
 		return ErrPseudoTaken
 	}
-	res, err := pseudoScript.Run(ctx, s.rdb, []string{"session:" + tok}, pseudo, key, now.UnixMilli(), PseudoCooldown.Milliseconds()).Int()
+	res, err := pseudoScript.Run(ctx, s.rdb, []string{sessionKey(tok)}, pseudo, key, now.UnixMilli(), PseudoCooldown.Milliseconds()).Int()
 	switch {
 	case err != nil:
 		return err
@@ -219,7 +227,7 @@ func (s *Store) SetPseudo(ctx context.Context, tok, pseudo string, now time.Time
 	return nil
 }
 
-// KEYS: session:{token}. ARGV: Providers. Returns 0 (no session) or 1.
+// KEYS: session key. ARGV: Providers. Returns 0 (no session) or 1.
 var deleteScript = redis.NewScript(`
 local id = redis.call('GET', KEYS[1])
 if not id then return 0 end
@@ -238,7 +246,7 @@ return 1
 // which no longer leads to anyone: the history becomes anonymous. Its other sessions die with it
 // (SessionUser finds no user).
 func (s *Store) Delete(ctx context.Context, tok string) error {
-	res, err := deleteScript.Run(ctx, s.rdb, []string{"session:" + tok}, Providers).Int()
+	res, err := deleteScript.Run(ctx, s.rdb, []string{sessionKey(tok)}, Providers).Int()
 	if err == nil && res == 0 {
 		return ErrNoSession
 	}

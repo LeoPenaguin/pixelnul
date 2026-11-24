@@ -2,7 +2,6 @@ package board
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -105,8 +104,9 @@ func TestHeat(t *testing.T) {
 	for range 3 {
 		_ = s.Paint(ctx, Pixel{1, 2, 5}, 0, "")
 	}
-	// Capped at 255; malformed fields (another writer, a future format) are skipped.
-	mr.HSet("meta:0:0", "n:7", "300", "n:x", "1", "n:70000", "1", "n:9", "y")
+	for range 300 { // capped at 255
+		_ = s.Paint(ctx, Pixel{7, 0, 5}, 0, "")
+	}
 	heat, err := s.Heat(ctx, 0, 0)
 	if _, off := Locate(1, 2); err != nil || len(heat) != ChunkSize*ChunkSize || heat[off] != 3 || heat[7] != 255 || heat[9] != 0 {
 		t.Errorf("heat = %d bytes, %v", len(heat), err)
@@ -141,7 +141,7 @@ func TestStats(t *testing.T) {
 	paint(9, 1, 2, now-2*hourMs)
 	// Left by a former, larger world: outside the current one, ignored.
 	_, off := Locate(-700, 0)
-	mr.HSet("meta:-3:0", "n:"+strconv.FormatInt(off, 10), "50")
+	_ = mr.Set("count:-3:0", strings.Repeat("\x00\x00\x00\x32", int(off)+1))
 	_ = mr.Set("chunk:-3:0", strings.Repeat("\x03", int(off)+1))
 	// A byte that is not a palette colour (corruption) at (256, 256): ignored.
 	_ = mr.Set("chunk:1:1", "\xff")
@@ -189,5 +189,26 @@ func TestFill(t *testing.T) {
 	mr.Close()
 	if err := s.Fill(ctx, 0, 0, 0, 0, 1); err == nil {
 		t.Error("Redis down: an error was expected")
+	}
+}
+
+func TestPaintRefusesAnOverlongUserID(t *testing.T) {
+	s, _ := newTestStore(t)
+	if err := s.Paint(context.Background(), Pixel{0, 0, 1}, 1, strings.Repeat("u", PainterLen+1)); err == nil {
+		t.Error("a user id longer than PainterLen must be refused: it would overwrite the next pixel's painter")
+	}
+	if err := s.Paint(context.Background(), Pixel{0, 0, 1}, 1, strings.Repeat("u", PainterLen)); err != nil {
+		t.Error(err)
+	}
+	if info, _ := s.Info(context.Background(), 0, 0); info.User != strings.Repeat("u", PainterLen) {
+		t.Errorf("painter = %q", info.User)
+	}
+}
+
+func TestHeatRedisTypeError(t *testing.T) {
+	s, mr := newTestStore(t)
+	mr.HSet("count:0:0", "not", "a string")
+	if _, err := s.Heat(context.Background(), 0, 0); err == nil {
+		t.Error("a Redis error must be returned")
 	}
 }

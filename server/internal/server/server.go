@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"mime"
 	"net"
 	"net/http"
 	"strconv"
@@ -24,6 +25,18 @@ const (
 	lookupsRate  = 10               // per second after that: the front asks at most ~5/s (after a 200 ms pause)
 	statsMaxAge  = 10 * time.Second // the stats scan the whole world: computed at most this often
 )
+
+// jsonOnly refuses a body that is not JSON (415). A page of another site can only send a form or
+// text without a CORS preflight: on top of SameSite=Lax, this keeps every change out of its reach.
+func jsonOnly(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+			http.Error(w, "JSON only", http.StatusUnsupportedMediaType)
+			return
+		}
+		h(w, r)
+	}
+}
 
 // Options tunes the pixel quota and the sign-in.
 type Options struct {
@@ -47,17 +60,20 @@ type Server struct {
 	conns     *connLimit
 	hub       *hub
 
-	// ponytail: global lock around painting so Redis order = broadcast order.
-	// Tops out around 20k pixels/s locally; beyond that, lock per chunk.
+	// ponytail: global lock around painting so Redis order = broadcast order. One Redis round trip
+	// per paint under it: ~20k pixels/s with a local Redis, ~1/RTT with a remote one (1 ms → 1k/s);
+	// beyond that, lock per chunk.
 	paintMu sync.Mutex
 
 	statsMu   sync.Mutex
 	stats     []byte // last /api/stats answer
 	statsTime time.Time
 
-	flushEvery  time.Duration // batch broadcast interval
-	forgetEvery time.Duration // quota cleanup interval
-	now         func() time.Time
+	flushEvery   time.Duration // batch broadcast interval
+	forgetEvery  time.Duration // quota cleanup interval
+	pingEvery    time.Duration // WebSocket liveness check interval
+	writeTimeout time.Duration // a WebSocket write or ping slower than this closes the connection
+	now          func() time.Time
 }
 
 // New creates a server; Loop must run for pixels to be broadcast.
@@ -72,17 +88,19 @@ func New(store *board.Store, accounts *account.Store, o Options) *Server {
 		providers[p.Name] = p
 	}
 	return &Server{
-		store:       store,
-		accounts:    accounts,
-		providers:   providers,
-		opts:        o,
-		quotas:      newQuotas(o.Burst, every),
-		lookups:     newQuotas(lookupsBurst, lookupsRate),
-		conns:       newConnLimit(maxConnsIP),
-		hub:         newHub(),
-		flushEvery:  100 * time.Millisecond,
-		forgetEvery: time.Minute,
-		now:         time.Now,
+		store:        store,
+		accounts:     accounts,
+		providers:    providers,
+		opts:         o,
+		quotas:       newQuotas(o.Burst, every),
+		lookups:      newQuotas(lookupsBurst, lookupsRate),
+		conns:        newConnLimit(maxConnsIP),
+		hub:          newHub(),
+		flushEvery:   100 * time.Millisecond,
+		forgetEvery:  time.Minute,
+		pingEvery:    30 * time.Second,
+		writeTimeout: 10 * time.Second,
+		now:          time.Now,
 	}
 }
 
@@ -99,11 +117,11 @@ func (s *Server) Handler() http.Handler {
 	if s.auth() {
 		mux.HandleFunc("GET /api/auth/{provider}/login", s.login)
 		mux.HandleFunc("GET /api/auth/{provider}/callback", s.callback)
-		mux.HandleFunc("POST /api/auth/logout", s.logout)
-		mux.HandleFunc("POST /api/me/pseudo", s.setPseudo)
-		mux.HandleFunc("DELETE /api/me", s.deleteMe)
-		mux.HandleFunc("POST /api/admin/fill", s.fill)
-		mux.HandleFunc("POST /api/admin/ban", s.ban)
+		mux.HandleFunc("POST /api/auth/logout", jsonOnly(s.logout))
+		mux.HandleFunc("POST /api/me/pseudo", jsonOnly(s.setPseudo))
+		mux.HandleFunc("DELETE /api/me", jsonOnly(s.deleteMe))
+		mux.HandleFunc("POST /api/admin/fill", jsonOnly(s.fill))
+		mux.HandleFunc("POST /api/admin/ban", jsonOnly(s.ban))
 	}
 	return mux
 }
@@ -137,7 +155,7 @@ func (s *Server) sendQuota(q *rate.Limiter, reply chan []byte) {
 // place paints a pixel for a user ("" if anonymous) if its quota (counted under `key`) allows
 // it, and returns the remaining quota.
 func (s *Server) place(ctx context.Context, key, user string, p board.Pixel, reply chan []byte) {
-	if user != "" && s.accounts.Banned(ctx, user) { // read on every paint: a ban applies at once
+	if user != "" && !s.accounts.CanPaint(ctx, user) { // banned or deleted since the connection opened
 		return
 	}
 	q := s.quotas.get(key)

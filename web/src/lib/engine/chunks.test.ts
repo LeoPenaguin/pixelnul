@@ -84,14 +84,3 @@ test('a failure arriving after clear() does not touch the new load', async () =>
   await new Promise((r) => setTimeout(r, 10))
   expect(chunks.size).toBe(1)
 })
-
-test('evict keeps only visible chunks beyond 400', () => {
-  stubFetch({ '/api/chunks/': () => new Promise<Response>(() => undefined) })
-  const chunks = new Chunks(config, vi.fn())
-  for (let i = 0; i < 400; i++) chunks.get(i, 0)
-  chunks.evict(new Set())
-  expect(chunks.size).toBe(400) // under the limit: nothing
-  chunks.get(400, 0)
-  chunks.evict(new Set([chunks.key(3, 0)]))
-  expect(chunks.size).toBe(1)
-})

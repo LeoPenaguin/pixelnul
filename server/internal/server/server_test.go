@@ -24,8 +24,9 @@ type testEnv struct {
 	url string
 }
 
-// newTestEnv runs a full server on an in-memory Redis, with a fast broadcast loop.
-func newTestEnv(t *testing.T, o Options) testEnv {
+// newTestEnv runs a full server on an in-memory Redis, with a fast broadcast loop; tweaks adjust
+// the server before it starts.
+func newTestEnv(t *testing.T, o Options, tweaks ...func(*Server)) testEnv {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr(), MaxRetries: -1})
@@ -33,6 +34,9 @@ func newTestEnv(t *testing.T, o Options) testEnv {
 	s.flushEvery = 5 * time.Millisecond
 	s.forgetEvery = 5 * time.Millisecond
 	s.now = func() time.Time { return time.UnixMilli(42) }
+	for _, f := range tweaks {
+		f(s)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go s.Loop(ctx)
@@ -349,7 +353,7 @@ func TestFillRoute(t *testing.T) {
 			t.Errorf("%s = %d; want %d", c.body, res.code, c.want)
 		}
 	}
-	_ = e.mr.Set("meta:0:0", "not a hash") // HDEL fails
+	e.mr.HSet("count:0:0", "not", "a string") // SETRANGE fails
 	if res := request(t, http.MethodPost, e.url+"/api/admin/fill", `{"x0":0,"y0":0,"x1":0,"y1":0,"c":1}`, "session="+adminTok); res.code != http.StatusInternalServerError {
 		t.Errorf("Redis error = %d; want 500", res.code)
 	}
