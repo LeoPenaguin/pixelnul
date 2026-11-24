@@ -1,7 +1,6 @@
 <script lang="ts">
   import { Dialog as DialogPrimitive } from 'bits-ui'
-  import XIcon from '~icons/mingcute/close-fill'
-  import { Button } from '$components/ui/button/index.js'
+  import CloseButton from '$components/CloseButton.svelte'
   import { cn, type WithoutChildrenOrChild } from '$lib/utils.js'
   import DialogOverlay from './dialog-overlay.svelte'
   import DialogPortal from './dialog-portal.svelte'
@@ -34,10 +33,7 @@
     {@render children()}
     <DialogPrimitive.Close data-slot="dialog-close">
       {#snippet child({ props })}
-        <Button variant="ghost" class="absolute top-3 right-3" size="icon" title="Fermer (Échap)" {...props}>
-          <XIcon class="size-5" aria-hidden="true" />
-          <span class="sr-only">Fermer</span>
-        </Button>
+        <CloseButton {...props} />
       {/snippet}
     </DialogPrimitive.Close>
   </DialogPrimitive.Content>

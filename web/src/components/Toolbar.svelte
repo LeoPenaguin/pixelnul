@@ -43,7 +43,7 @@
 
 <div class="dock">
   {#if open}
-    <Palette bind:this={palette} {rows} bind:color onpick={close} />
+    <Palette bind:this={palette} {rows} bind:color onpick={close} onclose={close} />
   {/if}
 
   <div class="panel toolbar" role="group" aria-label="Outils">

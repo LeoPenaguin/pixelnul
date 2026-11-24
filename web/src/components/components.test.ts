@@ -137,7 +137,7 @@ describe('ServerDown', () => {
 
 describe('Palette', () => {
   test('named radio buttons, arrow navigation', async () => {
-    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn() })
+    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
     const black = screen.getByRole('radio', { name: 'Noir' })
     await expect.element(black).toBeChecked()
     await expect.element(black).toHaveAttribute('tabindex', '0')
@@ -155,7 +155,7 @@ describe('Palette', () => {
   })
 
   test('writes the selected colour name', async () => {
-    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn() })
+    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
     await expect.element(screen.getByText('Noir', { exact: true })).toBeVisible()
   })
 })
@@ -230,6 +230,15 @@ describe('Toolbar', () => {
     await screen.getByRole('radio', { name: 'Blanc' }).click()
     await expect.element(screen.getByRole('radiogroup')).not.toBeInTheDocument()
     await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Blanc')
+    await expect.element(button).toHaveFocus()
+  })
+
+  test('the close cross closes the palette, focus back on the button', async () => {
+    const screen = await render(Toolbar, props)
+    const button = screen.getByRole('button', { name: /^Couleurs/ })
+    await button.click()
+    await screen.getByRole('button', { name: 'Fermer' }).click()
+    await expect.element(screen.getByRole('radiogroup')).not.toBeInTheDocument()
     await expect.element(button).toHaveFocus()
   })
 
