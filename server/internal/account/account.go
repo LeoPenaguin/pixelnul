@@ -18,16 +18,42 @@ import (
 // SessionTTL is how long a sign-in lasts.
 const SessionTTL = 30 * 24 * time.Hour
 
+// PseudoCooldown is the time between two pseudo changes (a change of case or accents only is free):
+// a vandal cannot hide behind new names, nor take someone else's name the moment it is freed.
+const PseudoCooldown = 7 * 24 * time.Hour
+
 // Errors of the operations made with a session token; the pseudo ones are shown to the user.
 var (
 	ErrNoSession     = errors.New("not signed in")
-	ErrPseudoInvalid = errors.New("3 à 20 lettres, chiffres, points, tirets ou soulignés")
+	ErrPseudoInvalid = errors.New("3 à 20 lettres, chiffres, points, tirets ou soulignés, en commençant par une lettre")
 	ErrPseudoTaken   = errors.New("ce pseudo est déjà pris")
+	ErrPseudoTooSoon = errors.New("un seul changement de pseudo par semaine")
+	ErrBanned        = errors.New("ce compte est banni")
 	ErrNoPseudo      = errors.New("aucun compte avec ce pseudo")
 )
 
-// 3 to 20 letters (accents included), digits, ".", "_" or "-".
-var pseudoRe = regexp.MustCompile(`^[\p{L}\p{N}._-]{3,20}$`)
+// French letters only (Latin, with their accents): no look-alike from another alphabet (Cyrillic "е"
+// for "e"), no combining accent (a decomposed "é" would look like another pseudo's).
+const letters = `a-zA-Zàâäçéèêëîïôöùûüÿæœ` + `ÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ`
+
+// 3 to 20 characters, starting with a letter: letters, digits, ".", "_" or "-".
+var pseudoRe = regexp.MustCompile(`^[` + letters + `][` + letters + `0-9._-]{2,19}$`)
+
+// unaccent and the dropped separators make look-alike pseudos one: Léo, LEO and l.e_o share the key "leo".
+var unaccent = strings.NewReplacer(
+	"à", "a", "â", "a", "ä", "a", "ç", "c", "é", "e", "è", "e", "ê", "e", "ë", "e", "î", "i", "ï", "i",
+	"ô", "o", "ö", "o", "ù", "u", "û", "u", "ü", "u", "ÿ", "y", "æ", "ae", "œ", "oe",
+	".", "", "_", "", "-", "",
+)
+
+// pseudoKey is what makes a pseudo unique.
+func pseudoKey(pseudo string) string { return unaccent.Replace(strings.ToLower(pseudo)) }
+
+// reserved pseudos (by key) would pass for the site or its moderation.
+var reserved = map[string]bool{
+	"admin": true, "administrateur": true, "administrator": true, "modo": true, "moderateur": true,
+	"moderation": true, "moderator": true, "pixels": true, "systeme": true, "system": true, "support": true,
+}
 
 // User is a signed-in person. Pseudo is empty until they choose one (they cannot paint before);
 // a banned user cannot paint either.
@@ -43,9 +69,11 @@ var Providers = []string{"google", "discord"}
 // Store keeps the accounts in Redis:
 //
 //	{provider}:{sub}  user id of a provider's account, e.g. google:{sub}, discord:{id}
-//	user:{id}         hash: {provider} (sub), pseudo, pkey (lower-case pseudo), created (Unix ms),
+//	user:{id}         hash: {provider} (sub), pseudo, pkey (pseudoKey), created and renamed (Unix ms),
 //	                  banned ("1", missing if not)
-//	pseudo:{pkey}    user id owning a pseudo (case-insensitive)
+//	banned:{provider}:{sub}  user id banned with that provider's account: a new account from it
+//	                  (after a deletion) starts banned
+//	pseudo:{pkey}    user id owning a pseudo (regardless of case, accents and separators)
 //	session:{token}  user id, expires after SessionTTL
 //
 // The scripts below touch keys they compute themselves: fine on a single Redis, not on a cluster.
@@ -67,6 +95,7 @@ if not id then
   id = ARGV[1]
   redis.call('SET', KEYS[1], id)
   redis.call('HSET', 'user:' .. id, ARGV[5], ARGV[2], 'created', ARGV[3])
+  if redis.call('EXISTS', 'banned:' .. KEYS[1]) == 1 then redis.call('HSET', 'user:' .. id, 'banned', '1') end
 end
 redis.call('SET', KEYS[2], id, 'EX', ARGV[4])
 return id
@@ -97,22 +126,34 @@ func (s *Store) SessionUser(ctx context.Context, tok string) (User, bool, error)
 	return User{ID: id, Pseudo: h["pseudo"], Banned: h["banned"] != ""}, true, nil
 }
 
-// KEYS: pseudo:{pkey}. ARGV: "1" to ban, "" to lift the ban. Returns 0 (no such pseudo) or 1.
+// KEYS: pseudo:{pkey}. ARGV: "1" to ban, "" to lift the ban, then Providers. Returns 0 (no such pseudo) or 1.
 var banScript = redis.NewScript(`
 local id = redis.call('GET', KEYS[1])
 if not id then return 0 end
-if ARGV[1] == '' then redis.call('HDEL', 'user:' .. id, 'banned')
-else redis.call('HSET', 'user:' .. id, 'banned', ARGV[1]) end
+local u = 'user:' .. id
+for i = 2, #ARGV do
+  local sub = redis.call('HGET', u, ARGV[i])
+  if sub and ARGV[1] == '' then redis.call('DEL', 'banned:' .. ARGV[i] .. ':' .. sub)
+  elseif sub then redis.call('SET', 'banned:' .. ARGV[i] .. ':' .. sub, id) end
+end
+if ARGV[1] == '' then redis.call('HDEL', u, 'banned')
+else redis.call('HSET', u, 'banned', ARGV[1]) end
 return 1
 `)
 
-// SetBanned bans the user owning a pseudo (any case), or lifts the ban.
+// SetBanned bans the user owning a pseudo (see pseudoKey), or lifts the ban. The ban sticks to their
+// sign-in accounts: deleting the account and signing in again gives a banned account.
 func (s *Store) SetBanned(ctx context.Context, pseudo string, banned bool) error {
 	flag := ""
 	if banned {
 		flag = "1"
 	}
-	res, err := banScript.Run(ctx, s.rdb, []string{"pseudo:" + strings.ToLower(pseudo)}, flag).Int()
+	args := make([]any, 0, 1+len(Providers))
+	args = append(args, flag)
+	for _, p := range Providers {
+		args = append(args, p)
+	}
+	res, err := banScript.Run(ctx, s.rdb, []string{"pseudo:" + pseudoKey(pseudo)}, args...).Int()
 	if err == nil && res == 0 {
 		return ErrNoPseudo
 	}
@@ -130,25 +171,39 @@ func (s *Store) EndSession(ctx context.Context, tok string) error {
 	return s.rdb.Del(ctx, "session:"+tok).Err()
 }
 
-// KEYS: session:{token}. ARGV: pseudo, its lower-case key. Returns 0 (no session), 1 (taken) or 2 (set).
+// KEYS: session:{token}. ARGV: pseudo, its key, now (Unix ms), cooldown (ms).
+// Returns 0 (no session), 1 (taken), 2 (set), 3 (banned) or 4 (changed too recently).
 var pseudoScript = redis.NewScript(`
 local id = redis.call('GET', KEYS[1])
 if not id or redis.call('EXISTS', 'user:' .. id) == 0 then return 0 end
+local u = 'user:' .. id
+local old = redis.call('HGET', u, 'pkey')
+-- A banned account keeps its pseudo (a first one is allowed: a moderator needs it to lift the ban).
+if old and redis.call('HEXISTS', u, 'banned') == 1 then return 3 end
 local owner = redis.call('GET', 'pseudo:' .. ARGV[2])
 if owner and owner ~= id then return 1 end
-local old = redis.call('HGET', 'user:' .. id, 'pkey')
-if old then redis.call('DEL', 'pseudo:' .. old) end
-redis.call('SET', 'pseudo:' .. ARGV[2], id)
-redis.call('HSET', 'user:' .. id, 'pseudo', ARGV[1], 'pkey', ARGV[2])
+if old ~= ARGV[2] then
+  local at = tonumber(redis.call('HGET', u, 'renamed') or 0)
+  if old and tonumber(ARGV[3]) - at < tonumber(ARGV[4]) then return 4 end
+  if old then redis.call('DEL', 'pseudo:' .. old) end
+  redis.call('SET', 'pseudo:' .. ARGV[2], id)
+  redis.call('HSET', u, 'renamed', ARGV[3])
+end
+redis.call('HSET', u, 'pseudo', ARGV[1], 'pkey', ARGV[2])
 return 2
 `)
 
-// SetPseudo gives the user of a session a pseudo, unique regardless of case, and frees the previous one.
-func (s *Store) SetPseudo(ctx context.Context, tok, pseudo string) error {
+// SetPseudo gives the user of a session a pseudo, unique by pseudoKey, and frees the previous one;
+// changing it again must wait PseudoCooldown, unless only the case or accents change.
+func (s *Store) SetPseudo(ctx context.Context, tok, pseudo string, now time.Time) error {
 	if !pseudoRe.MatchString(pseudo) {
 		return ErrPseudoInvalid
 	}
-	res, err := pseudoScript.Run(ctx, s.rdb, []string{"session:" + tok}, pseudo, strings.ToLower(pseudo)).Int()
+	key := pseudoKey(pseudo)
+	if reserved[key] {
+		return ErrPseudoTaken
+	}
+	res, err := pseudoScript.Run(ctx, s.rdb, []string{"session:" + tok}, pseudo, key, now.UnixMilli(), PseudoCooldown.Milliseconds()).Int()
 	switch {
 	case err != nil:
 		return err
@@ -156,6 +211,10 @@ func (s *Store) SetPseudo(ctx context.Context, tok, pseudo string) error {
 		return ErrNoSession
 	case res == 1:
 		return ErrPseudoTaken
+	case res == 3:
+		return ErrBanned
+	case res == 4:
+		return ErrPseudoTooSoon
 	}
 	return nil
 }

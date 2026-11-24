@@ -10,7 +10,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var ctx = context.Background()
+var (
+	ctx = context.Background()
+	t0  = time.UnixMilli(42)
+)
 
 func newTestStore(t *testing.T) (*Store, *miniredis.Miniredis) {
 	t.Helper()
@@ -91,25 +94,28 @@ func TestSetPseudo(t *testing.T) {
 	s, mr := newTestStore(t)
 	a, ua := signIn(t, s, "a")
 	b, _ := signIn(t, s, "b")
-	if err := s.SetPseudo(ctx, a, "Élodie_42"); err != nil {
+	if err := s.SetPseudo(ctx, a, "Élodie_42", t0); err != nil {
 		t.Fatal(err)
 	}
 	if u, _, _ := s.SessionUser(ctx, a); u.Pseudo != "Élodie_42" {
 		t.Errorf("pseudo = %q", u.Pseudo)
 	}
-	if err := s.SetPseudo(ctx, b, "élodie_42"); !errors.Is(err, ErrPseudoTaken) {
-		t.Errorf("same pseudo, other case: %v; want taken", err)
+	for _, p := range []string{"élodie_42", "ELODIE42", "e.lodie-42"} {
+		if err := s.SetPseudo(ctx, b, p, t0); !errors.Is(err, ErrPseudoTaken) {
+			t.Errorf("%q, a look-alike: %v; want taken", p, err)
+		}
 	}
-	if err := s.SetPseudo(ctx, a, "ÉLODIE_42"); err != nil {
-		t.Errorf("changing the case of one's own pseudo: %v", err)
+	if err := s.SetPseudo(ctx, a, "ÉLODIE_42", t0); err != nil {
+		t.Errorf("changing the case of one's own pseudo, right away: %v", err)
 	}
-	if err := s.SetPseudo(ctx, a, "Pixel"); err != nil {
+	later := t0.Add(PseudoCooldown)
+	if err := s.SetPseudo(ctx, a, "Pixel", later); err != nil {
 		t.Fatal(err)
 	}
-	if mr.Exists("pseudo:élodie_42") {
+	if mr.Exists("pseudo:elodie42") {
 		t.Error("the previous pseudo must be freed")
 	}
-	if err := s.SetPseudo(ctx, b, "élodie_42"); err != nil {
+	if err := s.SetPseudo(ctx, b, "élodie_42", t0); err != nil {
 		t.Errorf("a freed pseudo can be taken: %v", err)
 	}
 	if got, _ := mr.Get("pseudo:pixel"); got != ua.ID {
@@ -117,19 +123,41 @@ func TestSetPseudo(t *testing.T) {
 	}
 }
 
+func TestSetPseudoOncePerCooldown(t *testing.T) {
+	s, _ := newTestStore(t)
+	tok, _ := signIn(t, s, "a")
+	_ = s.SetPseudo(ctx, tok, "Minou", t0)
+	if err := s.SetPseudo(ctx, tok, "Pixel", t0.Add(PseudoCooldown-time.Millisecond)); !errors.Is(err, ErrPseudoTooSoon) {
+		t.Errorf("too soon: %v; want ErrPseudoTooSoon", err)
+	}
+	if err := s.SetPseudo(ctx, tok, "Pixel", t0.Add(PseudoCooldown)); err != nil {
+		t.Errorf("after the cooldown: %v", err)
+	}
+}
+
 func TestSetPseudoRefusals(t *testing.T) {
 	s, mr := newTestStore(t)
 	tok, _ := signIn(t, s, "a")
-	for _, p := range []string{"ab", "un pseudo", "abcdefghijklmnopqrstu", "<b>", ""} {
-		if err := s.SetPseudo(ctx, tok, p); !errors.Is(err, ErrPseudoInvalid) {
+	for _, p := range []string{"ab", "un pseudo", "abcdefghijklmnopqrstu", "<b>", "", "-leo", "42leo", "Lеo", "Le\u0301o"} {
+		if err := s.SetPseudo(ctx, tok, p, t0); !errors.Is(err, ErrPseudoInvalid) {
 			t.Errorf("%q: %v; want invalid", p, err)
 		}
 	}
-	if err := s.SetPseudo(ctx, "nope", "Pixel"); !errors.Is(err, ErrNoSession) {
+	for _, p := range []string{"Admin", "Mo.do", "Modérateur"} {
+		if err := s.SetPseudo(ctx, tok, p, t0); !errors.Is(err, ErrPseudoTaken) {
+			t.Errorf("%q, reserved: %v; want taken", p, err)
+		}
+	}
+	if err := s.SetPseudo(ctx, "nope", "Pixel", t0); !errors.Is(err, ErrNoSession) {
 		t.Errorf("without a session: %v", err)
 	}
+	_ = s.SetPseudo(ctx, tok, "Minou", t0)
+	_ = s.SetBanned(ctx, "minou", true)
+	if err := s.SetPseudo(ctx, tok, "Pixel", t0.Add(PseudoCooldown)); !errors.Is(err, ErrBanned) {
+		t.Errorf("banned: %v; want ErrBanned", err)
+	}
 	mr.Close()
-	if err := s.SetPseudo(ctx, tok, "Pixel"); err == nil {
+	if err := s.SetPseudo(ctx, tok, "Pixel", t0); err == nil {
 		t.Error("Redis down: an error was expected")
 	}
 }
@@ -138,7 +166,7 @@ func TestDelete(t *testing.T) {
 	s, mr := newTestStore(t)
 	tok, u := signIn(t, s, "a")
 	other, _ := signIn(t, s, "a") // a second device
-	_ = s.SetPseudo(ctx, tok, "Pixel")
+	_ = s.SetPseudo(ctx, tok, "Pixel", t0)
 	if err := s.Delete(ctx, tok); err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +204,7 @@ func TestRedisDown(t *testing.T) {
 func TestPseudos(t *testing.T) {
 	s, mr := newTestStore(t)
 	tok, u := signIn(t, s, "a")
-	_ = s.SetPseudo(ctx, tok, "Minou")
+	_ = s.SetPseudo(ctx, tok, "Minou", t0)
 	_, noPseudo := signIn(t, s, "b")
 	got, err := s.Pseudos(ctx, []string{u.ID, noPseudo.ID, "deleted", ""})
 	if err != nil || len(got) != 4 || got[0] != "Minou" || got[1] != "" || got[2] != "" || got[3] != "" {
@@ -191,8 +219,8 @@ func TestPseudos(t *testing.T) {
 func TestSetBanned(t *testing.T) {
 	s, _ := newTestStore(t)
 	tok, u := signIn(t, s, "a")
-	_ = s.SetPseudo(ctx, tok, "Minou")
-	if err := s.SetBanned(ctx, "minou", true); err != nil {
+	_ = s.SetPseudo(ctx, tok, "Minou", t0)
+	if err := s.SetBanned(ctx, "MINOU", true); err != nil {
 		t.Fatal(err)
 	}
 	if b, _, _ := s.SessionUser(ctx, tok); !b.Banned || !s.Banned(ctx, u.ID) {
@@ -206,5 +234,27 @@ func TestSetBanned(t *testing.T) {
 	}
 	if err := s.SetBanned(ctx, "personne", true); !errors.Is(err, ErrNoPseudo) {
 		t.Errorf("unknown pseudo: %v; want ErrNoPseudo", err)
+	}
+}
+
+func TestBanOutlivesTheAccount(t *testing.T) {
+	s, _ := newTestStore(t)
+	tok, _ := signIn(t, s, "a")
+	_ = s.SetPseudo(ctx, tok, "Minou", t0)
+	_ = s.SetBanned(ctx, "Minou", true)
+	_ = s.Delete(ctx, tok)
+	tok, u := signIn(t, s, "a") // same Google account, new user
+	if !u.Banned {
+		t.Fatal("an account deleted while banned must come back banned")
+	}
+	_, other := signIn(t, s, "b")
+	if other.Banned {
+		t.Error("another Google account must not be banned")
+	}
+	_ = s.SetPseudo(ctx, tok, "Minou2", t0)
+	_ = s.SetBanned(ctx, "Minou2", false)
+	_ = s.Delete(ctx, tok)
+	if _, u := signIn(t, s, "a"); u.Banned {
+		t.Error("once the ban is lifted, a new account must not be banned")
 	}
 }

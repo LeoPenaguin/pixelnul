@@ -65,6 +65,8 @@ test('account calls: refusals are explained, other failures throw', async () => 
   for (const [status, reason] of [
     [409, 'ce pseudo est déjà pris'],
     [400, 'trop court'],
+    [403, 'ce compte est banni'],
+    [429, 'un seul changement de pseudo par semaine'],
   ] as const) {
     fetch.mockImplementationOnce(() => Promise.resolve(new Response(`${reason}\n`, { status })))
     await expect(savePseudo('x')).resolves.toBe(reason)
@@ -90,4 +92,3 @@ test('settings: defaults, remembered, safe when storage fails', () => {
   set.mockRestore()
   localStorage.clear()
 })
-

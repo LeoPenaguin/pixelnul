@@ -297,7 +297,7 @@ func adminEnv(t *testing.T) (e testEnv, adminTok, kevinTok string) {
 	o := signInOn(t, 100, 0)
 	o.Admins = map[string]bool{}
 	e = newTestEnv(t, o)
-	adminTok = signedIn(t, e, "admin", "Modo")
+	adminTok = signedIn(t, e, "admin", "Chef")
 	u, _, _ := e.s.accounts.SessionUser(context.Background(), adminTok)
 	o.Admins[u.ID] = true // the server holds the same map
 	return e, adminTok, signedIn(t, e, "k", "Kevin")

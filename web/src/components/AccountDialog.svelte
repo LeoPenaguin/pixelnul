@@ -72,7 +72,7 @@
     <p class="hint note">Seul un identifiant de compte est gardé : ni ton nom, ni ton e-mail.</p>
   {:else}
     {#if !user.pseudo}
-      <p>Il s'affichera dans l'historique des pixels que tu poses. Tu pourras le changer plus tard.</p>
+      <p>Il s'affichera dans l'historique des pixels que tu poses. Tu pourras le changer une fois par semaine.</p>
     {/if}
     <form onsubmit={save}>
       <Label for={`${id}-pseudo`} class="pseudo">Pseudo</Label>
@@ -91,7 +91,7 @@
         <Button type="submit" disabled={saving}>Enregistrer</Button>
       </div>
       <small id={`${id}-hint`} class="hint" class:error role={error ? 'alert' : undefined}
-        >{error || '3 à 20 lettres, chiffres, points, tirets ou soulignés'}</small
+        >{error || '3 à 20 lettres, chiffres, points, tirets ou soulignés, en commençant par une lettre'}</small
       >
     </form>
     {#if user.pseudo}
