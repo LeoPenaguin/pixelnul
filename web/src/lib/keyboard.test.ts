@@ -28,7 +28,6 @@ describe('shortcut', () => {
     expect(shortcut(key('-'), false)).toEqual({ type: 'zoomOut' })
     expect(shortcut(key('0'), false)).toEqual({ type: 'recenter' })
     expect(shortcut(key('G'), false)).toEqual({ type: 'grid' })
-    expect(shortcut(key('h'), false)).toEqual({ type: 'heat' })
     expect(shortcut(key('c'), false)).toEqual({ type: 'palette' })
     expect(shortcut(key('?', { shiftKey: true }), false)).toEqual({ type: 'help' })
     expect(shortcut(key('Escape'), false)).toEqual({ type: 'escape' })

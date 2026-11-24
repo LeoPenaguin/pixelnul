@@ -2,7 +2,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { deleteAccount, fetchConfig, fetchMe, fetchPixelInfo, savePseudo, signOut } from './api'
 import { colorName } from './colors'
-import { HEAT_NONE, HEAT_RAMP, heatColors, heatLevel, rampColor } from './heat'
 import { quotaAt } from './quota'
 import { loadSettings, saveSettings } from './settings'
 import { ago } from './time'
@@ -92,21 +91,3 @@ test('settings: defaults, remembered, safe when storage fails', () => {
   localStorage.clear()
 })
 
-test('heat colours: scaled from 1 to the board maximum, logarithmic', () => {
-  expect(rampColor(0)).toBe(HEAT_RAMP[0])
-  expect(rampColor(0.5)).toBe(HEAT_RAMP[2])
-  expect(rampColor(1)).toBe(HEAT_RAMP[4])
-  expect(rampColor(0.125)).toBe('#772785') // halfway between the first two stops
-  expect(heatLevel(10, 100)).toBe(0.5)
-  expect(heatLevel(500, 100)).toBe(1) // above the maximum: the top
-  expect(heatLevel(1, 1)).toBe(1) // everything painted once: all at the top
-  const colors = heatColors(16)
-  expect(colors).toHaveLength(256)
-  expect([colors[0], colors[1], colors[4], colors[16], colors[255]]).toEqual([
-    HEAT_NONE,
-    HEAT_RAMP[0],
-    HEAT_RAMP[2],
-    HEAT_RAMP[4],
-    HEAT_RAMP[4],
-  ])
-})

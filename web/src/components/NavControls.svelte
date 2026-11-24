@@ -1,9 +1,8 @@
-<!-- Bottom-right controls: zoom, recenter, heatmap, download, settings, keyboard help. -->
+<!-- Bottom-right controls: zoom, recenter, download, settings, keyboard help. -->
 <script lang="ts">
   import type { Component } from 'svelte'
   import Plus from '~icons/mingcute/add-fill'
   import Download from '~icons/mingcute/download-2-fill'
-  import Fire from '~icons/mingcute/fire-fill'
   import Keyboard from '~icons/mingcute/keyboard-fill'
   import Minus from '~icons/mingcute/minimize-fill'
   import Gear from '~icons/mingcute/settings-1-fill'
@@ -17,26 +16,15 @@
     onzoomin: () => void
     onzoomout: () => void
     onrecenter: () => void
-    heat: boolean // heatmap shown
-    onheat: () => void
     ondownload: () => void
     onsettings: () => void
     onhelp: () => void
   }
-  const { onzoomin, onzoomout, onrecenter, heat, onheat, ondownload, onsettings, onhelp }: Props = $props()
+  const { onzoomin, onzoomout, onrecenter, ondownload, onsettings, onhelp }: Props = $props()
 </script>
 
-<!-- `key` (shown) and `keys` (aria-keyshortcuts): empty when the button has no shortcut.
-     `pressed`: state of a toggle button, undefined for the others. -->
-{#snippet tool(
-  label: string,
-  key: Key,
-  keys: string,
-  onclick: () => void,
-  Icon: Component | string,
-  dialog = false,
-  pressed?: boolean,
-)}
+<!-- `key` (shown) and `keys` (aria-keyshortcuts): empty when the button has no shortcut. -->
+{#snippet tool(label: string, key: Key, keys: string, onclick: () => void, Icon: Component | string, dialog = false)}
   <Tooltip.Root>
     <Tooltip.Trigger>
       {#snippet child({ props })}
@@ -47,7 +35,6 @@
           aria-label={label}
           aria-keyshortcuts={keys || undefined}
           aria-haspopup={dialog ? 'dialog' : undefined}
-          aria-pressed={pressed}
           {onclick}
         >
           {#if typeof Icon === 'string'}
@@ -75,7 +62,6 @@
     <Separator class="sep" />
     {@render tool('Recentrer sur 0, 0', '0', '0', onrecenter, '0,0')}
     <Separator class="sep" />
-    {@render tool('Heatmap', 'H', 'H', onheat, Fire, false, heat)}
     {@render tool("Télécharger l'image", '', '', ondownload, Download, true)}
     {@render tool('Paramètres', '', '', onsettings, Gear, true)}
     <Separator class="sep help" />
@@ -91,10 +77,6 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-  }
-  /* A pressed toggle (heatmap shown): lime, like the other "on" states. */
-  .controls :global([aria-pressed='true']) {
-    background: var(--highlight);
   }
   span.help {
     display: contents;

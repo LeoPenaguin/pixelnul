@@ -5,7 +5,6 @@
   import AccountDialog from './components/AccountDialog.svelte'
   import AdminDialog from './components/AdminDialog.svelte'
   import DownloadDialog from './components/DownloadDialog.svelte'
-  import HeatLegend from './components/HeatLegend.svelte'
   import HelpDialog from './components/HelpDialog.svelte'
   import PixelPanel from './components/PixelPanel.svelte'
   import NavControls from './components/NavControls.svelte'
@@ -19,7 +18,6 @@
     fetchConfig,
     fetchMe,
     fetchPixelInfo,
-    fetchStats,
     fillRect,
     savePseudo,
     setBanned,
@@ -60,8 +58,6 @@
   let color = $state(5) // black
   let paletteOpen = $state(false)
   let settings = $state(loadSettings())
-  let heat = $state(false) // heatmap shown instead of the colours (painting off)
-  let heatMax = $state(1) // change count of the most painted pixel: top of the heatmap scale
   let hover = $state<Point | null>(null) // targeted pixel (mouse or keyboard cursor)
   let center = $state<Point>({ x: 0, y: 0 }) // pixel at the view centre
   let info = $state<PixelInfo | null>(null)
@@ -79,7 +75,7 @@
   const auth = $derived(providers.length > 0)
   const needsAccount = $derived(auth && !user?.pseudo) // sign-in on: painting needs a pseudo
   const canPaint = $derived(
-    !lost && !heat && !needsAccount && !user?.banned && (!limits || quotaAt(limits, quota, now).available >= 1),
+    !lost && !needsAccount && !user?.banned && (!limits || quotaAt(limits, quota, now).available >= 1),
   )
   $effect(() => {
     saveSettings($state.snapshot(settings))
@@ -128,10 +124,6 @@
   }
 
   function place(x: number, y: number) {
-    if (heat) {
-      announce('Heatmap affichée : appuie sur H pour revenir aux couleurs et peindre')
-      return
-    }
     if (needsAccount) {
       accountDialog.open() // explains how to start: sign in, or choose a pseudo
       return
@@ -162,18 +154,6 @@
     const from = world.hover ?? { x: Math.floor(world.cam.x), y: Math.floor(world.cam.y) } // the camera, not `center`: that one waits for the next frame
     hover = world.setCursor(from.x + dx, from.y + dy)
     loadInfo(true)
-  }
-
-  async function toggleHeat() {
-    heat = !heat
-    announce(heat ? 'Heatmap affichée' : 'Couleurs affichées')
-    if (heat) {
-      paletteOpen = false // the toolbar gives way to the legend
-      // The chunk bytes stop at 255; without the stats, the scale stays at its last top.
-      const s = await fetchStats().catch(() => null)
-      if (s) heatMax = Math.min(255, Math.max(1, s.hottest?.changes ?? 1))
-    }
-    world?.setHeat(heat, heatMax) // `heat` read again: H may have been pressed meanwhile
   }
 
   async function choosePseudo(pseudo: string) {
@@ -218,9 +198,6 @@
         break
       case 'grid':
         settings.grid = !settings.grid
-        break
-      case 'heat':
-        void toggleHeat()
         break
       case 'palette':
         void toolbar?.toggle()
@@ -312,8 +289,8 @@
 ></canvas>
 <p id="board-help" class="sr-only">
   Flèches pour déplacer le curseur, Maj et flèches pour aller 10 pixels plus loin, Entrée ou Espace pour poser un pixel
-  de la couleur choisie. Plus et moins pour zoomer, 0 pour revenir en 0, 0, C pour les couleurs, G pour la grille, H
-  pour la heatmap, point d'interrogation pour la liste des raccourcis.
+  de la couleur choisie. Plus et moins pour zoomer, 0 pour revenir en 0, 0, C pour les couleurs, G pour la grille, point
+  d'interrogation pour la liste des raccourcis.
 </p>
 <div class="sr-only" aria-live="polite">{message}</div>
 
@@ -379,26 +356,19 @@
     onzoomin={() => world?.zoomBy(1.5)}
     onzoomout={() => world?.zoomBy(1 / 1.5)}
     onrecenter={() => world?.recenter()}
-    {heat}
-    onheat={() => void toggleHeat()}
     ondownload={() => downloadDialog?.open()}
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}
   />
-  {#if heat}
-    <!-- No painting on the heatmap: its legend takes the toolbar's place. -->
-    <HeatLegend max={heatMax} />
-  {:else}
-    <Toolbar
-      bind:this={toolbar}
-      rows={cfg.palette}
-      bind:color
-      bind:open={paletteOpen}
-      quota={needsAccount ? null : limits}
-      snapshot={quota}
-      {now}
-    />
-  {/if}
+  <Toolbar
+    bind:this={toolbar}
+    rows={cfg.palette}
+    bind:color
+    bind:open={paletteOpen}
+    quota={needsAccount ? null : limits}
+    snapshot={quota}
+    {now}
+  />
 {/if}
 
 <style>

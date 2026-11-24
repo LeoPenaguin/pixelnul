@@ -61,7 +61,7 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 - Keyboard: arrows move a cursor (Shift: 10 pixels, the view follows), Enter or Space paints.
 - Accessibility: every control has a name (colours have French names), the board announces the targeted and painted pixels to screen readers, and animations are disabled when the system asks for reduced motion.
 - Hovering a pixel shows how many times it was painted, when it was last painted and by whom (pseudo).
-- Heatmap (`H`, flame button): the board shows how many times each pixel was painted instead of its colour; painting is off meanwhile, and its legend takes the toolbar's place. A snapshot, reloaded each time it is turned on.
+- No heatmap view in the front any more, but the server still counts every pixel's paints and serves them (`GET /api/heat/{cx}/{cy}`): the view can come back (it was removed after commit `1c6208e`).
 - Accounts (when a sign-in provider is configured: Google, Discord): watching is free, painting needs a sign-in and a pseudo chosen at the first one. The account menu changes the pseudo, signs out, or deletes the account (its past pixels stay, anonymous). Without any provider configured, anyone can paint, counted by IP.
 - Stats (site panel): paints in total, share of the board painted, connected tabs, paints per hour over the last 24 h, colours on the board, the day's 10 best painters (UTC day), the most disputed pixel.
 

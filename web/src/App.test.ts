@@ -362,38 +362,6 @@ describe('keyboard', () => {
     })
   })
 
-  test('H shows the heatmap: no painting until H again', async () => {
-    const { ws } = await start()
-    board().focus()
-    press('h')
-    await expect.element(page.getByRole('group', { name: 'Légende de la heatmap' })).toBeVisible()
-    await announced('Heatmap affichée')
-    const r = board().getBoundingClientRect()
-    click(r.left + r.width / 2, r.top + r.height / 2)
-    await announced('Heatmap affichée : appuie sur H pour revenir aux couleurs et peindre')
-    expect(ws.sent).toHaveLength(0)
-    await page.getByRole('button', { name: 'Heatmap' }).click()
-    await expect.element(page.getByRole('group', { name: 'Légende de la heatmap' })).not.toBeInTheDocument()
-    await announced('Couleurs affichées')
-  })
-
-  test('the heatmap scale tops at the most painted pixel', async () => {
-    await start()
-    const legend = () => page.getByRole('group', { name: 'Légende de la heatmap' })
-    hottest = { x: 0, y: 0, changes: 900 }
-    press('h')
-    await expect.element(legend().getByText('255', { exact: true })).toBeVisible() // chunk bytes stop at 255
-    press('h')
-    statsUp = false
-    press('h')
-    await expect.element(legend().getByText('255', { exact: true })).toBeVisible() // stats down: last top kept
-    press('h')
-    statsUp = true
-    hottest = null // nothing painted yet
-    press('h')
-    await expect.element(legend().getByText('1', { exact: true })).toBeVisible()
-  })
-
   test('the statistics lead to the most disputed pixel', async () => {
     await start()
     await page.getByRole('button', { name: 'Stats' }).click()
