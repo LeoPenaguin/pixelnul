@@ -54,7 +54,7 @@
             <span class="text" aria-hidden="true">{Icon}</span>
           {:else}
             <!-- size-* class: the shadcn button shrinks unsized icons to 16 px --><Icon
-              class="size-[22px]"
+              class="size-5.5"
               aria-hidden="true"
             />
           {/if}

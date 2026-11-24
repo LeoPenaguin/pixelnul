@@ -11,9 +11,9 @@
       // `ghost` is for icon buttons and links sitting flat inside a panel.
       variant: {
         default:
-          'border-foreground bg-background text-foreground shadow-[2px_2px_0_var(--ink)] hover:bg-secondary active:translate-[2px] active:shadow-none motion-reduce:active:translate-none',
+          'border-foreground bg-background text-foreground shadow-[2px_2px_0_var(--ink)] hover:bg-secondary active:translate-0.5 active:shadow-none motion-reduce:active:translate-none',
         destructive:
-          'border-foreground bg-destructive text-white shadow-[2px_2px_0_var(--ink)] hover:bg-[color-mix(in_oklch,var(--destructive),var(--ink)_20%)] active:translate-[2px] active:shadow-none motion-reduce:active:translate-none',
+          'border-foreground bg-destructive text-white shadow-[2px_2px_0_var(--ink)] hover:bg-[color-mix(in_oklch,var(--destructive),var(--ink)_20%)] active:translate-0.5 active:shadow-none motion-reduce:active:translate-none',
         ghost: 'hover:bg-secondary',
       },
       size: {

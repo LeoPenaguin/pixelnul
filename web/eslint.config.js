@@ -58,10 +58,15 @@ export default defineConfig(
     },
   },
   {
-    // Tailwind classes in their canonical form (as Tailwind IntelliSense's suggestCanonicalClasses).
+    // Tailwind classes canonical and without conflicts (as Tailwind IntelliSense's suggestCanonicalClasses
+    // and cssConflict).
     plugins: { 'better-tailwindcss': tailwind },
-    settings: { 'better-tailwindcss': { entryPoint: 'src/app.css' } },
-    rules: { 'better-tailwindcss/enforce-canonical-classes': 'error' },
+    // rootFontSize: lets px values canonicalise (p-[16px] → p-4), as IntelliSense does.
+    settings: { 'better-tailwindcss': { entryPoint: 'src/app.css', rootFontSize: 16 } },
+    rules: {
+      'better-tailwindcss/enforce-canonical-classes': 'error',
+      'better-tailwindcss/no-conflicting-classes': 'error',
+    },
   },
   {
     // Tests: non-null assertions skip checks that add nothing, and Svelte component exports are
