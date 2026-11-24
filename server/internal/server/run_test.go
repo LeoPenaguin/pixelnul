@@ -17,12 +17,13 @@ func envOf(m map[string]string) func(string) string {
 func TestRunConfigErrors(t *testing.T) {
 	mr := miniredis.RunT(t)
 	cases := map[string]map[string]string{
-		"PIXEL_BURST":          {"PIXEL_BURST": "beaucoup"},
-		"PIXEL_REFILL_MS":      {"PIXEL_REFILL_MS": "vite"},
-		"REDIS_URL":            {"REDIS_URL": "not-a-url"},
-		"redis:":               {"REDIS_URL": "redis://" + closedAddr(t)},
-		"listen":               {"REDIS_URL": "redis://" + mr.Addr(), "ADDR": "127.0.0.1:-1"},
-		"GOOGLE_CLIENT_SECRET": {"REDIS_URL": "redis://" + mr.Addr(), "GOOGLE_CLIENT_ID": "cid"},
+		"PIXEL_BURST":           {"PIXEL_BURST": "beaucoup"},
+		"PIXEL_REFILL_MS":       {"PIXEL_REFILL_MS": "vite"},
+		"REDIS_URL":             {"REDIS_URL": "not-a-url"},
+		"redis:":                {"REDIS_URL": "redis://" + closedAddr(t)},
+		"listen":                {"REDIS_URL": "redis://" + mr.Addr(), "ADDR": "127.0.0.1:-1"},
+		"GOOGLE_CLIENT_SECRET":  {"REDIS_URL": "redis://" + mr.Addr(), "GOOGLE_CLIENT_ID": "cid"},
+		"DISCORD_CLIENT_SECRET": {"REDIS_URL": "redis://" + mr.Addr(), "DISCORD_CLIENT_ID": "cid"},
 	}
 	for want, env := range cases {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -38,7 +39,10 @@ func TestRunServesUntilCancelled(t *testing.T) {
 	mr := miniredis.RunT(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	if err := Run(ctx, envOf(map[string]string{"REDIS_URL": "redis://" + mr.Addr(), "ADDR": "127.0.0.1:0"})); err != nil {
+	if err := Run(ctx, envOf(map[string]string{
+		"REDIS_URL": "redis://" + mr.Addr(), "ADDR": "127.0.0.1:0", "DISCORD_CLIENT_ID": "cid", "DISCORD_CLIENT_SECRET": "secret",
+		"ADMIN_IDS": "a1, a2",
+	})); err != nil {
 		t.Errorf("expected a clean shutdown, got %v", err)
 	}
 }

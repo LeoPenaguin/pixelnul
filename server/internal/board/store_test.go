@@ -34,28 +34,6 @@ func TestPaint(t *testing.T) {
 	}
 }
 
-func TestPaintLogsWhoAndWhat(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	_ = s.Paint(ctx, Pixel{-3, 4, 9}, 1234, "u1")
-	_ = s.Paint(ctx, Pixel{-3, 4, 2}, 5678, "")
-	log, err := s.rdb.XRange(ctx, "log", "-", "+").Result()
-	if err != nil || len(log) != 2 {
-		t.Fatal(log, err)
-	}
-	want := []map[string]any{
-		{"x": "-3", "y": "4", "c": "9", "p": "0", "u": "u1", "t": "1234"},
-		{"x": "-3", "y": "4", "c": "2", "p": "9", "u": "", "t": "5678"},
-	}
-	for i, e := range log {
-		for k, v := range want[i] {
-			if e.Values[k] != v {
-				t.Errorf("entry %d: %s = %v; want %v", i, k, e.Values[k], v)
-			}
-		}
-	}
-}
-
 func TestPaintRemembersTheLastPainterAndTheDayTop(t *testing.T) {
 	s, mr := newTestStore(t)
 	ctx := context.Background()
@@ -185,5 +163,31 @@ func TestStats(t *testing.T) {
 	mr.Close()
 	if _, err := s.Stats(ctx, now); err == nil {
 		t.Error("a Redis failure must be returned")
+	}
+}
+
+func TestFill(t *testing.T) {
+	s, mr := newTestStore(t)
+	ctx := context.Background()
+	_ = s.Paint(ctx, Pixel{-1, 0, 3}, 1, "u1")
+	_ = s.Paint(ctx, Pixel{2, 0, 3}, 1, "u1")
+	// Straddles chunks -1:-1, 0:-1, -1:0 and 0:0.
+	if err := s.Fill(ctx, -2, -1, 1, 0, 5); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range [][2]int{{-2, -1}, {1, -1}, {-1, 0}, {1, 0}} {
+		if info, _ := s.Info(ctx, p[0], p[1]); info.C != 5 || info.Changes != 0 || info.LastChange != nil || info.User != "" {
+			t.Errorf("%v = %+v; want colour 5 and no history", p, info)
+		}
+	}
+	if heat, _ := s.Heat(ctx, -1, 0); len(heat) > 255 && heat[255] != 0 {
+		t.Errorf("heat = %d; the heatmap must not show what was under the fill", heat[255])
+	}
+	if info, _ := s.Info(ctx, 2, 0); info.C != 3 || info.Changes != 1 {
+		t.Errorf("outside the rectangle = %+v; want untouched", info)
+	}
+	mr.Close()
+	if err := s.Fill(ctx, 0, 0, 0, 0, 1); err == nil {
+		t.Error("Redis down: an error was expected")
 	}
 }

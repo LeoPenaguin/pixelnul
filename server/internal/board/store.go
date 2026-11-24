@@ -19,7 +19,6 @@ import (
 //
 //	stats:hourly hash, "{Unix hour}" = paints during that hour (counted since this key exists)
 //	top:{day}    sorted set, user id → paints during that UTC day (Unix ms / 86,400,000); kept 2 days
-//	log          stream, one entry per paint: x, y, c (colour), p (previous colour), u (user id, "" if anonymous), t (Unix ms)
 type Store struct{ rdb redis.UniversalClient }
 
 // NewStore stores the world in the given Redis.
@@ -36,26 +35,23 @@ type Info struct {
 	User       string `json:"-"`
 }
 
-// Atomic paint: writes the byte, bumps the counters, timestamps the change and logs it. Every
-// paint counts, same colour included: repainting a pixel is a deliberate (and paid) move.
-// ponytail: stats:hourly keeps one field per hour forever (~9k a year), and the log one entry per
-// paint (~100 bytes): trim them (XTRIM MINID) once history that old is no longer needed.
+// Atomic paint: writes the byte, bumps the counters and timestamps the change. Every paint counts,
+// same colour included: repainting a pixel is a deliberate (and paid) move. No per-paint history:
+// moderation paints over.
+// ponytail: stats:hourly keeps one field per hour forever (~9k a year, a few hundred KB).
 var paintScript = redis.NewScript(`
 local off = tonumber(ARGV[1])
-local prev = redis.call('GETRANGE', KEYS[1], off, off)
-prev = prev == '' and 0 or string.byte(prev)
 redis.call('SETRANGE', KEYS[1], off, string.char(tonumber(ARGV[2])))
 redis.call('HINCRBY', KEYS[2], 'n:' .. off, 1)
 redis.call('HSET', KEYS[2], 't:' .. off, ARGV[3])
-if ARGV[7] == '' then
+if ARGV[5] == '' then
   redis.call('HDEL', KEYS[2], 'u:' .. off)
 else
-  redis.call('HSET', KEYS[2], 'u:' .. off, ARGV[7])
-  redis.call('ZINCRBY', KEYS[5], 1, ARGV[7])
-  redis.call('EXPIRE', KEYS[5], 172800)
+  redis.call('HSET', KEYS[2], 'u:' .. off, ARGV[5])
+  redis.call('ZINCRBY', KEYS[4], 1, ARGV[5])
+  redis.call('EXPIRE', KEYS[4], 172800)
 end
 redis.call('HINCRBY', KEYS[3], ARGV[4], 1)
-redis.call('XADD', KEYS[4], '*', 'x', ARGV[5], 'y', ARGV[6], 'c', ARGV[2], 'p', prev, 'u', ARGV[7], 't', ARGV[3])
 return 1
 `)
 
@@ -69,8 +65,42 @@ const (
 // Paint sets a pixel at time `at` (Unix ms) for a user ("" if anonymous).
 func (s *Store) Paint(ctx context.Context, p Pixel, at int64, user string) error {
 	id, off := Locate(p.X, p.Y)
-	keys := []string{"chunk:" + id, "meta:" + id, "stats:hourly", "log", "top:" + strconv.FormatInt(at/dayMs, 10)}
-	return paintScript.Run(ctx, s.rdb, keys, off, p.C, at, at/hourMs, p.X, p.Y, user).Err()
+	keys := []string{"chunk:" + id, "meta:" + id, "stats:hourly", "top:" + strconv.FormatInt(at/dayMs, 10)}
+	return paintScript.Run(ctx, s.rdb, keys, off, p.C, at, at/hourMs, user).Err()
+}
+
+// KEYS: chunk, meta. ARGV: colour, then one (offset, width) pair per row segment.
+var fillScript = redis.NewScript(`
+local c = string.char(tonumber(ARGV[1]))
+for i = 2, #ARGV, 2 do
+  local off, w = tonumber(ARGV[i]), tonumber(ARGV[i + 1])
+  redis.call('SETRANGE', KEYS[1], off, string.rep(c, w))
+  for o = off, off + w - 1 do
+    redis.call('HDEL', KEYS[2], 'n:' .. o, 't:' .. o, 'u:' .. o)
+  end
+end
+return 1
+`)
+
+// Fill paints the rectangle [x0, x1] × [y0, y1] (inside the world) in colour c and erases its pixels'
+// history (counts, so the heatmap; time; painter): a moderation tool, nothing of what was there shows.
+func (s *Store) Fill(ctx context.Context, x0, y0, x1, y1, c int) error {
+	segs := map[string][]any{} // chunk id → offset, width pairs
+	for y := y0; y <= y1; y++ {
+		for x := x0; x <= x1; {
+			id, off := Locate(x, y)
+			w := min(x1-x+1, ChunkSize-(x&(ChunkSize-1))) // up to the end of the row or of the chunk
+			segs[id] = append(segs[id], off, w)
+			x += w
+		}
+	}
+	for id, pairs := range segs {
+		args := append([]any{c}, pairs...)
+		if err := fillScript.Run(ctx, s.rdb, []string{"chunk:" + id, "meta:" + id}, args...).Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Chunk returns a chunk's raw bytes; empty if it was never painted.

@@ -17,7 +17,7 @@ import (
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	key, user, canPaint := ip, "", true
-	if s.google != nil {
+	if s.auth() {
 		u, ok := s.user(r)
 		key, user, canPaint = "u:"+u.ID, u.ID, ok && u.Pseudo != ""
 	}

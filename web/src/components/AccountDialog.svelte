@@ -1,5 +1,7 @@
 <!-- Account: sign in (signed out), choose a pseudo (first sign-in), or manage it (pseudo, sign out, delete). -->
 <script lang="ts">
+  import Discord from '~icons/mingcute/discord-fill'
+  import Google from '~icons/mingcute/google-fill'
   import type { User } from '../lib/api'
   import Modal from './Modal.svelte'
   import { Button } from './ui/button'
@@ -9,11 +11,17 @@
 
   type Props = {
     user: User | null
+    providers: string[] // sign-in services, in the order the server gives
     onsave: (pseudo: string) => Promise<string | null> // resolves to the reason of a refusal
     onsignout: () => Promise<void>
     ondelete: () => Promise<void>
   }
-  const { user, onsave, onsignout, ondelete }: Props = $props()
+  const { user, providers, onsave, onsignout, ondelete }: Props = $props()
+
+  const PROVIDERS: Record<string, { label: string; Icon: typeof Google } | undefined> = {
+    google: { label: 'Google', Icon: Google },
+    discord: { label: 'Discord', Icon: Discord },
+  }
 
   const id = $props.id()
   let modal: { open: () => void; close: () => void }
@@ -50,9 +58,18 @@
 <Modal bind:this={modal} {title} initialFocus={() => input ?? undefined}>
   {#if !user}
     <p>Connecte-toi pour poser des pixels. Regarder la toile reste libre, sans compte.</p>
-    <!-- A link: Google's page opens in this tab. -->
-    <Button href="/api/auth/login" size="lg">Continuer avec Google</Button>
-    <p class="hint note">Seul un identifiant de compte Google est gardé : ni ton nom, ni ton e-mail.</p>
+    <!-- Links: the provider's page opens in this tab. -->
+    <div class="providers">
+      {#each providers as name (name)}
+        {@const p = PROVIDERS[name]}
+        {#if p}
+          <Button href={`/api/auth/${name}/login`} size="lg">
+            <p.Icon aria-hidden="true" />{`Continuer avec ${p.label}`}
+          </Button>
+        {/if}
+      {/each}
+    </div>
+    <p class="hint note">Seul un identifiant de compte est gardé : ni ton nom, ni ton e-mail.</p>
   {:else}
     {#if !user.pseudo}
       <p>Il s'affichera dans l'historique des pixels que tu poses. Tu pourras le changer plus tard.</p>
@@ -99,6 +116,11 @@
   p {
     margin: 0 0 12px;
     font-weight: var(--font-weight-normal);
+  }
+  .providers {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
   .note {
     margin: 12px 0 0;

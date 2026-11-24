@@ -20,7 +20,7 @@ func newTestStore(t *testing.T) (*Store, *miniredis.Miniredis) {
 
 func signIn(t *testing.T, s *Store, sub string) (string, User) {
 	t.Helper()
-	tok, err := s.SignIn(ctx, sub, time.UnixMilli(42))
+	tok, err := s.SignIn(ctx, "google", sub, time.UnixMilli(42))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,6 +46,22 @@ func TestSignInCreatesTheUserOnce(t *testing.T) {
 	}
 	if _, u3 := signIn(t, s, "g2"); u3.ID == u1.ID {
 		t.Error("another Google account must be another user")
+	}
+}
+
+func TestSignInKeepsProvidersApart(t *testing.T) {
+	s, mr := newTestStore(t)
+	_, g := signIn(t, s, "1")
+	tok, err := s.SignIn(ctx, "discord", "1", time.UnixMilli(42))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _, _ := s.SessionUser(ctx, tok)
+	if d.ID == g.ID || mr.HGet("user:"+d.ID, "discord") != "1" {
+		t.Errorf("the same id at Discord and Google must be two users: %+v, %+v", d, g)
+	}
+	if err := s.Delete(ctx, tok); err != nil || mr.Exists("discord:1") || !mr.Exists("google:1") {
+		t.Errorf("deleting the Discord account frees its key only: %v", err)
 	}
 }
 
@@ -149,7 +165,7 @@ func TestDelete(t *testing.T) {
 func TestRedisDown(t *testing.T) {
 	s, mr := newTestStore(t)
 	mr.Close()
-	if _, err := s.SignIn(ctx, "a", time.Now()); err == nil {
+	if _, err := s.SignIn(ctx, "google", "a", time.Now()); err == nil {
 		t.Error("SignIn: an error was expected")
 	}
 	if _, _, err := s.SessionUser(ctx, "t"); err == nil {
@@ -169,5 +185,26 @@ func TestPseudos(t *testing.T) {
 	_ = mr.Set("user:broken", "not a hash")
 	if _, err := s.Pseudos(ctx, []string{"broken"}); err == nil {
 		t.Error("a Redis error must be returned")
+	}
+}
+
+func TestSetBanned(t *testing.T) {
+	s, _ := newTestStore(t)
+	tok, u := signIn(t, s, "a")
+	_ = s.SetPseudo(ctx, tok, "Minou")
+	if err := s.SetBanned(ctx, "minou", true); err != nil {
+		t.Fatal(err)
+	}
+	if b, _, _ := s.SessionUser(ctx, tok); !b.Banned || !s.Banned(ctx, u.ID) {
+		t.Error("the owner of the pseudo, any case, must be banned")
+	}
+	if err := s.SetBanned(ctx, "Minou", false); err != nil {
+		t.Fatal(err)
+	}
+	if b, _, _ := s.SessionUser(ctx, tok); b.Banned || s.Banned(ctx, u.ID) {
+		t.Error("the ban must be lifted")
+	}
+	if err := s.SetBanned(ctx, "personne", true); !errors.Is(err, ErrNoPseudo) {
+		t.Errorf("unknown pseudo: %v; want ErrNoPseudo", err)
 	}
 }
