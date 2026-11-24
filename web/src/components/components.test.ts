@@ -9,7 +9,7 @@ import AccountDialog from './AccountDialog.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HeatLegend from './HeatLegend.svelte'
 import HelpDialog from './HelpDialog.svelte'
-import JumpPanel from './JumpPanel.svelte'
+import PixelPanel from './PixelPanel.svelte'
 import NavControls from './NavControls.svelte'
 import Palette from './Palette.svelte'
 import Quota from './Quota.svelte'
@@ -96,61 +96,33 @@ describe('HelpDialog', () => {
   })
 })
 
-describe('JumpPanel', () => {
-  const base = { position: { x: 3, y: -4 }, info: null, colorLabel: null, now: 100_000, onjump: vi.fn() }
+describe('PixelPanel', () => {
+  const base = { position: { x: 3, y: -4 }, info: null, color: null, now: 100_000 }
 
-  test('the fields follow the position, except while typing', async () => {
-    const onjump = vi.fn()
-    const screen = await render(JumpPanel, { ...base, onjump })
-    const x = screen.getByRole('spinbutton', { name: 'Coordonnée X' })
-    const y = screen.getByRole('spinbutton', { name: 'Coordonnée Y' })
-    await expect.element(x).toHaveValue(3)
-    await expect.element(y).toHaveValue(-4)
-
-    await x.fill('-12')
-    await screen.rerender({ position: { x: 7, y: 7 } }) // typing: the fields do not move
-    await expect.element(x).toHaveValue(-12)
-    await y.click() // focus from one field to the other: still typing
-    await y.fill('5')
-    await userEvent.keyboard('{Enter}')
-    expect(onjump).toHaveBeenCalledWith(-12, 5)
-    await expect.element(x).toHaveValue(7) // typing done: following again
-
-    // Decimal or empty, in either field: nothing
-    for (const [vx, vy] of [
-      ['1.5', '2'],
-      ['1', '2.5'],
-      ['', '2'],
-      ['1', ''],
-    ]) {
-      await x.fill(vx)
-      await y.fill(vy)
-      await screen.getByRole('button', { name: 'Aller à ces coordonnées' }).click()
-    }
-    expect(onjump).toHaveBeenCalledOnce()
-    ;(document.activeElement as HTMLElement).blur()
-
-    await x.click()
-    await userEvent.keyboard('a') // other key: nothing special
-    await userEvent.keyboard('{Escape}') // Escape cancels
-    await expect.element(x).not.toHaveFocus()
-    await expect.element(x).toHaveValue(7)
+  test('shows the coordinates', async () => {
+    const screen = await render(PixelPanel, base)
+    await expect.element(screen.getByText('-4')).toBeVisible()
+    await screen.rerender({ position: { x: 7, y: 8 } })
+    await expect.element(screen.getByText('8')).toBeVisible()
   })
 
-  test('shows the history', async () => {
-    const screen = await render(JumpPanel, {
+  test('shows the colour and the history', async () => {
+    const screen = await render(PixelPanel, {
       ...base,
-      info: { x: 3, y: -4, c: 2, changes: 3, lastChange: 100_000 - 120_000, by: 'Minou' },
+      color: '#000000',
+      info: { x: 3, y: -4, c: 5, changes: 3, lastChange: 100_000 - 120_000, by: 'Minou' },
     })
-    await expect.element(screen.getByText('3 changements · dernier il y a 2 minutes par Minou')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 1, lastChange: 40_000, by: null } })
-    await expect.element(screen.getByText('1 changement · dernier il y a 1 minute')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 0, lastChange: null, by: null } })
+    await expect.element(screen.getByText('Noir · 3 changements')).toBeVisible()
+    await expect.element(screen.getByText('il y a 2 minutes par Minou')).toBeVisible()
+    await screen.rerender({ info: { x: 3, y: -4, c: 5, changes: 1, lastChange: 40_000, by: null } })
+    await expect.element(screen.getByText('il y a 1 minute')).toBeVisible()
+    await screen.rerender({ color: null }) // colour not known (yet): no name, no swatch
+    await expect.element(screen.getByText('· 1 changement')).toBeVisible()
+    await screen.rerender({ color: '#000000' })
+    await screen.rerender({ info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Peint avant le suivi des changements')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null, by: null } })
+    await screen.rerender({ color: '#FFFFFF', info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Jamais peint')).toBeVisible()
-    await screen.rerender({ colorLabel: 'Noir', info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null, by: null } })
-    await expect.element(screen.getByText('Noir ·')).toBeVisible()
   })
 })
 
@@ -165,7 +137,7 @@ describe('ServerDown', () => {
 
 describe('Palette', () => {
   test('named radio buttons, arrow navigation', async () => {
-    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn() })
+    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
     const black = screen.getByRole('radio', { name: 'Noir' })
     await expect.element(black).toBeChecked()
     await expect.element(black).toHaveAttribute('tabindex', '0')
@@ -183,7 +155,7 @@ describe('Palette', () => {
   })
 
   test('writes the selected colour name', async () => {
-    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn() })
+    const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
     await expect.element(screen.getByText('Noir', { exact: true })).toBeVisible()
   })
 })
@@ -258,6 +230,15 @@ describe('Toolbar', () => {
     await screen.getByRole('radio', { name: 'Blanc' }).click()
     await expect.element(screen.getByRole('radiogroup')).not.toBeInTheDocument()
     await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Blanc')
+    await expect.element(button).toHaveFocus()
+  })
+
+  test('the close cross closes the palette, focus back on the button', async () => {
+    const screen = await render(Toolbar, props)
+    const button = screen.getByRole('button', { name: /^Couleurs/ })
+    await button.click()
+    await screen.getByRole('button', { name: 'Fermer' }).click()
+    await expect.element(screen.getByRole('radiogroup')).not.toBeInTheDocument()
     await expect.element(button).toHaveFocus()
   })
 

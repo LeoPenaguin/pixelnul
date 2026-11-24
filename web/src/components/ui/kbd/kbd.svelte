@@ -14,7 +14,7 @@
   bind:this={ref}
   data-slot="kbd"
   class={cn(
-    'pointer-events-none inline-grid h-6 min-w-6 place-items-center rounded-sm border-2 border-foreground bg-secondary px-1.5 font-[inherit] leading-none text-foreground select-none has-[svg]:px-0 in-data-[slot=tooltip-content]:h-auto in-data-[slot=tooltip-content]:min-w-0 in-data-[slot=tooltip-content]:border-0 in-data-[slot=tooltip-content]:px-[5px] in-data-[slot=tooltip-content]:text-xs in-data-[slot=tooltip-content]:font-bold',
+    'pointer-events-none inline-grid h-6 min-w-6 place-items-center rounded-sm border-2 border-foreground bg-secondary px-1.5 font-[inherit] leading-none text-foreground select-none has-[svg]:px-0 in-data-[slot=tooltip-content]:h-auto in-data-[slot=tooltip-content]:min-w-0 in-data-[slot=tooltip-content]:border-0 in-data-[slot=tooltip-content]:px-1.25 in-data-[slot=tooltip-content]:text-xs in-data-[slot=tooltip-content]:font-bold',
     className,
   )}
   {...restProps}

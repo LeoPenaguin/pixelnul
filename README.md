@@ -54,7 +54,7 @@ See [CLAUDE.md](CLAUDE.md) for conventions (naming, commits, branches, layout).
 - Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), download, settings, shortcut list (`?`, hidden on small touch screens).
 - Download: an image of the whole board, ×1 to ×4 (pixels stay square), in PNG (lossless: pixels stay sharp). Built in the browser from the chunks.
 - Settings (remembered in the browser): grid (`G`), interface size 100 / 125 / 150 % (the board is not affected).
-- X / Y fields (top left) follow the pointer; type coordinates and press Enter to jump there. Escape cancels.
+- The coordinates (top left) follow the pointer or the keyboard cursor, with the history of that pixel.
 - Recenter, button / keyboard zoom and jumps are animated; a far jump starts a few screens before the target.
 - Minimap (top right, hidden on small touch screens): drag to pan, click to fly there.
 - On load, the view opens on 0, 0.

@@ -27,8 +27,11 @@
 
 <Dialog.Root bind:open={shown}>
   <Dialog.Content class="panel modal" onOpenAutoFocus={autofocus}>
-    <Dialog.Title class="title">{title}</Dialog.Title>
-    {@render children()}
+    <!-- The body scrolls, not the panel: the close cross straddles its corner. -->
+    <div class="body">
+      <Dialog.Title class="title">{title}</Dialog.Title>
+      {@render children()}
+    </div>
   </Dialog.Content>
 </Dialog.Root>
 
@@ -37,14 +40,16 @@
      interface size setting: the screen size is divided by it. */
   :global(.modal) {
     max-width: min(440px, calc((100vw - 32px) / var(--ui-scale, 1)));
+    line-height: 1.4;
+  }
+  .body {
     max-height: calc((100dvh - 32px) / var(--ui-scale, 1));
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 16px 18px;
-    line-height: 1.4;
   }
   :global(.modal) :global(.title) {
-    margin: 4px 40px 14px 0; /* room for the close button */
+    margin: 4px 8px 14px 0;
     font-size: var(--text-base);
     font-weight: var(--font-weight-bold);
     letter-spacing: var(--tracking-tight);

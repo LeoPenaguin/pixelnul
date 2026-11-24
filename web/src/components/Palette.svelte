@@ -3,11 +3,12 @@
 <script lang="ts">
   import { colorName } from '../lib/colors'
   import { paletteMove } from '../lib/keyboard'
+  import CloseButton from './CloseButton.svelte'
   import { Button } from './ui/button'
 
   // onpick: a colour was clicked (the arrow keys only change it, the palette stays open to keep browsing).
-  type Props = { rows: string[][]; color: number; onpick: () => void }
-  let { rows, color = $bindable(), onpick }: Props = $props()
+  type Props = { rows: string[][]; color: number; onpick: () => void; onclose: () => void }
+  let { rows, color = $bindable(), onpick, onclose }: Props = $props()
 
   let group: HTMLElement
   const swatch = (i: number) => group.querySelectorAll<HTMLElement>('[role=radio]')[i]
@@ -51,11 +52,12 @@
   </div>
   <!-- The radios already carry the names for screen readers: this one is for the eyes. -->
   <p class="caption" aria-hidden="true">{colorName(rows.flat()[color])}</p>
+  <CloseButton onclick={onclose} />
 </div>
 
 <style>
   .popover {
-    position: static;
+    position: relative; /* anchors the close cross */
     padding: 10px;
   }
   .swatches {
