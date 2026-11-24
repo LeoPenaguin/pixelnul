@@ -258,8 +258,7 @@ export class World {
     ctx.imageSmoothingEnabled = false
     const tl = this.toWorld(0, 0)
     const br = this.toWorld(w, h)
-    const visible = new Set<string>()
-    this.drawChunks(ctx, tl, br, visible)
+    this.drawChunks(ctx, tl, br)
 
     if (this.showGrid && cam.zoom >= GRID_MIN_ZOOM) {
       ctx.strokeStyle = 'rgba(0,0,0,0.08)'
@@ -284,14 +283,13 @@ export class World {
     if (this.target)
       outline(ctx, this.target.x - 0.5, this.target.y - 0.5, 2, 2, 3 / cam.zoom, Math.min(8 / cam.zoom, 1))
 
-    this.drawMinimap(tl, br, visible)
+    this.drawMinimap(tl, br)
     this.onView({ x: Math.floor(cam.x), y: Math.floor(cam.y) })
-    this.board.evict(visible)
   }
 
   /** Draws the ready chunks covering area [a, b] (world coordinates) and loads the others.
    *  Border chunks stick out of the world: drawing is clipped to it. */
-  private drawChunks(ctx: CanvasRenderingContext2D, a: Point, b: Point, seen: Set<string>) {
+  private drawChunks(ctx: CanvasRenderingContext2D, a: Point, b: Point) {
     const S = this.cfg.chunkSize
     const { half } = this
     ctx.save()
@@ -306,7 +304,6 @@ export class World {
     const [cy0, cy1] = range(a.y, b.y, half.y)
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
-        seen.add(this.board.key(cx, cy))
         const c = this.board.get(cx, cy)
         if (c) ctx.drawImage(c, cx * S, cy * S)
       }
@@ -315,7 +312,7 @@ export class World {
   }
 
   /** Overview centred on the camera; the rectangle shows what is visible. */
-  private drawMinimap(tl: Point, br: Point, seen: Set<string>) {
+  private drawMinimap(tl: Point, br: Point) {
     const m = this.minimap
     if (!m) return
     const dpr = devicePixelRatio
@@ -336,7 +333,7 @@ export class World {
     mctx.fillRect(0, 0, size, size)
     mctx.setTransform(k, 0, 0, k, -x0 * k, -y0 * k)
     mctx.imageSmoothingEnabled = true
-    this.drawChunks(mctx, { x: x0, y: y0 }, { x: x0 + span, y: y0 + span }, seen)
+    this.drawChunks(mctx, { x: x0, y: y0 }, { x: x0 + span, y: y0 + span })
     outline(mctx, tl.x, tl.y, br.x - tl.x, br.y - tl.y, (2 * dpr) / k)
   }
 

@@ -44,7 +44,7 @@ func TestSignInCreatesTheUserOnce(t *testing.T) {
 	if mr.HGet("user:"+u1.ID, "google") != "g1" || mr.HGet("user:"+u1.ID, "created") != "42" {
 		t.Error("the user must remember its Google account and creation time")
 	}
-	if ttl := mr.TTL("session:" + tok1); ttl != SessionTTL {
+	if ttl := mr.TTL(sessionKey(tok1)); ttl != SessionTTL {
 		t.Errorf("session TTL = %v", ttl)
 	}
 	if _, u3 := signIn(t, s, "g2"); u3.ID == u1.ID {
@@ -73,7 +73,7 @@ func TestSessionUserUnknown(t *testing.T) {
 	if _, ok, err := s.SessionUser(ctx, "nope"); ok || err != nil {
 		t.Errorf("unknown session: %v, %v", ok, err)
 	}
-	_ = mr.Set("session:orphan", "gone")
+	_ = mr.Set(sessionKey("orphan"), "gone")
 	if _, ok, err := s.SessionUser(ctx, "orphan"); ok || err != nil {
 		t.Errorf("session of a deleted user: %v, %v", ok, err)
 	}
@@ -170,7 +170,7 @@ func TestDelete(t *testing.T) {
 	if err := s.Delete(ctx, tok); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"user:" + u.ID, "google:a", "pseudo:pixel", "session:" + tok} {
+	for _, k := range []string{"user:" + u.ID, "google:a", "pseudo:pixel", sessionKey(tok)} {
 		if mr.Exists(k) {
 			t.Errorf("%s must be deleted", k)
 		}
@@ -223,13 +223,13 @@ func TestSetBanned(t *testing.T) {
 	if err := s.SetBanned(ctx, "MINOU", true); err != nil {
 		t.Fatal(err)
 	}
-	if b, _, _ := s.SessionUser(ctx, tok); !b.Banned || !s.Banned(ctx, u.ID) {
+	if b, _, _ := s.SessionUser(ctx, tok); !b.Banned || s.CanPaint(ctx, u.ID) {
 		t.Error("the owner of the pseudo, any case, must be banned")
 	}
 	if err := s.SetBanned(ctx, "Minou", false); err != nil {
 		t.Fatal(err)
 	}
-	if b, _, _ := s.SessionUser(ctx, tok); b.Banned || s.Banned(ctx, u.ID) {
+	if b, _, _ := s.SessionUser(ctx, tok); b.Banned || !s.CanPaint(ctx, u.ID) {
 		t.Error("the ban must be lifted")
 	}
 	if err := s.SetBanned(ctx, "personne", true); !errors.Is(err, ErrNoPseudo) {
@@ -256,5 +256,33 @@ func TestBanOutlivesTheAccount(t *testing.T) {
 	_ = s.Delete(ctx, tok)
 	if _, u := signIn(t, s, "a"); u.Banned {
 		t.Error("once the ban is lifted, a new account must not be banned")
+	}
+}
+
+func TestCanPaint(t *testing.T) {
+	s, mr := newTestStore(t)
+	tok, u := signIn(t, s, "a")
+	if s.CanPaint(ctx, u.ID) {
+		t.Error("without a pseudo, no painting")
+	}
+	_ = s.SetPseudo(ctx, tok, "Minou", t0)
+	if !s.CanPaint(ctx, u.ID) {
+		t.Error("with a pseudo, painting is allowed")
+	}
+	_ = s.Delete(ctx, tok)
+	if s.CanPaint(ctx, u.ID) {
+		t.Error("a deleted account must stop painting at once")
+	}
+	mr.Close()
+	if s.CanPaint(ctx, "x") {
+		t.Error("Redis down: no painting")
+	}
+}
+
+func TestSessionTokenIsNotStored(t *testing.T) {
+	s, mr := newTestStore(t)
+	tok, _ := signIn(t, s, "a")
+	if mr.Exists("session:"+tok) || !mr.Exists(sessionKey(tok)) {
+		t.Error("only the hash of a session token may be kept in Redis")
 	}
 }

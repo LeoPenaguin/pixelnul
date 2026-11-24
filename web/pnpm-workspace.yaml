@@ -1,0 +1,4 @@
+# Forces patched versions of vulnerable transitive dev dependencies (pnpm audit), until their parents bump them.
+overrides:
+  minimatch@>=7.0.0 <11.0.1: ^11.0.1 # via typescript-eslint
+  katex@>=0.11.0 <0.18.2: ^0.18.2 # via markdownlint-cli2 (math syntax)

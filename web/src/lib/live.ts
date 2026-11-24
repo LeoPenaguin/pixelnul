@@ -1,7 +1,7 @@
 // Real-time connection to the server (WebSocket /ws), reconnected automatically.
 //   sent:     {"x","y","c"}
 //   received: {"t":"q","n"} remaining quota; {"t":"b","p":[x,y,c, x,y,c, …]} batch of painted pixels
-const RECONNECT_MS = 1000
+const RECONNECT_MS = 1000 // plus up to as much at random: after a server restart, clients do not all come back at once
 
 type Message = { t: 'q'; n: number } | { t: 'b'; p: number[] }
 
@@ -40,9 +40,12 @@ export class Live {
     ws.onclose = () => {
       if (this.stopped) return
       this.h.onClose()
-      setTimeout(() => {
-        this.connect()
-      }, RECONNECT_MS)
+      setTimeout(
+        () => {
+          this.connect()
+        },
+        RECONNECT_MS * (1 + Math.random()),
+      )
     }
   }
 

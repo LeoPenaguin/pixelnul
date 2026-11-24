@@ -88,7 +88,7 @@ func (r response) cookie(name string) *http.Cookie {
 	return nil
 }
 
-// request sends a request without following redirects; cookies are "name=value" pairs.
+// request sends a request (with a JSON Content-Type unless GET) without following redirects; cookies are "name=value" pairs.
 func request(t *testing.T, method, target, body string, cookies ...string) response {
 	t.Helper()
 	req, err := http.NewRequestWithContext(context.Background(), method, target, strings.NewReader(body))
@@ -97,6 +97,9 @@ func request(t *testing.T, method, target, body string, cookies ...string) respo
 	}
 	if len(cookies) > 0 {
 		req.Header.Set("Cookie", strings.Join(cookies, "; "))
+	}
+	if method != http.MethodGet {
+		req.Header.Set("Content-Type", "application/json") // as the front does
 	}
 	client := http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	res, err := client.Do(req)
@@ -360,5 +363,35 @@ func TestPaintingNeedsAnAccountWithAPseudo(t *testing.T) {
 	u, _, _ := e.s.accounts.SessionUser(context.Background(), tok)
 	if info, _ := e.s.store.Info(context.Background(), 3, 1); info.User != u.ID || info.Changes != 1 {
 		t.Errorf("pixel = %+v; want one paint by %s", info, u.ID)
+	}
+}
+
+func TestDeletedAccountStopsPaintingOnItsOpenConnection(t *testing.T) {
+	e := newTestEnv(t, signInOn(t, 5, time.Hour))
+	tok := signedIn(t, e, "a", "Pixel")
+	ws := dialAs(t, e, tok)
+	read(t, ws) // quota
+	_ = e.s.accounts.Delete(context.Background(), tok)
+	send(t, ws, `{"x":4,"y":4,"c":5}`)
+	time.Sleep(50 * time.Millisecond)
+	if info, _ := e.s.store.Info(context.Background(), 4, 4); info.Changes != 0 {
+		t.Error("a deleted account must not paint, even on a connection opened before")
+	}
+}
+
+func TestChangesNeedAJSONBody(t *testing.T) {
+	e := newTestEnv(t, signInOn(t, 1, 0))
+	tok := signedIn(t, e, "a", "Pixel")
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, e.url+"/api/me/pseudo",
+		strings.NewReader(`{"pseudo":"Minou"}`))
+	req.Header.Set("Content-Type", "text/plain") // what a form of another site can send
+	req.Header.Set("Cookie", "session="+tok)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusUnsupportedMediaType {
+		t.Errorf("text body = %d; want 415", res.StatusCode)
 	}
 }
