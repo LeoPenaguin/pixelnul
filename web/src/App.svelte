@@ -6,7 +6,7 @@
   import DownloadDialog from './components/DownloadDialog.svelte'
   import HeatLegend from './components/HeatLegend.svelte'
   import HelpDialog from './components/HelpDialog.svelte'
-  import JumpPanel from './components/JumpPanel.svelte'
+  import PixelPanel from './components/PixelPanel.svelte'
   import NavControls from './components/NavControls.svelte'
   import ServerDown from './components/ServerDown.svelte'
   import SettingsDialog from './components/SettingsDialog.svelte'
@@ -324,7 +324,7 @@
   <ServerDown />
 {/if}
 
-<!-- Top-left column: the site panel, then the X / Y panel (once loaded) which grows on its own. -->
+<!-- Top-left column: the site panel, then the pixel panel (once loaded) which grows on its own. -->
 <div class="top-left">
   <SitePanel
     onabout={() => about.open()}
@@ -334,13 +334,7 @@
     onaccount={() => accountDialog.open()}
   />
   {#if cfg}
-    <JumpPanel
-      position={hover ?? center}
-      info={shownInfo}
-      {colorLabel}
-      {now}
-      onjump={(x: number, y: number) => world?.jumpTo(x, y)}
-    />
+    <PixelPanel position={hover ?? center} info={shownInfo} {colorLabel} {now} />
   {/if}
 </div>
 

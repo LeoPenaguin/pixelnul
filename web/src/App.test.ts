@@ -70,7 +70,7 @@ const announced = (text: string) =>
   })
 // The settings dialog is unmounted while closed: the grid setting is read where it is remembered.
 const grid = () => (JSON.parse(localStorage.getItem('pixels:settings') ?? '{}') as { grid?: boolean }).grid ?? true
-const fields = () => [...document.querySelectorAll<HTMLInputElement>('input[type=number]')].map((i) => i.valueAsNumber)
+const fields = () => [...document.querySelectorAll('.coords span')].map((s) => Number(s.textContent))
 
 /** Renders the app, waits for the configuration and opens the real-time connection. */
 async function start() {
@@ -379,28 +379,14 @@ describe('keyboard', () => {
     await userEvent.keyboard('{Escape}')
   })
 
-  test('the X / Y fields keep their keys and allow jumping', async () => {
-    const { ws } = await start()
-    const x = page.getByRole('spinbutton', { name: 'Coordonnée X' })
-    await x.fill('40')
-    await userEvent.keyboard('{Enter}')
-    await vi.waitFor(() => {
-      expect(fields()).toEqual([40, 0]) // end of the animated jump
-    })
-    await page.getByRole('spinbutton', { name: 'Coordonnée Y' }).fill('7') // only y changes
-    await userEvent.keyboard('{Enter}')
-    await vi.waitFor(() => {
-      expect(fields()).toEqual([40, 7])
-    })
+  test('the navigation buttons zoom, recenter and open the help', async () => {
+    await start()
     await page.getByRole('button', { name: 'Zoomer', exact: true }).click()
     await page.getByRole('button', { name: 'Dézoomer' }).click()
     await page.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
     await page.getByRole('button', { name: 'Raccourcis clavier' }).click()
     await expect.element(page.getByRole('heading', { name: 'Raccourcis clavier' })).toBeVisible()
     await userEvent.keyboard('{Escape}')
-    await x.click()
-    await userEvent.keyboard('{Enter}')
-    expect(ws.sent).toEqual([]) // Enter in a field: jump, no pixel
   })
 })
 

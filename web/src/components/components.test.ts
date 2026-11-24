@@ -9,7 +9,7 @@ import AccountDialog from './AccountDialog.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HeatLegend from './HeatLegend.svelte'
 import HelpDialog from './HelpDialog.svelte'
-import JumpPanel from './JumpPanel.svelte'
+import PixelPanel from './PixelPanel.svelte'
 import NavControls from './NavControls.svelte'
 import Palette from './Palette.svelte'
 import Quota from './Quota.svelte'
@@ -96,49 +96,18 @@ describe('HelpDialog', () => {
   })
 })
 
-describe('JumpPanel', () => {
-  const base = { position: { x: 3, y: -4 }, info: null, colorLabel: null, now: 100_000, onjump: vi.fn() }
+describe('PixelPanel', () => {
+  const base = { position: { x: 3, y: -4 }, info: null, colorLabel: null, now: 100_000 }
 
-  test('the fields follow the position, except while typing', async () => {
-    const onjump = vi.fn()
-    const screen = await render(JumpPanel, { ...base, onjump })
-    const x = screen.getByRole('spinbutton', { name: 'Coordonnée X' })
-    const y = screen.getByRole('spinbutton', { name: 'Coordonnée Y' })
-    await expect.element(x).toHaveValue(3)
-    await expect.element(y).toHaveValue(-4)
-
-    await x.fill('-12')
-    await screen.rerender({ position: { x: 7, y: 7 } }) // typing: the fields do not move
-    await expect.element(x).toHaveValue(-12)
-    await y.click() // focus from one field to the other: still typing
-    await y.fill('5')
-    await userEvent.keyboard('{Enter}')
-    expect(onjump).toHaveBeenCalledWith(-12, 5)
-    await expect.element(x).toHaveValue(7) // typing done: following again
-
-    // Decimal or empty, in either field: nothing
-    for (const [vx, vy] of [
-      ['1.5', '2'],
-      ['1', '2.5'],
-      ['', '2'],
-      ['1', ''],
-    ]) {
-      await x.fill(vx)
-      await y.fill(vy)
-      await screen.getByRole('button', { name: 'Aller à ces coordonnées' }).click()
-    }
-    expect(onjump).toHaveBeenCalledOnce()
-    ;(document.activeElement as HTMLElement).blur()
-
-    await x.click()
-    await userEvent.keyboard('a') // other key: nothing special
-    await userEvent.keyboard('{Escape}') // Escape cancels
-    await expect.element(x).not.toHaveFocus()
-    await expect.element(x).toHaveValue(7)
+  test('shows the coordinates', async () => {
+    const screen = await render(PixelPanel, base)
+    await expect.element(screen.getByText('-4')).toBeVisible()
+    await screen.rerender({ position: { x: 7, y: 8 } })
+    await expect.element(screen.getByText('8')).toBeVisible()
   })
 
   test('shows the history', async () => {
-    const screen = await render(JumpPanel, {
+    const screen = await render(PixelPanel, {
       ...base,
       info: { x: 3, y: -4, c: 2, changes: 3, lastChange: 100_000 - 120_000, by: 'Minou' },
     })

@@ -2,11 +2,11 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 type PixelInfo = { x: number; y: number; c: number; changes: number }
 
-/** A random white pixel of the 1280 × 720 world, so painting it black is always a change,
- *  whatever earlier runs left in Redis. Returns its current history too. */
+/** A random white pixel near the origin (reachable with the keyboard cursor), so painting it black
+ *  is always a change, whatever earlier runs left in Redis. Returns its current history too. */
 async function whitePixel(request: APIRequestContext): Promise<PixelInfo> {
   for (;;) {
-    const [x, y] = [1280, 720].map((size) => Math.floor(Math.random() * size) - size / 2)
+    const [x, y] = [0, 0].map(() => Math.floor(Math.random() * 61) - 30)
     const res = await request.get(`/api/pixels/${String(x)}/${String(y)}`)
     const info = (await res.json()) as PixelInfo
     if (info.c === 0) return info
@@ -22,31 +22,33 @@ async function open(page: Page) {
   await expect(page.getByRole('button', { name: 'Zoomer', exact: true })).toBeVisible()
 }
 
-async function jumpTo(page: Page, { x, y }: { x: number; y: number }) {
-  await page.getByRole('spinbutton', { name: 'Coordonnée X' }).fill(String(x))
-  await page.getByRole('spinbutton', { name: 'Coordonnée Y' }).fill(String(y))
-  await page.keyboard.press('Enter')
+/** Moves the keyboard cursor from the view centre (0, 0 on a fresh page) to a pixel. */
+async function cursorTo(page: Page, { x, y }: { x: number; y: number }) {
+  await page.getByRole('application', { name: 'Board de pixels' }).focus()
+  await page.keyboard.press('Enter') // first press: shows the cursor at the centre
+  for (const [d, key] of [
+    [x, x < 0 ? 'ArrowLeft' : 'ArrowRight'],
+    [y, y < 0 ? 'ArrowUp' : 'ArrowDown'],
+  ] as const) {
+    const n = Math.abs(d)
+    for (let i = 0; i < Math.floor(n / 10); i++) await page.keyboard.press(`Shift+${key}`)
+    for (let i = 0; i < n % 10; i++) await page.keyboard.press(key)
+  }
 }
 
 test('painting with the keyboard: stored and broadcast', async ({ page, browser }) => {
   const before = await whitePixel(page.request)
   const target = { x: before.x, y: before.y }
   await open(page)
-  await jumpTo(page, target)
 
   // A second player looks at the same pixel.
   const other = await browser.newPage()
   await open(other)
-  await jumpTo(other, target)
-  const board2 = other.getByRole('application', { name: 'Board de pixels' })
-  await board2.focus()
-  await other.keyboard.press('Enter') // shows the cursor, announces the pixel
+  await cursorTo(other, target)
   await expect(other.locator('[aria-live]')).toHaveText(new RegExp(`^${String(target.x)}, ${String(target.y)} : Blanc`))
 
   await page.bringToFront()
-  const board = page.getByRole('application', { name: 'Board de pixels' })
-  await board.focus()
-  await page.keyboard.press('Enter')
+  await cursorTo(page, target)
   await page.keyboard.press('Space')
   await expect(page.locator('[aria-live]')).toHaveText(new RegExp(`posé en ${String(target.x)}, ${String(target.y)}$`))
 
@@ -84,9 +86,18 @@ test('palette, grid and help from the keyboard', async ({ page }) => {
 
 test('the navigation buttons recenter on 0, 0', async ({ page }) => {
   await open(page)
-  await jumpTo(page, { x: 500, y: 500 })
+  const coords = page.locator('.coords')
+  const box = await page.getByRole('application', { name: 'Board de pixels' }).boundingBox()
+  if (!box) throw new Error('no board')
+  // Zoomed in, so the board overflows the view and can be panned.
   await page.getByRole('button', { name: 'Zoomer', exact: true }).click()
+  await page.getByRole('button', { name: 'Zoomer', exact: true }).click()
+  const [cx, cy] = [box.x + box.width / 2, box.y + box.height / 2]
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx - 300, cy - 200, { steps: 5 })
+  await page.mouse.up()
+  await expect(coords).not.toHaveText(/^X\s*0\s*Y\s*0$/)
   await page.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
-  await expect(page.getByRole('spinbutton', { name: 'Coordonnée X' })).toHaveValue('0')
-  await expect(page.getByRole('spinbutton', { name: 'Coordonnée Y' })).toHaveValue('0')
+  await expect(coords).toHaveText(/^X\s*0\s*Y\s*0$/)
 })
