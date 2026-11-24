@@ -16,8 +16,7 @@
   // Grid lines: a thin rule sets the neutrals (first row) and the earth tones (last row) apart from the hue ramps.
   const lines = $derived(rows.flatMap((_, r) => (r === 1 || (r > 1 && r === rows.length - 1) ? ['rule', r] : [r])))
   const template = $derived(lines.map((l) => (l === 'rule' ? '9px' : '26px')).join(' '))
-  // The caption previews the hovered colour, and comes back to the selected one once the pointer leaves the
-  // swatches (the gaps between them do not count, so it does not flicker).
+  // The caption previews the hovered colour, and comes back to the selected one as soon as the pointer leaves it.
   let hovered = $state<number | null>(null)
   const shown = $derived(rows.flat()[hovered ?? color])
 
@@ -44,7 +43,6 @@
     aria-label="Couleur"
     tabindex="-1"
     onkeydown={keydown}
-    onpointerleave={() => (hovered = null)}
   >
     {#each lines as line, l (l)}
       {#if line === 'rule'}<i class="rule" style:grid-row={String(l + 1)}></i>{/if}
@@ -62,6 +60,7 @@
           aria-checked={index === color}
           tabindex={index === color ? 0 : -1}
           onpointerenter={() => (hovered = index)}
+          onpointerleave={() => (hovered = null)}
           onclick={() => {
             color = index
             onpick()
