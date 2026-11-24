@@ -160,9 +160,14 @@ describe('Palette', () => {
     await expect.element(screen.getByRole('radio', { name: 'Blanc' })).toBeChecked()
   })
 
-  test('writes the selected colour name', async () => {
+  test('writes the selected colour name, or the hovered one', async () => {
     const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
-    await expect.element(screen.getByText('Noir', { exact: true })).toBeVisible()
+    const caption = screen.container.querySelector<HTMLElement>('.caption')
+    await expect.element(caption).toHaveTextContent('Noir')
+    await userEvent.hover(screen.getByRole('radio', { name: 'Bleu' }))
+    await expect.element(caption).toHaveTextContent('Bleu')
+    await userEvent.unhover(screen.getByRole('radio', { name: 'Bleu' }))
+    await expect.element(caption).toHaveTextContent('Noir')
   })
 })
 

@@ -16,6 +16,10 @@
   // Grid lines: a thin rule sets the neutrals (first row) and the earth tones (last row) apart from the hue ramps.
   const lines = $derived(rows.flatMap((_, r) => (r === 1 || (r > 1 && r === rows.length - 1) ? ['rule', r] : [r])))
   const template = $derived(lines.map((l) => (l === 'rule' ? '9px' : '26px')).join(' '))
+  // The caption previews the hovered colour, and comes back to the selected one once the pointer leaves the
+  // swatches (the gaps between them do not count, so it does not flicker).
+  let hovered = $state<number | null>(null)
+  const shown = $derived(rows.flat()[hovered ?? color])
 
   /** Focuses the selected colour (on open). */
   export function focus() {
@@ -40,6 +44,7 @@
     aria-label="Couleur"
     tabindex="-1"
     onkeydown={keydown}
+    onpointerleave={() => (hovered = null)}
   >
     {#each lines as line, l (l)}
       {#if line === 'rule'}<i class="rule" style:grid-row={String(l + 1)}></i>{/if}
@@ -56,6 +61,7 @@
           title={colorName(hex)}
           aria-checked={index === color}
           tabindex={index === color ? 0 : -1}
+          onpointerenter={() => (hovered = index)}
           onclick={() => {
             color = index
             onpick()
@@ -65,7 +71,9 @@
     {/each}
   </div>
   <!-- The radios already carry the names for screen readers: this one is for the eyes. -->
-  <p class="caption" aria-hidden="true">{colorName(rows.flat()[color])}</p>
+  <p class="caption" aria-hidden="true">
+    <i class="preview" style:background={shown}></i>{colorName(shown)}
+  </p>
   <CloseButton onclick={onclose} />
 </div>
 
@@ -88,8 +96,17 @@
     opacity: 0.2;
   }
   .caption {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
     margin: 10px 0 0;
-    text-align: center;
+  }
+  .preview {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--ink);
+    border-radius: 3px;
   }
   /* Unlayered, so these win over the button's utilities: the swatch is all colour. */
   .swatches :global(.swatch) {
