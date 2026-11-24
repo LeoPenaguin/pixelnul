@@ -97,7 +97,7 @@ describe('HelpDialog', () => {
 })
 
 describe('PixelPanel', () => {
-  const base = { position: { x: 3, y: -4 }, info: null, colorLabel: null, now: 100_000 }
+  const base = { position: { x: 3, y: -4 }, info: null, color: null, now: 100_000 }
 
   test('shows the coordinates', async () => {
     const screen = await render(PixelPanel, base)
@@ -106,20 +106,23 @@ describe('PixelPanel', () => {
     await expect.element(screen.getByText('8')).toBeVisible()
   })
 
-  test('shows the history', async () => {
+  test('shows the colour and the history', async () => {
     const screen = await render(PixelPanel, {
       ...base,
-      info: { x: 3, y: -4, c: 2, changes: 3, lastChange: 100_000 - 120_000, by: 'Minou' },
+      color: '#000000',
+      info: { x: 3, y: -4, c: 5, changes: 3, lastChange: 100_000 - 120_000, by: 'Minou' },
     })
-    await expect.element(screen.getByText('3 changements · dernier il y a 2 minutes par Minou')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 1, lastChange: 40_000, by: null } })
-    await expect.element(screen.getByText('1 changement · dernier il y a 1 minute')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 2, changes: 0, lastChange: null, by: null } })
+    await expect.element(screen.getByText('Noir · 3 changements')).toBeVisible()
+    await expect.element(screen.getByText('il y a 2 minutes par Minou')).toBeVisible()
+    await screen.rerender({ info: { x: 3, y: -4, c: 5, changes: 1, lastChange: 40_000, by: null } })
+    await expect.element(screen.getByText('il y a 1 minute')).toBeVisible()
+    await screen.rerender({ color: null }) // colour not known (yet): no name, no swatch
+    await expect.element(screen.getByText('· 1 changement')).toBeVisible()
+    await screen.rerender({ color: '#000000' })
+    await screen.rerender({ info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Peint avant le suivi des changements')).toBeVisible()
-    await screen.rerender({ info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null, by: null } })
+    await screen.rerender({ color: '#FFFFFF', info: { x: 3, y: -4, c: 0, changes: 0, lastChange: null, by: null } })
     await expect.element(screen.getByText('Jamais peint')).toBeVisible()
-    await screen.rerender({ colorLabel: 'Noir', info: { x: 3, y: -4, c: 5, changes: 0, lastChange: null, by: null } })
-    await expect.element(screen.getByText('Noir ·')).toBeVisible()
   })
 })
 

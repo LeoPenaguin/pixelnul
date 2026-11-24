@@ -222,12 +222,12 @@ describe('targeted pixel history', () => {
     board().dispatchEvent(
       new PointerEvent('pointermove', { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }),
     )
-    await expect.element(page.getByText('2 changements · dernier il y a 5 secondes')).toBeVisible()
+    await expect.element(page.getByText('Noir · 2 changements')).toBeVisible()
     expect(fields()).toEqual([0, 0])
 
     info = { c: 2, changes: 3, lastChange: Date.now() }
     ws.receive({ t: 'b', p: [5, 5, 1, 0, 0, 2] })
-    await expect.element(page.getByText(/^3 changements/)).toBeVisible()
+    await expect.element(page.getByText(/· 3 changements$/)).toBeVisible()
 
     board().dispatchEvent(new PointerEvent('pointerleave'))
     await expect.element(page.getByText(/changements/)).not.toBeInTheDocument()
@@ -240,7 +240,7 @@ describe('targeted pixel history', () => {
     board().dispatchEvent(
       new PointerEvent('pointermove', { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }),
     )
-    await expect.element(page.getByText('Noir ·')).toBeVisible()
+    await expect.element(page.getByText('Noir · 1 changement')).toBeVisible()
   })
 
   test('hover too short, or server down: nothing is shown', async () => {

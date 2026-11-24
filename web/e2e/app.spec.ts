@@ -13,7 +13,7 @@ async function whitePixel(request: APIRequestContext): Promise<PixelInfo> {
   }
 }
 
-const changes = (n: number) => `${String(n)} changement${n > 1 ? 's' : ''} · dernier`
+const changes = (n: number) => `· ${String(n)} changement${n > 1 ? 's' : ''}`
 
 /** Opens the app and waits for the configuration (commands are inert before that). */
 async function open(page: Page) {
@@ -97,7 +97,7 @@ test('the navigation buttons recenter on 0, 0', async ({ page }) => {
   await page.mouse.down()
   await page.mouse.move(cx - 300, cy - 200, { steps: 5 })
   await page.mouse.up()
-  await expect(coords).not.toHaveText(/^X\s*0\s*Y\s*0$/)
+  await expect(coords).not.toHaveText(/^X\s*0\s*Y\s*0\s*$/)
   await page.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
-  await expect(coords).toHaveText(/^X\s*0\s*Y\s*0$/)
+  await expect(coords).toHaveText(/^X\s*0\s*Y\s*0\s*$/)
 })

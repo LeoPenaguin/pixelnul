@@ -70,7 +70,7 @@
   let colors: string[] = [] // flattened palette, filled when the configuration loads
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
   const shownInfo = $derived(info && isHovered(info) ? info : null)
-  const colorLabel = $derived(shownInfo?.c ? colorName(colors[shownInfo.c]) : null)
+  const shownColor = $derived(shownInfo ? colors[shownInfo.c] : null)
   const needsAccount = $derived(cfg?.auth === true && !user?.pseudo) // sign-in on: painting needs a pseudo
   const canPaint = $derived(!lost && !heat && !needsAccount && (!limits || quotaAt(limits, quota, now).available >= 1))
   $effect(() => {
@@ -334,7 +334,7 @@
     onaccount={() => accountDialog.open()}
   />
   {#if cfg}
-    <PixelPanel position={hover ?? center} info={shownInfo} {colorLabel} {now} />
+    <PixelPanel position={hover ?? center} info={shownInfo} color={shownColor} {now} />
   {/if}
 </div>
 
