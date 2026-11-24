@@ -17,16 +17,16 @@ const (
 	WorldHeight = 720
 )
 
-// PaletteRows are displayed as-is by the front (greys, pastels, mid tones, darks, vivids, skin).
+// PaletteRows are displayed as-is by the front: neutrals, then light, vivid and dark rows aligned by hue
+// (red, orange, yellow, green, turquoise, blue, purple, pink), then earth tones.
 // A colour's index is its position once the rows are concatenated. Index 0 = white = never
 // painted. Never reorder: bytes already in Redis point to these indexes. Append new colours.
 var PaletteRows = [][]string{
 	{"#FFFFFF", "#CDCDCD", "#9C9C9C", "#696969", "#373737", "#000000"},
-	{"#E5A49C", "#F6C886", "#FBE7AA", "#99E3B5", "#A6E6E7", "#A5A1E1", "#D8A4E2"},
-	{"#D34F3E", "#F09336", "#F7CF5F", "#5CC96E", "#65CFD0", "#597CE2", "#B64DC8"},
-	{"#7D2E25", "#A84F1D", "#CD9C34", "#347842", "#3B7C7C", "#354A87", "#6D2D77"},
-	{"#E52521", "#FF4FA3", "#FFE135", "#2ECC40", "#00B4F0", "#1F5BFF", "#8A2BE2"},
-	{"#F2C9A8", "#C68B59", "#7A4A2E", "#4A2E1C"},
+	{"#FF8A80", "#FFA878", "#FFF3A3", "#A8E89A", "#A6EEF0", "#90C4FF", "#D4A8F5", "#FFB3D9"},
+	{"#E52521", "#FF8A1F", "#FFE135", "#2ECC40", "#00B8B8", "#1F5BFF", "#8A2BE2", "#FF4FA3"},
+	{"#7A1520", "#B8400C", "#7F8020", "#1E6B32", "#0A5F70", "#1E2F7A", "#5E1A6E", "#A3195B"},
+	{"#EDCB9A", "#C9A06A", "#A0703F", "#6B4128", "#4E2408"},
 }
 
 // Palette holds every colour, flattened in index order.

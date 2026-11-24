@@ -13,7 +13,7 @@ afterEach(() => {
 
 test('colorName: French name, or hex if unknown', () => {
   expect(colorName('#000000')).toBe('Noir')
-  expect(colorName('#e52521')).toBe('Rouge vif')
+  expect(colorName('#e52521')).toBe('Rouge')
   expect(colorName('#123456')).toBe('#123456')
 })
 

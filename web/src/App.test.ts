@@ -95,11 +95,11 @@ describe('painting pixels', () => {
   test('a click paints the selected colour and closes the palette', async () => {
     const { ws } = await start()
     await page.getByRole('button', { name: /^Couleurs/ }).click()
-    await page.getByRole('radio', { name: 'Rouge vif' }).click()
+    await page.getByRole('radio', { name: 'Rouge' }).click()
     const r = board().getBoundingClientRect()
     click(r.left + r.width / 2, r.top + r.height / 2)
     expect(ws.sent).toEqual([{ x: 0, y: 0, c: 6 }])
-    await announced('Rouge vif posé en 0, 0')
+    await announced('Rouge posé en 0, 0')
     await expect.element(page.getByRole('radiogroup')).not.toBeInTheDocument()
   })
 
@@ -289,7 +289,7 @@ describe('keyboard', () => {
     press('c')
     await expect.element(page.getByRole('radio', { name: 'Noir' })).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}') // handled by the palette, not the board
-    await expect.element(page.getByRole('radio', { name: 'Rouge vif' })).toHaveFocus()
+    await expect.element(page.getByRole('radio', { name: 'Rouge' })).toHaveFocus()
     press('Escape')
     await expect.element(page.getByRole('radiogroup')).not.toBeInTheDocument()
     press('?')

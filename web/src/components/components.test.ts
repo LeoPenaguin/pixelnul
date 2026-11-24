@@ -145,10 +145,10 @@ describe('Palette', () => {
     await expect.element(black).toHaveFocus()
 
     await userEvent.keyboard('{ArrowDown}')
-    await expect.element(screen.getByRole('radio', { name: 'Bleu vif' })).toHaveFocus()
-    await expect.element(screen.getByRole('radio', { name: 'Bleu vif' })).toBeChecked()
+    await expect.element(screen.getByRole('radio', { name: 'Bleu' })).toHaveFocus()
+    await expect.element(screen.getByRole('radio', { name: 'Bleu' })).toBeChecked()
     await userEvent.keyboard('x') // other key: nothing
-    await expect.element(screen.getByRole('radio', { name: 'Bleu vif' })).toBeChecked()
+    await expect.element(screen.getByRole('radio', { name: 'Bleu' })).toBeChecked()
 
     await screen.getByRole('radio', { name: 'Blanc' }).click()
     await expect.element(screen.getByRole('radio', { name: 'Blanc' })).toBeChecked()
@@ -205,7 +205,7 @@ describe('Toolbar', () => {
     await button.click()
     await expect.element(screen.getByRole('radio', { name: 'Noir' })).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}')
-    await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Rouge vif')
+    await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Rouge')
 
     screen.component.close() // focus in the palette: handed back to the button
     await expect.element(button).toHaveFocus()
@@ -433,11 +433,7 @@ describe('StatsDialog', () => {
     document.querySelector('.hours')?.dispatchEvent(new MouseEvent('mouseleave'))
     await expect.element(screen.getByText('6 pixels en 24 h')).toBeVisible()
     // Largest first, white left out, empty colours too.
-    expect([...document.querySelectorAll('.colors .name')].map((n) => n.textContent)).toEqual([
-      'Vert vif',
-      'Noir',
-      'Rouge vif',
-    ])
+    expect([...document.querySelectorAll('.colors .name')].map((n) => n.textContent)).toEqual(['Vert', 'Noir', 'Rouge'])
     expect([...document.querySelectorAll('.top li')].map((n) => n.textContent)).toEqual([
       '1 Minou 12 pixels',
       '2 Pixel 1 pixel',
