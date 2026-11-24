@@ -116,7 +116,7 @@ func signedIn(t *testing.T, e testEnv, sub, pseudo string) string {
 		t.Fatal(err)
 	}
 	if pseudo != "" {
-		if err := e.s.accounts.SetPseudo(context.Background(), tok, pseudo); err != nil {
+		if err := e.s.accounts.SetPseudo(context.Background(), tok, pseudo, time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -273,6 +273,7 @@ func TestPseudoRoute(t *testing.T) {
 	}{
 		{`{"pseudo":"  Minou "}`, tok, http.StatusNoContent},
 		{`{"pseudo":"pixel"}`, tok, http.StatusConflict},
+		{`{"pseudo":"Chaton"}`, tok, http.StatusTooManyRequests}, // a week between two changes
 		{`{"pseudo":"a b"}`, tok, http.StatusBadRequest},
 		{`pas du json`, tok, http.StatusBadRequest},
 		{`{"pseudo":"Minou2"}`, "nope", http.StatusUnauthorized},
@@ -287,6 +288,10 @@ func TestPseudoRoute(t *testing.T) {
 	body := request(t, http.MethodPost, e.url+"/api/me/pseudo", `{"pseudo":"Pixel"}`, "session="+tok).body
 	if strings.TrimSpace(body) != account.ErrPseudoTaken.Error() {
 		t.Errorf("the refusal must say why: %q", body)
+	}
+	_ = e.s.accounts.SetBanned(context.Background(), "Pixel", true)
+	if res := request(t, http.MethodPost, e.url+"/api/me/pseudo", `{"pseudo":"Chaton"}`, "session="+other); res.code != http.StatusForbidden {
+		t.Errorf("banned: %d; want 403", res.code)
 	}
 	e.mr.Close()
 	if res := request(t, http.MethodPost, e.url+"/api/me/pseudo", `{"pseudo":"Minou3"}`, "session="+other); res.code != http.StatusInternalServerError {

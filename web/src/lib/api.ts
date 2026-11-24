@@ -62,7 +62,7 @@ const LATER = 'Impossible pour le moment'
 export async function savePseudo(pseudo: string): Promise<string | null> {
   const r = await postJSON('/api/me/pseudo', { pseudo })
   if (r.ok) return null
-  if (r.status === 400 || r.status === 409) return (await r.text()).trim()
+  if ([400, 403, 409, 429].includes(r.status)) return (await r.text()).trim() // invalid, banned, taken, too soon
   return "Impossible d'enregistrer pour le moment"
 }
 

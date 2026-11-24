@@ -213,6 +213,10 @@ func accountError(w http.ResponseWriter, err error) bool {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, account.ErrPseudoTaken):
 		http.Error(w, err.Error(), http.StatusConflict)
+	case errors.Is(err, account.ErrBanned):
+		http.Error(w, err.Error(), http.StatusForbidden)
+	case errors.Is(err, account.ErrPseudoTooSoon):
+		http.Error(w, err.Error(), http.StatusTooManyRequests)
 	case errors.Is(err, account.ErrNoPseudo):
 		http.Error(w, err.Error(), http.StatusNotFound)
 	default:
@@ -228,7 +232,7 @@ func (s *Server) setPseudo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	if !accountError(w, s.accounts.SetPseudo(r.Context(), session(r), strings.TrimSpace(body.Pseudo))) {
+	if !accountError(w, s.accounts.SetPseudo(r.Context(), session(r), strings.TrimSpace(body.Pseudo), s.now())) {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

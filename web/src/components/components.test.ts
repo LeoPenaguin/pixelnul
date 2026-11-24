@@ -8,7 +8,6 @@ import AboutDialog from './AboutDialog.svelte'
 import AccountDialog from './AccountDialog.svelte'
 import AdminDialog from './AdminDialog.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
-import HeatLegend from './HeatLegend.svelte'
 import HelpDialog from './HelpDialog.svelte'
 import PixelPanel from './PixelPanel.svelte'
 import NavControls from './NavControls.svelte'
@@ -26,22 +25,18 @@ describe('NavControls', () => {
       onzoomin: vi.fn(),
       onzoomout: vi.fn(),
       onrecenter: vi.fn(),
-      onheat: vi.fn(),
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
     }
-    const screen = await render(NavControls, { ...props, heat: true })
+    const screen = await render(NavControls, props)
     await screen.getByRole('button', { name: 'Zoomer' }).click()
     await screen.getByRole('button', { name: 'Dézoomer' }).click()
     await screen.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
-    await screen.getByRole('button', { name: 'Heatmap' }).click()
     await screen.getByRole('button', { name: "Télécharger l'image" }).click()
     await screen.getByRole('button', { name: 'Paramètres' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
-    await expect.element(screen.getByRole('button', { name: 'Heatmap' })).toHaveAttribute('aria-pressed', 'true')
-    await expect.element(screen.getByRole('button', { name: 'Zoomer' })).not.toHaveAttribute('aria-pressed')
   })
 
   test('shows the label and shortcut of a focused button', async () => {
@@ -49,8 +44,6 @@ describe('NavControls', () => {
       onzoomin: vi.fn(),
       onzoomout: vi.fn(),
       onrecenter: vi.fn(),
-      heat: false,
-      onheat: vi.fn(),
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
@@ -60,7 +53,6 @@ describe('NavControls', () => {
       Zoomer: 'Zoomer plus',
       Dézoomer: 'Dézoomer moins',
       'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
-      Heatmap: 'Heatmap H',
       Paramètres: 'Paramètres', // no shortcut
       'Raccourcis clavier': 'Raccourcis clavier ?',
     }
@@ -468,14 +460,6 @@ describe('DownloadDialog', () => {
     await expect.element(status).toHaveTextContent('Échec du téléchargement, réessaie dans un instant.')
     screen.component.open() // reopening clears the error
     await expect.element(status).toBeEmptyDOMElement()
-  })
-})
-
-describe('HeatLegend', () => {
-  test('runs from 1 to the board maximum', async () => {
-    const screen = await render(HeatLegend, { max: 42 })
-    const legend = screen.getByRole('group', { name: 'Légende de la heatmap' })
-    for (const label of ['1', '42']) await expect.element(legend.getByText(label, { exact: true })).toBeVisible()
   })
 })
 
