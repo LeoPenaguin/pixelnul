@@ -13,6 +13,9 @@
   let group: HTMLElement
   const swatch = (i: number) => group.querySelectorAll<HTMLElement>('[role=radio]')[i]
   const starts = $derived(rows.map((_, r) => rows.slice(0, r).flat().length))
+  // Grid lines: a thin rule sets the neutrals (first row) and the earth tones (last row) apart from the hue ramps.
+  const lines = $derived(rows.flatMap((_, r) => (r === 1 || (r > 1 && r === rows.length - 1) ? ['rule', r] : [r])))
+  const template = $derived(lines.map((l) => (l === 'rule' ? '9px' : '26px')).join(' '))
 
   /** Focuses the selected colour (on open). */
   export function focus() {
@@ -29,14 +32,25 @@
 </script>
 
 <div class="panel popover" id="palette-panel">
-  <div bind:this={group} class="swatches" role="radiogroup" aria-label="Couleur" tabindex="-1" onkeydown={keydown}>
+  <div
+    bind:this={group}
+    class="swatches"
+    style:grid-template-rows={template}
+    role="radiogroup"
+    aria-label="Couleur"
+    tabindex="-1"
+    onkeydown={keydown}
+  >
+    {#each lines as line, l (l)}
+      {#if line === 'rule'}<i class="rule" style:grid-row={String(l + 1)}></i>{/if}
+    {/each}
     {#each rows as row, r (r)}
       {#each row as hex, i (hex)}
         {@const index = starts[r] + i}
         <Button
           variant="ghost"
           class={['swatch', { selected: index === color }]}
-          style={`background: ${hex}; grid-row: ${String(r + 1)}`}
+          style={`background: ${hex}; grid-row: ${String(lines.indexOf(r) + 1)}`}
           role="radio"
           aria-label={colorName(hex)}
           title={colorName(hex)}
@@ -63,8 +77,15 @@
   .swatches {
     display: grid;
     grid-auto-columns: 26px;
-    grid-auto-rows: 26px;
     gap: 4px;
+  }
+  .rule {
+    grid-column: 1 / -1;
+    align-self: center;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--ink);
+    opacity: 0.2;
   }
   .caption {
     margin: 10px 0 0;

@@ -136,6 +136,12 @@ describe('ServerDown', () => {
 })
 
 describe('Palette', () => {
+  test('a rule sets the first and the last rows apart', async () => {
+    const one = ['#FFFFFF']
+    await render(Palette, { rows: [one, one, one, one], color: 0, onpick: vi.fn(), onclose: vi.fn() })
+    expect(document.querySelectorAll('.rule')).toHaveLength(2)
+  })
+
   test('named radio buttons, arrow navigation', async () => {
     const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
     const black = screen.getByRole('radio', { name: 'Noir' })
