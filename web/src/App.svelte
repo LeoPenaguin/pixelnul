@@ -3,6 +3,7 @@
   import { onMount } from 'svelte'
   import AboutDialog from './components/AboutDialog.svelte'
   import AccountDialog from './components/AccountDialog.svelte'
+  import AdminDialog from './components/AdminDialog.svelte'
   import DownloadDialog from './components/DownloadDialog.svelte'
   import HeatLegend from './components/HeatLegend.svelte'
   import HelpDialog from './components/HelpDialog.svelte'
@@ -19,7 +20,9 @@
     fetchMe,
     fetchPixelInfo,
     fetchStats,
+    fillRect,
     savePseudo,
+    setBanned,
     signOut,
     type Config,
     type PixelInfo,
@@ -46,6 +49,7 @@
   let about: { open: () => void }
   let settingsDialog: { open: () => void }
   let accountDialog: { open: () => void }
+  let adminDialog = $state<{ open: () => void }>()
   let downloadDialog = $state<{ open: () => void }>()
   let statsDialog = $state<{ open: () => Promise<void> }>()
   let world: World | undefined
@@ -71,8 +75,12 @@
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
   const shownInfo = $derived(info && isHovered(info) ? info : null)
   const shownColor = $derived(shownInfo ? colors[shownInfo.c] : null)
-  const needsAccount = $derived(cfg?.auth === true && !user?.pseudo) // sign-in on: painting needs a pseudo
-  const canPaint = $derived(!lost && !heat && !needsAccount && (!limits || quotaAt(limits, quota, now).available >= 1))
+  const providers = $derived(cfg?.auth ?? []) // sign-in services; none: anyone paints
+  const auth = $derived(providers.length > 0)
+  const needsAccount = $derived(auth && !user?.pseudo) // sign-in on: painting needs a pseudo
+  const canPaint = $derived(
+    !lost && !heat && !needsAccount && !user?.banned && (!limits || quotaAt(limits, quota, now).available >= 1),
+  )
   $effect(() => {
     saveSettings($state.snapshot(settings))
   })
@@ -126,6 +134,10 @@
     }
     if (needsAccount) {
       accountDialog.open() // explains how to start: sign in, or choose a pseudo
+      return
+    }
+    if (user?.banned) {
+      announce('Ton compte est banni : tu ne peux plus peindre')
       return
     }
     if (!live?.open) {
@@ -314,6 +326,7 @@
 <AccountDialog
   bind:this={accountDialog}
   {user}
+  {providers}
   onsave={choosePseudo}
   onsignout={() => leave(signOut, 'Déconnecté')}
   ondelete={() => leave(deleteAccount, 'Compte supprimé')}
@@ -329,9 +342,10 @@
   <SitePanel
     onabout={() => about.open()}
     onstats={() => void statsDialog?.open()}
-    auth={cfg?.auth === true}
+    {auth}
     {user}
     onaccount={() => accountDialog.open()}
+    onadmin={() => adminDialog?.open()}
   />
   {#if cfg}
     <PixelPanel position={hover ?? center} info={shownInfo} color={shownColor} {now} />
@@ -346,6 +360,15 @@
     colors={conf.palette.flat()}
     onjump={(x: number, y: number) => world?.jumpTo(x, y)}
   />
+  {#if user?.admin}
+    <AdminDialog
+      bind:this={adminDialog}
+      from={hover ?? center}
+      colorName={colorName(conf.palette.flat()[color])}
+      onfill={(x0: number, y0: number, x1: number, y1: number) => fillRect(x0, y0, x1, y1, color)}
+      onban={setBanned}
+    />
+  {/if}
   <DownloadDialog
     bind:this={downloadDialog}
     width={conf.worldWidth}

@@ -7,11 +7,11 @@ export type Config = {
   worldHeight: number
   palette: string[][]
   quota: { burst: number; refillMs: number } // refillMs = 0: unlimited
-  auth: boolean // sign-in on: painting needs an account with a pseudo
+  auth: string[] // sign-in providers ('google', 'discord'); any: painting needs an account with a pseudo
 }
 
-/** Signed-in user; pseudo is empty until chosen. */
-export type User = { id: string; pseudo: string }
+/** Signed-in user; pseudo is empty until chosen. admin: may moderate; banned: may no longer paint. */
+export type User = { id: string; pseudo: string; admin: boolean; banned: boolean }
 
 /** A pixel's history; lastChange (Unix ms) is null if its colour never changed; by = pseudo of the
  *  last painter, null if anonymous or deleted. */
@@ -52,17 +52,35 @@ export const fetchPixelInfo = (x: number, y: number) => getJSON<PixelInfo>(`/api
 /** Signed-in user, or null. */
 export const fetchMe = () => getJSON<User | null>('/api/me')
 
+// JSON body: not a "simple" request, so another site cannot send it with our cookie.
+const postJSON = (url: string, body: unknown) =>
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+const LATER = 'Impossible pour le moment'
+
 /** Chooses or changes the pseudo. Resolves to the reason of a refusal, or null once saved. */
 export async function savePseudo(pseudo: string): Promise<string | null> {
-  // JSON body: not a "simple" request, so another site cannot send it with our cookie.
-  const r = await fetch('/api/me/pseudo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pseudo }),
-  })
+  const r = await postJSON('/api/me/pseudo', { pseudo })
   if (r.ok) return null
   if (r.status === 400 || r.status === 409) return (await r.text()).trim()
   return "Impossible d'enregistrer pour le moment"
+}
+
+/** Admin: fills a rectangle, corners included, in colour c. Resolves to the reason of a refusal, or null once done. */
+export async function fillRect(x0: number, y0: number, x1: number, y1: number, c: number): Promise<string | null> {
+  const r = await postJSON('/api/admin/fill', { x0, y0, x1, y1, c })
+  if (r.ok) return null
+  if (r.status === 400) return 'Un coin est hors de la toile'
+  if (r.status === 413) return 'Trop grand : 65 536 pixels au plus'
+  return LATER
+}
+
+/** Admin: bans the owner of a pseudo, or lifts the ban. Resolves to the reason of a refusal, or null once done. */
+export async function setBanned(pseudo: string, banned: boolean): Promise<string | null> {
+  const r = await postJSON('/api/admin/ban', { pseudo, banned })
+  if (r.ok) return null
+  if (r.status === 404) return (await r.text()).trim()
+  return LATER
 }
 
 async function send(method: string, url: string) {

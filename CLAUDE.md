@@ -9,8 +9,8 @@ User-facing behaviour, protocol and configuration are described in [README.md](R
 server/                     Go module github.com/LeoPenaguin/pixels/server
   main.go                   entry point only: signals → server.Run
   internal/account/         users, pseudos and sessions in Redis (Lua scripts)
-  internal/board/           world model: pixel geometry, palette, Redis Store (Lua paint script, paint log)
-  internal/server/          HTTP routes, Google sign-in, WebSocket, quotas and connection limits, batched broadcast hub, Run
+  internal/board/           world model: pixel geometry, palette, Redis Store (Lua paint script)
+  internal/server/          HTTP routes, sign-in (Google, Discord), WebSocket, moderation (fill, ban), quotas and connection limits, batched broadcast hub, Run
 web/                        Svelte 5 + Vite + TypeScript, pnpm
   src/App.svelte            wiring only: engine, live connection, keyboard, panels
   src/components/           presentational Svelte components (PascalCase.svelte)

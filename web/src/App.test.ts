@@ -21,6 +21,8 @@ let me: User | null = null
 let hottest: { x: number; y: number; changes: number } | null = null
 let statsUp = true
 let accountStatus = 204 // answer of the account actions (pseudo, sign out, delete)
+let adminStatus = 204 // answer of the moderation routes
+let adminCalls: { url: string; body: unknown }[] = []
 
 beforeEach(() => {
   localStorage.clear() // settings
@@ -28,6 +30,8 @@ beforeEach(() => {
   configResponse = () => Response.json(config)
   me = null
   accountStatus = 204
+  adminStatus = 204
+  adminCalls = []
   hottest = { x: 40, y: -3, changes: 1 }
   statsUp = true
   stubWebSocket()
@@ -37,6 +41,10 @@ beforeEach(() => {
     '/api/me': (_, init) =>
       init?.method === 'DELETE' ? new Response(null, { status: accountStatus }) : Response.json(me),
     '/api/auth/logout': () => new Response(null, { status: accountStatus }),
+    '/api/admin/': (url, init) => {
+      adminCalls.push({ url, body: JSON.parse(init?.body as string) })
+      return new Response(adminStatus === 404 ? 'aucun compte avec ce pseudo\n' : null, { status: adminStatus })
+    },
     '/api/config': () => configResponse(),
     '/api/chunks/': () => new Response(new Uint8Array()),
     '/api/stats': () =>
@@ -95,11 +103,11 @@ describe('painting pixels', () => {
   test('a click paints the selected colour and closes the palette', async () => {
     const { ws } = await start()
     await page.getByRole('button', { name: /^Couleurs/ }).click()
-    await page.getByRole('radio', { name: 'Rouge vif' }).click()
+    await page.getByRole('radio', { name: 'Rouge' }).click()
     const r = board().getBoundingClientRect()
     click(r.left + r.width / 2, r.top + r.height / 2)
     expect(ws.sent).toEqual([{ x: 0, y: 0, c: 6 }])
-    await announced('Rouge vif posé en 0, 0')
+    await announced('Rouge posé en 0, 0')
     await expect.element(page.getByRole('radiogroup')).not.toBeInTheDocument()
   })
 
@@ -146,7 +154,7 @@ describe('painting pixels', () => {
 })
 
 describe('accounts', () => {
-  const withAuth = () => (configResponse = () => Response.json({ ...config, auth: true }))
+  const withAuth = () => (configResponse = () => Response.json({ ...config, auth: ['google'] }))
 
   test('signed out: a click on the board asks to sign in, nothing is sent', async () => {
     withAuth()
@@ -164,7 +172,7 @@ describe('accounts', () => {
 
   test('first sign-in: the pseudo is asked for, then painting works on a new connection', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: '' }
+    me = { id: 'u1', pseudo: '', admin: false, banned: false }
     await start()
     await expect.element(page.getByRole('heading', { name: 'Choisis ton pseudo' })).toBeVisible()
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Minou')
@@ -179,7 +187,7 @@ describe('accounts', () => {
 
   test('signed in: changes the pseudo, signs out, deletes; a failure is announced', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: 'Minou' }
+    me = { id: 'u1', pseudo: 'Minou', admin: false, banned: false }
     await start()
     const account = () => page.getByRole('button', { name: /^Mon compte/ })
     await account().click()
@@ -204,9 +212,49 @@ describe('accounts', () => {
     await expect.element(page.getByRole('button', { name: 'Se connecter' })).toBeVisible()
   })
 
+  test('banned: nothing is sent, and it says why', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Kevin', admin: false, banned: true }
+    const { ws } = await start()
+    click(10, 10)
+    await announced('Ton compte est banni : tu ne peux plus peindre')
+    expect(ws.sent).toEqual([])
+    await expect.element(page.getByRole('button', { name: 'Modération' })).not.toBeInTheDocument()
+  })
+
+  test('an admin fills a rectangle in the chosen colour and bans a pseudo', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false }
+    await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('spinbutton', { name: 'X du coin opposé' }).fill('5')
+    for (const [status, text] of [
+      [500, 'Impossible pour le moment'], // first: the ban answer below says the same
+      [204, 'Rectangle rempli'],
+      [400, 'Un coin est hors de la toile'],
+      [413, 'Trop grand : 65 536 pixels au plus'],
+    ] as const) {
+      adminStatus = status
+      await page.getByRole('button', { name: 'Remplir' }).click()
+      await expect.element(page.getByText(text)).toBeVisible()
+    }
+    expect(adminCalls[1]).toEqual({ url: '/api/admin/fill', body: { x0: 0, y0: 0, x1: 5, y1: 0, c: 5 } })
+    await page.getByRole('textbox', { name: 'Pseudo' }).fill('Kevin')
+    for (const [status, text] of [
+      [204, 'Kevin : compte banni'],
+      [404, 'aucun compte avec ce pseudo'],
+      [500, 'Impossible pour le moment'],
+    ] as const) {
+      adminStatus = status
+      await page.getByRole('button', { name: 'Bannir' }).click()
+      await expect.element(page.getByText(text)).toBeVisible()
+    }
+    expect(adminCalls.at(-1)).toEqual({ url: '/api/admin/ban', body: { pseudo: 'Kevin', banned: true } })
+  })
+
   test('signs out', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: 'Minou' }
+    me = { id: 'u1', pseudo: 'Minou', admin: false, banned: false }
     await start()
     await page.getByRole('button', { name: /^Mon compte/ }).click()
     await page.getByRole('button', { name: 'Se déconnecter' }).click()
@@ -289,7 +337,7 @@ describe('keyboard', () => {
     press('c')
     await expect.element(page.getByRole('radio', { name: 'Noir' })).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}') // handled by the palette, not the board
-    await expect.element(page.getByRole('radio', { name: 'Rouge vif' })).toHaveFocus()
+    await expect.element(page.getByRole('radio', { name: 'Rouge' })).toHaveFocus()
     press('Escape')
     await expect.element(page.getByRole('radiogroup')).not.toBeInTheDocument()
     press('?')

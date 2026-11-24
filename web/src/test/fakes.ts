@@ -11,7 +11,7 @@ export const config: Config = {
     ['#E52521', '#1F5BFF', '#2ECC40'],
   ],
   quota: { burst: 2, refillMs: 1000 },
-  auth: false,
+  auth: [],
 }
 
 type Route = (url: string, init?: RequestInit) => Response | Promise<Response>

@@ -271,3 +271,112 @@ func TestStatsRoute(t *testing.T) {
 		t.Errorf("redis down = %d; want 500", code)
 	}
 }
+
+func TestClientIPTrustsOnlyTheLocalProxy(t *testing.T) {
+	for _, tc := range []struct{ remote, fwd, want string }{
+		{"203.0.113.7:1234", "", "203.0.113.7"},
+		{"203.0.113.7:1234", "198.51.100.1", "203.0.113.7"},
+		{"127.0.0.1:1234", "", "127.0.0.1"},
+		{"127.0.0.1:1234", "6.6.6.6, 198.51.100.1", "198.51.100.1"},
+		{"[::1]:1234", "198.51.100.2", "198.51.100.2"},
+	} {
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+		r.RemoteAddr = tc.remote
+		if tc.fwd != "" {
+			r.Header.Set("X-Forwarded-For", tc.fwd)
+		}
+		if got := clientIP(r); got != tc.want {
+			t.Errorf("clientIP(%s, XFF %q) = %s; want %s", tc.remote, tc.fwd, got, tc.want)
+		}
+	}
+}
+
+// adminEnv: sign-in on, with an admin (session adminTok) and a painter "Kevin" (session kevinTok).
+func adminEnv(t *testing.T) (e testEnv, adminTok, kevinTok string) {
+	t.Helper()
+	o := signInOn(t, 100, 0)
+	o.Admins = map[string]bool{}
+	e = newTestEnv(t, o)
+	adminTok = signedIn(t, e, "admin", "Modo")
+	u, _, _ := e.s.accounts.SessionUser(context.Background(), adminTok)
+	o.Admins[u.ID] = true // the server holds the same map
+	return e, adminTok, signedIn(t, e, "k", "Kevin")
+}
+
+func TestMeTellsAdmins(t *testing.T) {
+	e, adminTok, kevinTok := adminEnv(t)
+	if got := me(t, e, adminTok); !strings.Contains(got, `"admin":true`) {
+		t.Errorf("admin me = %s", got)
+	}
+	if got := me(t, e, kevinTok); !strings.Contains(got, `"admin":false`) || !strings.Contains(got, `"banned":false`) {
+		t.Errorf("painter me = %s", got)
+	}
+}
+
+func TestAdminRoutesNeedAnAdmin(t *testing.T) {
+	e, _, kevinTok := adminEnv(t)
+	for _, route := range []string{"/api/admin/fill", "/api/admin/ban"} {
+		for _, tok := range []string{"", kevinTok} {
+			if res := request(t, http.MethodPost, e.url+route, `{}`, "session="+tok); res.code != http.StatusForbidden {
+				t.Errorf("%s by %q = %d; want 403", route, tok, res.code)
+			}
+		}
+	}
+}
+
+func TestFillRoute(t *testing.T) {
+	e, adminTok, _ := adminEnv(t)
+	ws := dial(t, e)
+	if res := request(t, http.MethodPost, e.url+"/api/admin/fill", `{"x0":2,"y0":1,"x1":0,"y1":0,"c":5}`, "session="+adminTok); res.code != http.StatusNoContent {
+		t.Fatalf("fill = %d %s", res.code, res.body)
+	}
+	if m := read(t, ws); m.T != "b" || len(m.P) != 3*6 {
+		t.Errorf("the 3 × 2 rectangle must be broadcast: %+v", m)
+	}
+	if info, _ := e.s.store.Info(context.Background(), 2, 0); info.C != 5 {
+		t.Errorf("corner = %+v; want colour 5", info)
+	}
+	for _, c := range []struct {
+		body string
+		want int
+	}{
+		{`pas du json`, http.StatusBadRequest},
+		{`{"x0":0,"y0":0,"x1":640,"y1":0,"c":1}`, http.StatusBadRequest},
+		{`{"x0":0,"y0":0,"x1":0,"y1":0,"c":999}`, http.StatusBadRequest},
+		{`{"x0":-640,"y0":-360,"x1":639,"y1":359,"c":1}`, http.StatusRequestEntityTooLarge},
+	} {
+		if res := request(t, http.MethodPost, e.url+"/api/admin/fill", c.body, "session="+adminTok); res.code != c.want {
+			t.Errorf("%s = %d; want %d", c.body, res.code, c.want)
+		}
+	}
+	_ = e.mr.Set("meta:0:0", "not a hash") // HDEL fails
+	if res := request(t, http.MethodPost, e.url+"/api/admin/fill", `{"x0":0,"y0":0,"x1":0,"y1":0,"c":1}`, "session="+adminTok); res.code != http.StatusInternalServerError {
+		t.Errorf("Redis error = %d; want 500", res.code)
+	}
+}
+
+func TestBanStopsPaintingAtOnce(t *testing.T) {
+	e, adminTok, kevinTok := adminEnv(t)
+	kevin := dialAs(t, e, kevinTok)
+	modo := dialAs(t, e, adminTok)
+	for _, c := range []struct {
+		body string
+		want int
+	}{
+		{`pas du json`, http.StatusBadRequest},
+		{`{"pseudo":"personne","banned":true}`, http.StatusNotFound},
+		{`{"pseudo":" kevin ","banned":true}`, http.StatusNoContent},
+	} {
+		if res := request(t, http.MethodPost, e.url+"/api/admin/ban", c.body, "session="+adminTok); res.code != c.want {
+			t.Errorf("%s = %d %s; want %d", c.body, res.code, res.body, c.want)
+		}
+	}
+	if got := me(t, e, kevinTok); !strings.Contains(got, `"banned":true`) {
+		t.Errorf("banned me = %s", got)
+	}
+	send(t, kevin, `{"x":1,"y":1,"c":5}`) // already connected: refused all the same
+	send(t, modo, `{"x":2,"y":2,"c":5}`)
+	if m := read(t, modo); m.T != "b" || len(m.P) != 3 || m.P[0] != 2 {
+		t.Errorf("only the admin's pixel must be painted: %+v", m)
+	}
+}

@@ -1,5 +1,6 @@
 // Package account keeps users and their sessions in Redis. A user is known by a random id; the
-// only personal data kept is the Google account id (to recognise them) and the pseudo they chose.
+// only personal data kept is their sign-in account id (Google, Discord: to recognise them) and the
+// pseudo they chose.
 package account
 
 import (
@@ -22,21 +23,28 @@ var (
 	ErrNoSession     = errors.New("not signed in")
 	ErrPseudoInvalid = errors.New("3 à 20 lettres, chiffres, points, tirets ou soulignés")
 	ErrPseudoTaken   = errors.New("ce pseudo est déjà pris")
+	ErrNoPseudo      = errors.New("aucun compte avec ce pseudo")
 )
 
 // 3 to 20 letters (accents included), digits, ".", "_" or "-".
 var pseudoRe = regexp.MustCompile(`^[\p{L}\p{N}._-]{3,20}$`)
 
-// User is a signed-in person. Pseudo is empty until they choose one (they cannot paint before).
+// User is a signed-in person. Pseudo is empty until they choose one (they cannot paint before);
+// a banned user cannot paint either.
 type User struct {
 	ID     string `json:"id"`
 	Pseudo string `json:"pseudo"`
+	Banned bool   `json:"banned"`
 }
+
+// Providers are the sign-in services an account can come from; each name prefixes its Redis keys.
+var Providers = []string{"google", "discord"}
 
 // Store keeps the accounts in Redis:
 //
-//	google:{sub}     user id of a Google account
-//	user:{id}        hash: google (sub), pseudo, pkey (lower-case pseudo), created (Unix ms)
+//	{provider}:{sub}  user id of a provider's account, e.g. google:{sub}, discord:{id}
+//	user:{id}         hash: {provider} (sub), pseudo, pkey (lower-case pseudo), created (Unix ms),
+//	                  banned ("1", missing if not)
 //	pseudo:{pkey}    user id owning a pseudo (case-insensitive)
 //	session:{token}  user id, expires after SessionTTL
 //
@@ -52,23 +60,24 @@ func token(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// KEYS: google:{sub}, session:{token}. ARGV: new user id, sub, now, session TTL (s).
+// KEYS: {provider}:{sub}, session:{token}. ARGV: new user id, sub, now, session TTL (s), provider.
 var signInScript = redis.NewScript(`
 local id = redis.call('GET', KEYS[1])
 if not id then
   id = ARGV[1]
   redis.call('SET', KEYS[1], id)
-  redis.call('HSET', 'user:' .. id, 'google', ARGV[2], 'created', ARGV[3])
+  redis.call('HSET', 'user:' .. id, ARGV[5], ARGV[2], 'created', ARGV[3])
 end
 redis.call('SET', KEYS[2], id, 'EX', ARGV[4])
 return id
 `)
 
-// SignIn opens a session for a Google account, created on first sign-in, and returns its token.
-func (s *Store) SignIn(ctx context.Context, sub string, now time.Time) (string, error) {
+// SignIn opens a session for a provider's account (one of Providers), created on first sign-in,
+// and returns its token.
+func (s *Store) SignIn(ctx context.Context, provider, sub string, now time.Time) (string, error) {
 	tok := token(32)
-	keys := []string{"google:" + sub, "session:" + tok}
-	err := signInScript.Run(ctx, s.rdb, keys, token(8), sub, now.UnixMilli(), int(SessionTTL.Seconds())).Err()
+	keys := []string{provider + ":" + sub, "session:" + tok}
+	err := signInScript.Run(ctx, s.rdb, keys, token(8), sub, now.UnixMilli(), int(SessionTTL.Seconds()), provider).Err()
 	return tok, err
 }
 
@@ -85,7 +94,35 @@ func (s *Store) SessionUser(ctx context.Context, tok string) (User, bool, error)
 	if err != nil || len(h) == 0 {
 		return User{}, false, err
 	}
-	return User{ID: id, Pseudo: h["pseudo"]}, true, nil
+	return User{ID: id, Pseudo: h["pseudo"], Banned: h["banned"] != ""}, true, nil
+}
+
+// KEYS: pseudo:{pkey}. ARGV: "1" to ban, "" to lift the ban. Returns 0 (no such pseudo) or 1.
+var banScript = redis.NewScript(`
+local id = redis.call('GET', KEYS[1])
+if not id then return 0 end
+if ARGV[1] == '' then redis.call('HDEL', 'user:' .. id, 'banned')
+else redis.call('HSET', 'user:' .. id, 'banned', ARGV[1]) end
+return 1
+`)
+
+// SetBanned bans the user owning a pseudo (any case), or lifts the ban.
+func (s *Store) SetBanned(ctx context.Context, pseudo string, banned bool) error {
+	flag := ""
+	if banned {
+		flag = "1"
+	}
+	res, err := banScript.Run(ctx, s.rdb, []string{"pseudo:" + strings.ToLower(pseudo)}, flag).Int()
+	if err == nil && res == 0 {
+		return ErrNoPseudo
+	}
+	return err
+}
+
+// Banned tells if a user is banned (false on a Redis error: painting fails then anyway).
+func (s *Store) Banned(ctx context.Context, id string) bool {
+	b, _ := s.rdb.HExists(ctx, "user:"+id, "banned").Result()
+	return b
 }
 
 // EndSession signs out.
@@ -123,13 +160,16 @@ func (s *Store) SetPseudo(ctx context.Context, tok, pseudo string) error {
 	return nil
 }
 
-// KEYS: session:{token}. Returns 0 (no session) or 1.
+// KEYS: session:{token}. ARGV: Providers. Returns 0 (no session) or 1.
 var deleteScript = redis.NewScript(`
 local id = redis.call('GET', KEYS[1])
 if not id then return 0 end
 local u = 'user:' .. id
-local sub, pkey = redis.call('HGET', u, 'google'), redis.call('HGET', u, 'pkey')
-if sub then redis.call('DEL', 'google:' .. sub) end
+for _, p in ipairs(ARGV) do
+  local sub = redis.call('HGET', u, p)
+  if sub then redis.call('DEL', p .. ':' .. sub) end
+end
+local pkey = redis.call('HGET', u, 'pkey')
 if pkey then redis.call('DEL', 'pseudo:' .. pkey) end
 redis.call('DEL', u, KEYS[1])
 return 1
@@ -139,7 +179,7 @@ return 1
 // which no longer leads to anyone: the history becomes anonymous. Its other sessions die with it
 // (SessionUser finds no user).
 func (s *Store) Delete(ctx context.Context, tok string) error {
-	res, err := deleteScript.Run(ctx, s.rdb, []string{"session:" + tok}).Int()
+	res, err := deleteScript.Run(ctx, s.rdb, []string{"session:" + tok}, Providers).Int()
 	if err == nil && res == 0 {
 		return ErrNoSession
 	}

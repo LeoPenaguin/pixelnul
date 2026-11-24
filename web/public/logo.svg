@@ -1,4 +1,9 @@
-<!-- Logo: the head of Pixel, the author's cat. One solid shape, eyes and nose cut out. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <path fill="#111" fill-rule="evenodd" d="M2.5 20.5C2.5 16 4.6 12 7 10L7.2 3.5l5.6 3.3Q14.4 6.4 16 6.4t3.2.4l5.6-3.3L25 10c2.4 2 4.5 6 4.5 10.5 0 5.2-5.6 8.3-13.5 8.3S2.5 25.7 2.5 20.5zM8.6 18.5a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0zM18.6 18.5a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0zM14.6 22.4h2.8L16 24z"/>
+<!-- Logo: "Pixels" in the 3x5 minifont of the welcome text, letters touching, one palette colour each. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 4" shape-rendering="crispEdges">
+  <path fill="#E52521" d="M0 0h1v1h-1zM1 0h1v1h-1zM2 0h1v1h-1zM0 1h1v1h-1zM2 1h1v1h-1zM0 2h1v1h-1zM1 2h1v1h-1zM2 2h1v1h-1zM0 3h1v1h-1z"/>
+  <path fill="#FF8A1F" d="M3 0h1v1h-1zM3 2h1v1h-1zM3 3h1v1h-1z"/>
+  <path fill="#2ECC40" d="M4 1h1v1h-1zM6 1h1v1h-1zM5 2h1v1h-1zM4 3h1v1h-1zM6 3h1v1h-1z"/>
+  <path fill="#00B8B8" d="M7 1h1v1h-1zM8 1h1v1h-1zM9 1h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM9 2h1v1h-1zM7 3h1v1h-1zM8 3h1v1h-1z"/>
+  <path fill="#1F5BFF" d="M10 0h1v1h-1zM10 1h1v1h-1zM10 2h1v1h-1zM10 3h1v1h-1z"/>
+  <path fill="#8A2BE2" d="M12 1h1v1h-1zM13 1h1v1h-1zM12 2h1v1h-1zM11 3h1v1h-1zM12 3h1v1h-1z"/>
 </svg>

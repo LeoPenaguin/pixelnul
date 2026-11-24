@@ -18,12 +18,13 @@ export default defineConfig({
       command: 'go run .',
       cwd: '../server',
       url: `http://localhost:${String(API_PORT)}/api/config`,
-      // GOOGLE_CLIENT_ID empty, set: wins over server/.env, sign-in stays off (anyone paints).
+      // Client ids empty, set: they win over server/.env, sign-in stays off (anyone paints).
       env: {
         ADDR: `:${String(API_PORT)}`,
         REDIS_URL: 'redis://localhost:6379/14',
         PIXEL_BURST: '1000',
         GOOGLE_CLIENT_ID: '',
+        DISCORD_CLIENT_ID: '',
       },
     },
     {

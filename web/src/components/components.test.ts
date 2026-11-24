@@ -6,6 +6,7 @@ import '../app.css' // the dialog overlay needs its size to be clicked
 import { config, stubFetch } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
 import AccountDialog from './AccountDialog.svelte'
+import AdminDialog from './AdminDialog.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HeatLegend from './HeatLegend.svelte'
 import HelpDialog from './HelpDialog.svelte'
@@ -136,6 +137,12 @@ describe('ServerDown', () => {
 })
 
 describe('Palette', () => {
+  test('a rule sets the first and the last rows apart', async () => {
+    const one = ['#FFFFFF']
+    await render(Palette, { rows: [one, one, one, one], color: 0, onpick: vi.fn(), onclose: vi.fn() })
+    expect(document.querySelectorAll('.rule')).toHaveLength(2)
+  })
+
   test('named radio buttons, arrow navigation', async () => {
     const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
     const black = screen.getByRole('radio', { name: 'Noir' })
@@ -145,18 +152,23 @@ describe('Palette', () => {
     await expect.element(black).toHaveFocus()
 
     await userEvent.keyboard('{ArrowDown}')
-    await expect.element(screen.getByRole('radio', { name: 'Bleu vif' })).toHaveFocus()
-    await expect.element(screen.getByRole('radio', { name: 'Bleu vif' })).toBeChecked()
+    await expect.element(screen.getByRole('radio', { name: 'Bleu' })).toHaveFocus()
+    await expect.element(screen.getByRole('radio', { name: 'Bleu' })).toBeChecked()
     await userEvent.keyboard('x') // other key: nothing
-    await expect.element(screen.getByRole('radio', { name: 'Bleu vif' })).toBeChecked()
+    await expect.element(screen.getByRole('radio', { name: 'Bleu' })).toBeChecked()
 
     await screen.getByRole('radio', { name: 'Blanc' }).click()
     await expect.element(screen.getByRole('radio', { name: 'Blanc' })).toBeChecked()
   })
 
-  test('writes the selected colour name', async () => {
+  test('writes the selected colour name, or the hovered one', async () => {
     const screen = await render(Palette, { rows: config.palette, color: 1, onpick: vi.fn(), onclose: vi.fn() })
-    await expect.element(screen.getByText('Noir', { exact: true })).toBeVisible()
+    const caption = screen.container.querySelector<HTMLElement>('.caption')
+    await expect.element(caption).toHaveTextContent('Noir')
+    await userEvent.hover(screen.getByRole('radio', { name: 'Bleu' }))
+    await expect.element(caption).toHaveTextContent('Bleu')
+    await userEvent.unhover(screen.getByRole('radio', { name: 'Bleu' }))
+    await expect.element(caption).toHaveTextContent('Noir')
   })
 })
 
@@ -205,7 +217,7 @@ describe('Toolbar', () => {
     await button.click()
     await expect.element(screen.getByRole('radio', { name: 'Noir' })).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}')
-    await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Rouge vif')
+    await expect.element(button).toHaveAccessibleName('Couleurs, couleur actuelle : Rouge')
 
     screen.component.close() // focus in the palette: handed back to the button
     await expect.element(button).toHaveFocus()
@@ -258,8 +270,15 @@ describe('SitePanel', () => {
   test('shows the site name, opens the about dialog and links to donations', async () => {
     const onabout = vi.fn()
     const onstats = vi.fn()
-    const screen = await render(SitePanel, { onabout, onstats, auth: false, user: null, onaccount: vi.fn() })
-    await expect.element(screen.getByText('Pixels')).toBeVisible()
+    const screen = await render(SitePanel, {
+      onabout,
+      onstats,
+      auth: false,
+      user: null,
+      onaccount: vi.fn(),
+      onadmin: vi.fn(),
+    })
+    await expect.element(screen.getByRole('img', { name: 'Pixels' })).toBeVisible()
     await expect.element(screen.getByRole('link', { name: 'Faire un don' })).toBeVisible()
     await screen.getByRole('button', { name: 'À propos' }).click()
     expect(onabout).toHaveBeenCalledOnce()
@@ -269,37 +288,92 @@ describe('SitePanel', () => {
 
   test('sign-in on: a sign-in button, then the pseudo once signed in', async () => {
     const onaccount = vi.fn()
-    const props = { onabout: vi.fn(), onstats: vi.fn(), auth: true, onaccount }
+    const props = { onabout: vi.fn(), onstats: vi.fn(), auth: true, onaccount, onadmin: vi.fn() }
     const screen = await render(SitePanel, { ...props, user: null })
     await screen.getByRole('button', { name: 'Se connecter' }).click()
     expect(onaccount).toHaveBeenCalledOnce()
-    await screen.rerender({ ...props, user: { id: 'u1', pseudo: '' } })
+    await screen.rerender({ ...props, user: { id: 'u1', pseudo: '', admin: false, banned: false } })
     await expect.element(screen.getByRole('button', { name: 'Mon compte : pseudo à choisir' })).toBeVisible()
-    await screen.rerender({ ...props, user: { id: 'u1', pseudo: 'Minou' } })
+    await screen.rerender({ ...props, user: { id: 'u1', pseudo: 'Minou', admin: false, banned: false } })
     await expect.element(screen.getByRole('button', { name: 'Mon compte : Minou' })).toHaveTextContent('Minou')
+    await expect.element(screen.getByRole('button', { name: 'Modération' })).not.toBeInTheDocument()
+  })
+
+  test('an admin gets a moderation button', async () => {
+    const onadmin = vi.fn()
+    const user = { id: 'u1', pseudo: 'Modo', admin: true, banned: false }
+    const screen = await render(SitePanel, {
+      onabout: vi.fn(),
+      onstats: vi.fn(),
+      auth: true,
+      user,
+      onaccount: vi.fn(),
+      onadmin,
+    })
+    await screen.getByRole('button', { name: 'Modération' }).click()
+    expect(onadmin).toHaveBeenCalledOnce()
+  })
+})
+
+describe('AdminDialog', () => {
+  test('fills a rectangle from the targeted pixel, says when it is done or refused', async () => {
+    const onfill = vi.fn(() => Promise.resolve<string | null>(null))
+    const screen = await render(AdminDialog, { from: { x: 3, y: -2 }, colorName: 'Noir', onfill, onban: vi.fn() })
+    screen.component.open()
+    await expect.element(screen.getByText('En Noir, la couleur choisie, coins compris.')).toBeVisible()
+    await expect.element(screen.getByRole('spinbutton', { name: 'Y du premier coin' })).toHaveValue(-2)
+    await screen.getByRole('spinbutton', { name: 'X du coin opposé' }).fill('10')
+    await screen.getByRole('spinbutton', { name: 'Y du coin opposé' }).fill('4')
+    await screen.getByRole('button', { name: 'Remplir' }).click()
+    expect(onfill).toHaveBeenCalledWith(3, -2, 10, 4)
+    await expect.element(screen.getByText('Rectangle rempli')).toBeVisible()
+    onfill.mockResolvedValueOnce('Trop grand : 65 536 pixels au plus')
+    await screen.getByRole('button', { name: 'Remplir' }).click()
+    await expect.element(screen.getByText('Trop grand : 65 536 pixels au plus')).toBeVisible()
+  })
+
+  test('bans and unbans a pseudo, says when it is unknown', async () => {
+    const onban = vi.fn(() => Promise.resolve<string | null>(null))
+    const screen = await render(AdminDialog, { from: { x: 0, y: 0 }, colorName: 'Noir', onfill: vi.fn(), onban })
+    screen.component.open()
+    const unban = screen.getByRole('button', { name: 'Débannir' })
+    await expect.element(unban).toBeDisabled()
+    await screen.getByRole('textbox', { name: 'Pseudo' }).fill(' Kevin ')
+    await screen.getByRole('button', { name: 'Bannir' }).click()
+    expect(onban).toHaveBeenCalledWith('Kevin', true)
+    await expect.element(screen.getByText('Kevin : compte banni')).toBeVisible()
+    await unban.click()
+    expect(onban).toHaveBeenCalledWith('Kevin', false)
+    await expect.element(screen.getByText('Kevin : bannissement levé')).toBeVisible()
+    onban.mockResolvedValueOnce('aucun compte avec ce pseudo')
+    await screen.getByRole('button', { name: 'Bannir' }).click()
+    await expect.element(screen.getByText('aucun compte avec ce pseudo')).toBeVisible()
   })
 })
 
 describe('AccountDialog', () => {
   const props = () => ({
+    providers: ['google'],
     onsave: vi.fn(() => Promise.resolve<string | null>(null)),
     onsignout: vi.fn(() => Promise.resolve()),
     ondelete: vi.fn(() => Promise.resolve()),
   })
 
-  test('signed out: explains and links to Google', async () => {
-    const screen = await render(AccountDialog, { ...props(), user: null })
+  test('signed out: explains and links to each provider, in order', async () => {
+    const screen = await render(AccountDialog, { ...props(), user: null, providers: ['discord', 'unknown', 'google'] })
     screen.component.open()
     await expect.element(screen.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
-    await expect
-      .element(screen.getByRole('link', { name: 'Continuer avec Google' }))
-      .toHaveAttribute('href', '/api/auth/login')
+    const links = screen.getByRole('link').elements()
+    expect(links.map((a) => [a.textContent.trim(), a.getAttribute('href')])).toEqual([
+      ['Continuer avec Discord', '/api/auth/discord/login'],
+      ['Continuer avec Google', '/api/auth/google/login'],
+    ])
   })
 
   test('first sign-in: the pseudo is chosen, a refusal says why', async () => {
     const p = props()
     p.onsave.mockResolvedValueOnce('ce pseudo est déjà pris')
-    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: '' } })
+    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: '', admin: false, banned: false } })
     screen.component.open()
     await expect.element(screen.getByRole('heading', { name: 'Choisis ton pseudo' })).toBeVisible()
     const input = screen.getByRole('textbox', { name: 'Pseudo' })
@@ -315,7 +389,10 @@ describe('AccountDialog', () => {
 
   test('signed in: signs out, or deletes after a confirmation', async () => {
     const p = props()
-    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: 'Minou' } })
+    const screen = await render(AccountDialog, {
+      ...p,
+      user: { id: 'u1', pseudo: 'Minou', admin: false, banned: false },
+    })
     screen.component.open()
     await expect.element(screen.getByRole('textbox', { name: 'Pseudo' })).toHaveValue('Minou')
     await screen.getByRole('button', { name: 'Se déconnecter' }).click()
@@ -433,11 +510,7 @@ describe('StatsDialog', () => {
     document.querySelector('.hours')?.dispatchEvent(new MouseEvent('mouseleave'))
     await expect.element(screen.getByText('6 pixels en 24 h')).toBeVisible()
     // Largest first, white left out, empty colours too.
-    expect([...document.querySelectorAll('.colors .name')].map((n) => n.textContent)).toEqual([
-      'Vert vif',
-      'Noir',
-      'Rouge vif',
-    ])
+    expect([...document.querySelectorAll('.colors .name')].map((n) => n.textContent)).toEqual(['Vert', 'Noir', 'Rouge'])
     expect([...document.querySelectorAll('.top li')].map((n) => n.textContent)).toEqual([
       '1 Minou 12 pixels',
       '2 Pixel 1 pixel',

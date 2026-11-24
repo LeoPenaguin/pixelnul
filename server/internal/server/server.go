@@ -29,19 +29,23 @@ const (
 type Options struct {
 	Burst  int           // pixels that can be painted in a row
 	Refill time.Duration // time to regain one pixel; 0 = unlimited
-	Google *Google       // sign-in; nil = off
+	// Sign-in providers; none = sign-in off. PublicURL is where the site is served (e.g.
+	// https://pixels.example): the providers call back under it, and https makes cookies Secure.
+	Providers []*Provider
+	PublicURL string
+	Admins    map[string]bool // user ids allowed to moderate (fill a rectangle, ban); needs sign-in
 }
 
 // Server is the state shared by the routes (storage, quotas, connections, broadcast).
 type Server struct {
-	store    *board.Store
-	accounts *account.Store
-	google   *Google
-	opts     Options
-	quotas   *quotas // per account when sign-in is on, per IP otherwise
-	lookups  *quotas // pixel history requests, per IP
-	conns    *connLimit
-	hub      *hub
+	store     *board.Store
+	accounts  *account.Store
+	providers map[string]*Provider // by name
+	opts      Options
+	quotas    *quotas // per account when sign-in is on, per IP otherwise
+	lookups   *quotas // pixel history requests, per IP
+	conns     *connLimit
+	hub       *hub
 
 	// ponytail: global lock around painting so Redis order = broadcast order.
 	// Tops out around 20k pixels/s locally; beyond that, lock per chunk.
@@ -63,10 +67,14 @@ func New(store *board.Store, accounts *account.Store, o Options) *Server {
 	if o.Refill > 0 {
 		every = rate.Every(o.Refill)
 	}
+	providers := make(map[string]*Provider, len(o.Providers))
+	for _, p := range o.Providers {
+		providers[p.Name] = p
+	}
 	return &Server{
 		store:       store,
 		accounts:    accounts,
-		google:      o.Google,
+		providers:   providers,
 		opts:        o,
 		quotas:      newQuotas(o.Burst, every),
 		lookups:     newQuotas(lookupsBurst, lookupsRate),
@@ -88,12 +96,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/pixels/{x}/{y}", s.pixelInfo)
 	mux.HandleFunc("GET /ws", s.ws)
 	mux.HandleFunc("GET /api/me", s.me)
-	if s.google != nil {
-		mux.HandleFunc("GET /api/auth/login", s.login)
-		mux.HandleFunc("GET /api/auth/callback", s.callback)
+	if s.auth() {
+		mux.HandleFunc("GET /api/auth/{provider}/login", s.login)
+		mux.HandleFunc("GET /api/auth/{provider}/callback", s.callback)
 		mux.HandleFunc("POST /api/auth/logout", s.logout)
 		mux.HandleFunc("POST /api/me/pseudo", s.setPseudo)
 		mux.HandleFunc("DELETE /api/me", s.deleteMe)
+		mux.HandleFunc("POST /api/admin/fill", s.fill)
+		mux.HandleFunc("POST /api/admin/ban", s.ban)
 	}
 	return mux
 }
@@ -127,6 +137,9 @@ func (s *Server) sendQuota(q *rate.Limiter, reply chan []byte) {
 // place paints a pixel for a user ("" if anonymous) if its quota (counted under `key`) allows
 // it, and returns the remaining quota.
 func (s *Server) place(ctx context.Context, key, user string, p board.Pixel, reply chan []byte) {
+	if user != "" && s.accounts.Banned(ctx, user) { // read on every paint: a ban applies at once
+		return
+	}
 	q := s.quotas.get(key)
 	ok := q.Allow()
 	s.sendQuota(q, reply)
@@ -140,14 +153,21 @@ func (s *Server) place(ctx context.Context, key, user string, p board.Pixel, rep
 	}
 }
 
+// auth tells if sign-in is on (painting then needs an account with a pseudo).
+func (s *Server) auth() bool { return len(s.providers) > 0 }
+
 func (s *Server) config(w http.ResponseWriter, _ *http.Request) {
+	names := make([]string, len(s.opts.Providers)) // in the configured order: the front shows them so
+	for i, p := range s.opts.Providers {
+		names[i] = p.Name
+	}
 	writeJSON(w, map[string]any{
 		"chunkSize":   board.ChunkSize,
 		"worldWidth":  board.WorldWidth,
 		"worldHeight": board.WorldHeight,
 		"palette":     board.PaletteRows,
 		"quota":       map[string]any{"burst": s.opts.Burst, "refillMs": s.opts.Refill.Milliseconds()},
-		"auth":        s.google != nil,
+		"auth":        names,
 	})
 }
 
@@ -283,9 +303,14 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// clientIP is the IP quotas and limits are counted against.
-// ponytail: RemoteAddr only; behind a reverse proxy, read a trusted X-Forwarded-For.
+// clientIP is the IP quotas and limits are counted against. A loopback peer is the local reverse proxy,
+// which appends the real client as the last X-Forwarded-For entry; earlier entries are client-supplied.
 func clientIP(r *http.Request) string {
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return ip
+	fwd := r.Header.Values("X-Forwarded-For")
+	if len(fwd) == 0 || !net.ParseIP(ip).IsLoopback() {
+		return ip
+	}
+	hops := strings.Split(fwd[len(fwd)-1], ",")
+	return strings.TrimSpace(hops[len(hops)-1])
 }

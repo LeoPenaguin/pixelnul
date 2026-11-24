@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/LeoPenaguin/pixels/server/internal/account"
@@ -41,18 +42,34 @@ func Run(ctx context.Context, getenv func(string) string) error {
 		return fmt.Errorf("redis: %w", err)
 	}
 
-	o := Options{Burst: burst, Refill: time.Duration(refillMs) * time.Millisecond}
-	if id := getenv("GOOGLE_CLIENT_ID"); id != "" {
-		o.Google = &Google{ //nolint:gosec // G101: the secret comes from the environment
-			ClientID:  id,
-			Secret:    getenv("GOOGLE_CLIENT_SECRET"),
-			PublicURL: env("PUBLIC_URL", "http://localhost:5173"),
-			AuthURL:   "https://accounts.google.com/o/oauth2/v2/auth",
-			TokenURL:  "https://oauth2.googleapis.com/token",
+	o := Options{
+		Burst: burst, Refill: time.Duration(refillMs) * time.Millisecond,
+		PublicURL: env("PUBLIC_URL", "http://localhost:5173"),
+		Admins:    map[string]bool{},
+	}
+	for _, id := range strings.FieldsFunc(getenv("ADMIN_IDS"), func(r rune) bool { return r == ',' || r == ' ' }) {
+		o.Admins[id] = true
+	}
+	// A provider is on when its {NAME}_CLIENT_ID is set; the sign-in buttons follow this order.
+	for _, p := range []*Provider{
+		{ //nolint:gosec // G101: public endpoints; the secrets come from the environment
+			Name: "google", Scope: "openid", Prompt: "select_account",
+			AuthURL: "https://accounts.google.com/o/oauth2/v2/auth", TokenURL: "https://oauth2.googleapis.com/token",
+		},
+		{ //nolint:gosec // G101: public endpoints; the secrets come from the environment
+			Name: "discord", Scope: "identify", Prompt: "none", // none: no consent page once authorised
+			AuthURL: "https://discord.com/oauth2/authorize", TokenURL: "https://discord.com/api/oauth2/token",
+			UserURL: "https://discord.com/api/users/@me",
+		},
+	} {
+		name := strings.ToUpper(p.Name)
+		if p.ClientID = getenv(name + "_CLIENT_ID"); p.ClientID == "" {
+			continue
 		}
-		if o.Google.Secret == "" {
-			return errors.New("GOOGLE_CLIENT_SECRET is required with GOOGLE_CLIENT_ID")
+		if p.Secret = getenv(name + "_CLIENT_SECRET"); p.Secret == "" {
+			return fmt.Errorf("%s_CLIENT_SECRET is required with %s_CLIENT_ID", name, name)
 		}
+		o.Providers = append(o.Providers, p)
 	}
 	s := New(board.NewStore(rdb), account.NewStore(rdb), o)
 	srv := &http.Server{Addr: env("ADDR", ":3007"), Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}

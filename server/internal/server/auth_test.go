@@ -22,12 +22,23 @@ func idToken(claims string) string {
 	return "h." + base64.RawURLEncoding.EncodeToString([]byte(claims)) + ".sig"
 }
 
-// fakeGoogle answers the token endpoint with `reply` (status and body) for the code "ok".
-func fakeGoogle(t *testing.T, status int, body string) *Google {
+const site = "http://site.test/"
+
+// fakeProvider serves a provider's token endpoint, answering `status` and `body` for the code
+// "ok". With `user`, the provider has a user endpoint answering it for the access token "at".
+func fakeProvider(t *testing.T, name string, status int, body, user string) *Provider {
 	t.Helper()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/user" {
+			if r.Header.Get("Authorization") != "Bearer at" {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			_, _ = io.WriteString(w, user)
+			return
+		}
 		if r.FormValue("code") != "ok" || r.FormValue("client_id") != "cid" || r.FormValue("client_secret") != "secret" ||
-			r.FormValue("redirect_uri") != "http://site.test/api/auth/callback" || r.FormValue("grant_type") != "authorization_code" {
+			r.FormValue("redirect_uri") != "http://site.test/api/auth/"+name+"/callback" || r.FormValue("grant_type") != "authorization_code" {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
@@ -35,12 +46,30 @@ func fakeGoogle(t *testing.T, status int, body string) *Google {
 		_, _ = io.WriteString(w, body)
 	}))
 	t.Cleanup(ts.Close)
-	return &Google{ClientID: "cid", Secret: "secret", PublicURL: "http://site.test/", AuthURL: "https://google.test/auth", TokenURL: ts.URL}
+	p := &Provider{
+		Name: name, ClientID: "cid", Secret: "secret", Scope: "openid", Prompt: "select_account",
+		AuthURL: "https://" + name + ".test/auth", TokenURL: ts.URL + "/token",
+	}
+	if user != "" {
+		p.UserURL = ts.URL + "/user"
+	}
+	return p
 }
 
-func goodGoogle(t *testing.T) *Google {
+func goodGoogle(t *testing.T) *Provider {
 	t.Helper()
-	return fakeGoogle(t, http.StatusOK, `{"id_token":"`+idToken(`{"sub":"g1","aud":"cid"}`)+`"}`)
+	return fakeProvider(t, "google", http.StatusOK, `{"id_token":"`+idToken(`{"sub":"g1","aud":"cid"}`)+`"}`, "")
+}
+
+func goodDiscord(t *testing.T) *Provider {
+	t.Helper()
+	return fakeProvider(t, "discord", http.StatusOK, `{"access_token":"at"}`, `{"id":"d1","username":"minou"}`)
+}
+
+// signInOn: Google sign-in on, served at site.
+func signInOn(t *testing.T, burst int, refill time.Duration) Options {
+	t.Helper()
+	return Options{Burst: burst, Refill: refill, Providers: []*Provider{goodGoogle(t)}, PublicURL: site}
 }
 
 type response struct {
@@ -82,7 +111,7 @@ func request(t *testing.T, method, target, body string, cookies ...string) respo
 // signedIn opens a session directly in the store and gives it a pseudo ("" = none).
 func signedIn(t *testing.T, e testEnv, sub, pseudo string) string {
 	t.Helper()
-	tok, err := e.s.accounts.SignIn(context.Background(), sub, time.Now())
+	tok, err := e.s.accounts.SignIn(context.Background(), "google", sub, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,39 +128,51 @@ func me(t *testing.T, e testEnv, tok string) string {
 	return strings.TrimSpace(request(t, http.MethodGet, e.url+"/api/me", "", "session="+tok).body)
 }
 
-func TestConfigTellsIfSignInIsOn(t *testing.T) {
-	for _, on := range []bool{false, true} {
-		o := Options{Burst: 1}
-		if on {
-			o.Google = goodGoogle(t)
-		}
-		_, body := get(t, newTestEnv(t, o).url+"/api/config")
-		var cfg struct{ Auth bool }
-		if err := json.Unmarshal(body, &cfg); err != nil || cfg.Auth != on {
-			t.Errorf("auth = %v; want %v (%v)", cfg.Auth, on, err)
+func TestConfigListsTheProviders(t *testing.T) {
+	for _, c := range []struct {
+		providers []*Provider
+		want      string
+	}{
+		{nil, `[]`},
+		{[]*Provider{goodDiscord(t), goodGoogle(t)}, `["discord","google"]`},
+	} {
+		_, body := get(t, newTestEnv(t, Options{Burst: 1, Providers: c.providers}).url+"/api/config")
+		var cfg struct{ Auth json.RawMessage }
+		if err := json.Unmarshal(body, &cfg); err != nil || string(cfg.Auth) != c.want {
+			t.Errorf("auth = %s; want %s (%v)", cfg.Auth, c.want, err)
 		}
 	}
 }
 
-func TestSignInRoutesOffWithoutGoogle(t *testing.T) {
+func TestSignInRoutesOffWithoutProviders(t *testing.T) {
 	e := newTestEnv(t, Options{Burst: 1})
-	if res := request(t, http.MethodGet, e.url+"/api/auth/login", ""); res.code != http.StatusNotFound {
-		t.Errorf("login without Google: %d", res.code)
+	if res := request(t, http.MethodGet, e.url+"/api/auth/google/login", ""); res.code != http.StatusNotFound {
+		t.Errorf("login without providers: %d", res.code)
 	}
 	if got := me(t, e, ""); got != "null" {
 		t.Errorf("me = %s; want null", got)
 	}
 }
 
-func TestLoginRedirectsToGoogle(t *testing.T) {
-	e := newTestEnv(t, Options{Burst: 1, Google: goodGoogle(t)})
-	res := request(t, http.MethodGet, e.url+"/api/auth/login", "")
+func TestUnknownProvider(t *testing.T) {
+	e := newTestEnv(t, signInOn(t, 1, 0))
+	for _, path := range []string{"/api/auth/discord/login", "/api/auth/discord/callback?code=ok&state=s1"} {
+		if res := request(t, http.MethodGet, e.url+path, "", "oauth_state=s1"); res.code != http.StatusNotFound {
+			t.Errorf("%s: %d; want 404", path, res.code)
+		}
+	}
+}
+
+func TestLoginRedirectsToTheProvider(t *testing.T) {
+	e := newTestEnv(t, signInOn(t, 1, 0))
+	res := request(t, http.MethodGet, e.url+"/api/auth/google/login", "")
 	loc, _ := url.Parse(res.loc)
 	state := res.cookie(stateCookie)
 	q := loc.Query()
 	if res.code != http.StatusFound || loc.Host != "google.test" || q.Get("client_id") != "cid" ||
-		q.Get("redirect_uri") != "http://site.test/api/auth/callback" || q.Get("scope") != "openid" ||
-		q.Get("response_type") != "code" || state == nil || q.Get("state") != state.Value || len(state.Value) != 32 {
+		q.Get("redirect_uri") != "http://site.test/api/auth/google/callback" || q.Get("scope") != "openid" ||
+		q.Get("prompt") != "select_account" || q.Get("response_type") != "code" ||
+		state == nil || q.Get("state") != state.Value || len(state.Value) != 32 {
 		t.Errorf("redirect = %d %s, state cookie %+v", res.code, loc, state)
 	}
 	if !state.HttpOnly || state.Secure || state.SameSite != http.SameSiteLaxMode {
@@ -140,35 +181,37 @@ func TestLoginRedirectsToGoogle(t *testing.T) {
 }
 
 func TestCookiesAreSecureOverHTTPS(t *testing.T) {
-	g := goodGoogle(t)
-	g.PublicURL = "https://site.test"
-	e := newTestEnv(t, Options{Burst: 1, Google: g})
-	if res := request(t, http.MethodGet, e.url+"/api/auth/login", ""); !res.cookie(stateCookie).Secure {
+	o := signInOn(t, 1, 0)
+	o.PublicURL = "https://site.test"
+	e := newTestEnv(t, o)
+	if res := request(t, http.MethodGet, e.url+"/api/auth/google/login", ""); !res.cookie(stateCookie).Secure {
 		t.Error("over HTTPS, cookies must be Secure")
 	}
 }
 
 func TestCallbackSignsIn(t *testing.T) {
-	e := newTestEnv(t, Options{Burst: 1, Google: goodGoogle(t)})
-	res := request(t, http.MethodGet, e.url+"/api/auth/callback?code=ok&state=s1", "", "oauth_state=s1")
-	sess := res.cookie(sessionCookie)
-	if res.code != http.StatusFound || res.loc != "/" || sess == nil {
-		t.Fatalf("callback = %d %s, session %+v", res.code, res.loc, sess)
-	}
-	if st := res.cookie(stateCookie); st == nil || st.MaxAge >= 0 {
-		t.Error("the state cookie must be cleared")
-	}
-	var u account.User
-	if err := json.Unmarshal([]byte(me(t, e, sess.Value)), &u); err != nil || u.ID == "" || u.Pseudo != "" {
-		t.Errorf("me = %+v, %v", u, err)
-	}
-	if e.mr.HGet("user:"+u.ID, "google") != "g1" {
-		t.Error("the user must be tied to the Google account id")
+	e := newTestEnv(t, Options{Burst: 1, Providers: []*Provider{goodGoogle(t), goodDiscord(t)}, PublicURL: site})
+	for provider, sub := range map[string]string{"google": "g1", "discord": "d1"} {
+		res := request(t, http.MethodGet, e.url+"/api/auth/"+provider+"/callback?code=ok&state=s1", "", "oauth_state=s1")
+		sess := res.cookie(sessionCookie)
+		if res.code != http.StatusFound || res.loc != "/" || sess == nil {
+			t.Fatalf("%s callback = %d %s, session %+v", provider, res.code, res.loc, sess)
+		}
+		if st := res.cookie(stateCookie); st == nil || st.MaxAge >= 0 {
+			t.Error("the state cookie must be cleared")
+		}
+		var u account.User
+		if err := json.Unmarshal([]byte(me(t, e, sess.Value)), &u); err != nil || u.ID == "" || u.Pseudo != "" {
+			t.Errorf("me = %+v, %v", u, err)
+		}
+		if e.mr.HGet("user:"+u.ID, provider) != sub {
+			t.Errorf("the user must be tied to the %s account id", provider)
+		}
 	}
 }
 
 func TestCallbackRefusals(t *testing.T) {
-	e := newTestEnv(t, Options{Burst: 1, Google: goodGoogle(t)})
+	e := newTestEnv(t, signInOn(t, 1, 0))
 	for _, c := range []struct {
 		query, cookie string
 		want          int
@@ -177,40 +220,51 @@ func TestCallbackRefusals(t *testing.T) {
 		{"code=ok&state=s2", "oauth_state=s1", http.StatusBadRequest},        // forged
 		{"code=ok", "oauth_state=", http.StatusBadRequest},                   // empty state
 		{"error=access_denied&state=s1", "oauth_state=s1", http.StatusFound}, // cancelled: back to the board
-		{"code=wrong&state=s1", "oauth_state=s1", http.StatusBadGateway},     // Google refuses the code
+		{"code=wrong&state=s1", "oauth_state=s1", http.StatusBadGateway},     // the provider refuses the code
 	} {
-		res := request(t, http.MethodGet, e.url+"/api/auth/callback?"+c.query, "", c.cookie)
+		res := request(t, http.MethodGet, e.url+"/api/auth/google/callback?"+c.query, "", c.cookie)
 		if res.code != c.want || res.cookie(sessionCookie) != nil {
 			t.Errorf("%s: %d; want %d and no session", c.query, res.code, c.want)
 		}
 	}
 	e.mr.Close()
-	if res := request(t, http.MethodGet, e.url+"/api/auth/callback?code=ok&state=s1", "", "oauth_state=s1"); res.code != http.StatusInternalServerError {
+	if res := request(t, http.MethodGet, e.url+"/api/auth/google/callback?code=ok&state=s1", "", "oauth_state=s1"); res.code != http.StatusInternalServerError {
 		t.Errorf("Redis down: %d", res.code)
 	}
 }
 
-func TestGoogleTokenErrors(t *testing.T) {
+func TestProviderErrors(t *testing.T) {
 	ctx := context.Background()
-	for name, g := range map[string]*Google{
-		"status":      fakeGoogle(t, http.StatusUnauthorized, `{}`),
-		"not json":    fakeGoogle(t, http.StatusOK, `<html>`),
-		"no dots":     fakeGoogle(t, http.StatusOK, `{"id_token":"abc"}`),
-		"base64":      fakeGoogle(t, http.StatusOK, `{"id_token":"a.!!!.c"}`),
-		"claims":      fakeGoogle(t, http.StatusOK, `{"id_token":"`+idToken(`[]`)+`"}`),
-		"no sub":      fakeGoogle(t, http.StatusOK, `{"id_token":"`+idToken(`{"aud":"cid"}`)+`"}`),
-		"other aud":   fakeGoogle(t, http.StatusOK, `{"id_token":"`+idToken(`{"sub":"g1","aud":"evil"}`)+`"}`),
-		"unreachable": {ClientID: "cid", PublicURL: "http://site.test", TokenURL: "http://" + closedAddr(t)},
-		"bad url":     {ClientID: "cid", TokenURL: "http://bad host"}, //nolint:gosec // G101: test URL, no credential
+	idTok := func(claims string) string { return `{"id_token":"` + idToken(claims) + `"}` }
+	for name, p := range map[string]*Provider{
+		"status":        fakeProvider(t, "google", http.StatusUnauthorized, `{}`, ""),
+		"not json":      fakeProvider(t, "google", http.StatusOK, `<html>`, ""),
+		"no dots":       fakeProvider(t, "google", http.StatusOK, `{"id_token":"abc"}`, ""),
+		"base64":        fakeProvider(t, "google", http.StatusOK, `{"id_token":"a.!!!.c"}`, ""),
+		"claims":        fakeProvider(t, "google", http.StatusOK, idTok(`[]`), ""),
+		"no sub":        fakeProvider(t, "google", http.StatusOK, idTok(`{"aud":"cid"}`), ""),
+		"other aud":     fakeProvider(t, "google", http.StatusOK, idTok(`{"sub":"g1","aud":"evil"}`), ""),
+		"unreachable":   {ClientID: "cid", TokenURL: "http://" + closedAddr(t)},
+		"bad url":       {ClientID: "cid", TokenURL: "http://bad host"}, //nolint:gosec // G101: test URL, no credential
+		"user refused":  fakeProvider(t, "discord", http.StatusOK, `{"access_token":"expired"}`, `{"id":"d1"}`),
+		"user not json": fakeProvider(t, "discord", http.StatusOK, `{"access_token":"at"}`, `<html>`),
+		"user no id":    fakeProvider(t, "discord", http.StatusOK, `{"access_token":"at"}`, `{}`),
+		"user bad url":  {ClientID: "cid", UserURL: "http://bad host"},
 	} {
-		if sub, err := g.sub(ctx, "ok"); err == nil {
+		if p.Name == "" && p.UserURL != "" { // straight to the user endpoint
+			if sub, err := p.user(ctx, "at"); err == nil {
+				t.Errorf("%s: id %q; want an error", name, sub)
+			}
+			continue
+		}
+		if sub, err := p.sub(ctx, "ok", site); err == nil {
 			t.Errorf("%s: sub %q; want an error", name, sub)
 		}
 	}
 }
 
 func TestPseudoRoute(t *testing.T) {
-	e := newTestEnv(t, Options{Burst: 1, Google: goodGoogle(t)})
+	e := newTestEnv(t, signInOn(t, 1, 0))
 	tok := signedIn(t, e, "a", "")
 	other := signedIn(t, e, "b", "Pixel")
 	for _, c := range []struct {
@@ -241,7 +295,7 @@ func TestPseudoRoute(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	e := newTestEnv(t, Options{Burst: 1, Google: goodGoogle(t)})
+	e := newTestEnv(t, signInOn(t, 1, 0))
 	tok := signedIn(t, e, "a", "Pixel")
 	res := request(t, http.MethodPost, e.url+"/api/auth/logout", "", "session="+tok)
 	if c := res.cookie(sessionCookie); res.code != http.StatusNoContent || c == nil || c.MaxAge >= 0 {
@@ -253,7 +307,7 @@ func TestLogout(t *testing.T) {
 }
 
 func TestDeleteMe(t *testing.T) {
-	e := newTestEnv(t, Options{Burst: 1, Google: goodGoogle(t)})
+	e := newTestEnv(t, signInOn(t, 1, 0))
 	tok := signedIn(t, e, "a", "Pixel")
 	if res := request(t, http.MethodDelete, e.url+"/api/me", "", "session="+tok); res.code != http.StatusNoContent {
 		t.Errorf("delete = %d", res.code)
@@ -278,7 +332,7 @@ func dialAs(t *testing.T, e testEnv, tok string) *websocket.Conn {
 }
 
 func TestPaintingNeedsAnAccountWithAPseudo(t *testing.T) {
-	e := newTestEnv(t, Options{Burst: 5, Refill: time.Hour, Google: goodGoogle(t)})
+	e := newTestEnv(t, signInOn(t, 5, time.Hour))
 	anon, noPseudo := dial(t, e), dialAs(t, e, signedIn(t, e, "a", ""))
 	send(t, anon, `{"x":1,"y":1,"c":5}`)
 	send(t, noPseudo, `{"x":2,"y":1,"c":5}`)
@@ -299,8 +353,7 @@ func TestPaintingNeedsAnAccountWithAPseudo(t *testing.T) {
 		t.Errorf("second tab quota: %+v; want 4", m)
 	}
 	u, _, _ := e.s.accounts.SessionUser(context.Background(), tok)
-	log, _ := e.mr.Stream("log")
-	if len(log) != 1 || log[0].Values[9] != u.ID {
-		t.Errorf("log = %+v; want one paint by %s", log, u.ID)
+	if info, _ := e.s.store.Info(context.Background(), 3, 1); info.User != u.ID || info.Changes != 1 {
+		t.Errorf("pixel = %+v; want one paint by %s", info, u.ID)
 	}
 }

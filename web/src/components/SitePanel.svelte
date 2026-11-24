@@ -9,16 +9,22 @@
   // ponytail: placeholder (the code repository) until a donation page exists; put its URL here.
   const DONATE_URL = 'https://github.com/LeoPenaguin/pixels'
 
-  // auth: sign-in on (otherwise no account button). user: null when signed out.
-  type Props = { onabout: () => void; onstats: () => void; auth: boolean; user: User | null; onaccount: () => void }
-  const { onabout, onstats, auth, user, onaccount }: Props = $props()
+  // auth: sign-in on (otherwise no account button). user: null when signed out. onadmin: moderation (admins only).
+  type Props = {
+    onabout: () => void
+    onstats: () => void
+    auth: boolean
+    user: User | null
+    onaccount: () => void
+    onadmin: () => void
+  }
+  const { onabout, onstats, auth, user, onaccount, onadmin }: Props = $props()
 </script>
 
 <header class="panel site">
-  <!-- The name next to it already says "Pixels": the logo is decorative. -->
-  <img src="/logo.svg" alt="" width="24" height="24" />
+  <!-- The logo is the name, drawn in pixels: 6 px per pixel, 4 on phones to keep the panel on one row. -->
+  <img class="max-[480px]:h-4 max-[480px]:w-14" src="/logo.svg" alt="Pixels" width="84" height="24" />
   <!-- Phones: logo, heart and account alone keep the panel on one row; the words stay for screen readers. -->
-  <span class="name max-[480px]:sr-only">Pixels</span>
   <Separator orientation="vertical" decorative class="sep" />
   <nav aria-label="Site">
     <Button variant="ghost" aria-haspopup="dialog" onclick={onstats}>Stats</Button>
@@ -29,6 +35,9 @@
     </Button>
     {#if auth}
       <Separator orientation="vertical" decorative class="sep" />
+      {#if user?.admin}
+        <Button variant="ghost" aria-haspopup="dialog" onclick={onadmin}>Modération</Button>
+      {/if}
       <!-- Signed in: the pseudo is the name. -->
       <Button
         variant="ghost"
@@ -54,11 +63,6 @@
     align-items: center;
     gap: 8px;
     padding: 4px 4px 4px 10px;
-  }
-  .name {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: var(--tracking-tight);
   }
   nav {
     display: flex;
