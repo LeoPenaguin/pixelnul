@@ -22,8 +22,8 @@
 </script>
 
 <header class="panel site">
-  <!-- The logo is the name, drawn in pixels: 6 px per pixel, 4 on phones to keep the panel on one row. -->
-  <img class="max-[480px]:h-4 max-[480px]:w-14" src="/logo.svg" alt="Pixels" width="84" height="24" />
+  <!-- The logo is the favicon (Pixel-chat, 10 × 10 pixels): 3 px per pixel, 2 on phones to keep the panel on one row. -->
+  <img class="max-[480px]:size-5" src="/favicon.svg" alt="Pixels" width="30" height="30" />
   <!-- Phones: logo, heart and account alone keep the panel on one row; the words stay for screen readers. -->
   <Separator orientation="vertical" decorative class="sep" />
   <nav aria-label="Site">

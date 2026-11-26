@@ -1,9 +1,0 @@
-<!-- Logo: "Pixels" in the 3x5 minifont of the welcome text, letters touching, one palette colour each. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 4" shape-rendering="crispEdges">
-  <path fill="#E52521" d="M0 0h1v1h-1zM1 0h1v1h-1zM2 0h1v1h-1zM0 1h1v1h-1zM2 1h1v1h-1zM0 2h1v1h-1zM1 2h1v1h-1zM2 2h1v1h-1zM0 3h1v1h-1z"/>
-  <path fill="#FF8A1F" d="M3 0h1v1h-1zM3 2h1v1h-1zM3 3h1v1h-1z"/>
-  <path fill="#2ECC40" d="M4 1h1v1h-1zM6 1h1v1h-1zM5 2h1v1h-1zM4 3h1v1h-1zM6 3h1v1h-1z"/>
-  <path fill="#00B8B8" d="M7 1h1v1h-1zM8 1h1v1h-1zM9 1h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM9 2h1v1h-1zM7 3h1v1h-1zM8 3h1v1h-1z"/>
-  <path fill="#1F5BFF" d="M10 0h1v1h-1zM10 1h1v1h-1zM10 2h1v1h-1zM10 3h1v1h-1z"/>
-  <path fill="#8A2BE2" d="M12 1h1v1h-1zM13 1h1v1h-1zM12 2h1v1h-1zM11 3h1v1h-1zM12 3h1v1h-1z"/>
-</svg>
