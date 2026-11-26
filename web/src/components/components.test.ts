@@ -284,16 +284,19 @@ describe('SitePanel', () => {
     const screen = await render(SitePanel, { ...props, user: null })
     await screen.getByRole('button', { name: 'Se connecter' }).click()
     expect(onaccount).toHaveBeenCalledOnce()
-    await screen.rerender({ ...props, user: { id: 'u1', pseudo: '', admin: false, banned: false } })
+    await screen.rerender({ ...props, user: { id: 'u1', pseudo: '', admin: false, banned: false, provider: 'google' } })
     await expect.element(screen.getByRole('button', { name: 'Mon compte : pseudo à choisir' })).toBeVisible()
-    await screen.rerender({ ...props, user: { id: 'u1', pseudo: 'Minou', admin: false, banned: false } })
+    await screen.rerender({
+      ...props,
+      user: { id: 'u1', pseudo: 'Minou', admin: false, banned: false, provider: 'google' },
+    })
     await expect.element(screen.getByRole('button', { name: 'Mon compte : Minou' })).toHaveTextContent('Minou')
     await expect.element(screen.getByRole('button', { name: 'Modération' })).not.toBeInTheDocument()
   })
 
   test('an admin gets a moderation button', async () => {
     const onadmin = vi.fn()
-    const user = { id: 'u1', pseudo: 'Modo', admin: true, banned: false }
+    const user = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     const screen = await render(SitePanel, {
       onabout: vi.fn(),
       onstats: vi.fn(),
@@ -365,7 +368,10 @@ describe('AccountDialog', () => {
   test('first sign-in: the pseudo is chosen, a refusal says why', async () => {
     const p = props()
     p.onsave.mockResolvedValueOnce('ce pseudo est déjà pris')
-    const screen = await render(AccountDialog, { ...p, user: { id: 'u1', pseudo: '', admin: false, banned: false } })
+    const screen = await render(AccountDialog, {
+      ...p,
+      user: { id: 'u1', pseudo: '', admin: false, banned: false, provider: 'google' },
+    })
     screen.component.open()
     await expect.element(screen.getByRole('heading', { name: 'Choisis ton pseudo' })).toBeVisible()
     const input = screen.getByRole('textbox', { name: 'Pseudo' })
@@ -383,10 +389,13 @@ describe('AccountDialog', () => {
     const p = props()
     const screen = await render(AccountDialog, {
       ...p,
-      user: { id: 'u1', pseudo: 'Minou', admin: false, banned: false },
+      user: { id: 'u1', pseudo: 'Minou', admin: false, banned: false, provider: 'google' },
     })
     screen.component.open()
     await expect.element(screen.getByRole('textbox', { name: 'Pseudo' })).toHaveValue('Minou')
+    await expect.element(screen.getByText('Connecté avec Google')).toBeVisible()
+    await screen.rerender({ user: { id: 'u1', pseudo: 'Minou', admin: false, banned: false, provider: 'gone' } })
+    await expect.element(screen.getByText(/Connecté avec/)).not.toBeInTheDocument()
     await screen.getByRole('button', { name: 'Se déconnecter' }).click()
     expect(p.onsignout).toHaveBeenCalledOnce()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()

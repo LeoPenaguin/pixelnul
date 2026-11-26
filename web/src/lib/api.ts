@@ -11,7 +11,7 @@ export type Config = {
 }
 
 /** Signed-in user; pseudo is empty until chosen. admin: may moderate; banned: may no longer paint. */
-export type User = { id: string; pseudo: string; admin: boolean; banned: boolean }
+export type User = { id: string; pseudo: string; admin: boolean; banned: boolean; provider: string }
 
 /** A pixel's history; lastChange (Unix ms) is null if its colour never changed; by = pseudo of the
  *  last painter, null if anonymous or deleted. */

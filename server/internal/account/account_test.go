@@ -28,8 +28,8 @@ func signIn(t *testing.T, s *Store, sub string) (string, User) {
 		t.Fatal(err)
 	}
 	u, ok, err := s.SessionUser(ctx, tok)
-	if !ok || err != nil {
-		t.Fatal(ok, err)
+	if !ok || err != nil || u.Provider != "google" {
+		t.Fatal(ok, err, u.Provider)
 	}
 	return tok, u
 }

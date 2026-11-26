@@ -175,7 +175,7 @@ describe('accounts', () => {
 
   test('first sign-in: the pseudo is asked for, then painting works on a new connection', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: '', admin: false, banned: false }
+    me = { id: 'u1', pseudo: '', admin: false, banned: false, provider: 'google' }
     await start()
     await expect.element(page.getByRole('heading', { name: 'Choisis ton pseudo' })).toBeVisible()
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Minou')
@@ -190,7 +190,7 @@ describe('accounts', () => {
 
   test('signed in: changes the pseudo, signs out, deletes; a failure is announced', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: 'Minou', admin: false, banned: false }
+    me = { id: 'u1', pseudo: 'Minou', admin: false, banned: false, provider: 'google' }
     await start()
     const account = () => page.getByRole('button', { name: /^Mon compte/ })
     await account().click()
@@ -217,7 +217,7 @@ describe('accounts', () => {
 
   test('banned: nothing is sent, and it says why', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: 'Kevin', admin: false, banned: true }
+    me = { id: 'u1', pseudo: 'Kevin', admin: false, banned: true, provider: 'google' }
     const { ws } = await start()
     click(10, 10)
     await announced('Ton compte est banni : tu ne peux plus peindre')
@@ -227,7 +227,7 @@ describe('accounts', () => {
 
   test('an admin fills a rectangle in the chosen colour and bans a pseudo', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false }
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     await start()
     await page.getByRole('button', { name: 'Modération' }).click()
     await page.getByRole('spinbutton', { name: 'X du coin opposé' }).fill('5')
@@ -257,7 +257,7 @@ describe('accounts', () => {
 
   test('signs out', async () => {
     withAuth()
-    me = { id: 'u1', pseudo: 'Minou', admin: false, banned: false }
+    me = { id: 'u1', pseudo: 'Minou', admin: false, banned: false, provider: 'google' }
     await start()
     await page.getByRole('button', { name: /^Mon compte/ }).click()
     await page.getByRole('button', { name: 'Se déconnecter' }).click()

@@ -96,6 +96,11 @@
     </form>
     {#if user.pseudo}
       <Separator class="my-4" />
+      <!-- Accounts are not linked across services: the other one would open a new account. -->
+      {@const p = PROVIDERS[user.provider]}
+      {#if p}
+        <p class="signed-with"><p.Icon aria-hidden="true" />{`Connecté avec ${p.label}`}</p>
+      {/if}
       {#if confirming}
         <p>Ton compte et ton pseudo seront supprimés. Tes pixels restent sur la toile, sans nom.</p>
         <div class="row">
@@ -121,6 +126,11 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .signed-with {
+    display: flex;
+    gap: 6px;
+    align-items: center;
   }
   .note {
     margin: 12px 0 0;

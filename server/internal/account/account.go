@@ -59,9 +59,10 @@ var reserved = map[string]bool{
 // User is a signed-in person. Pseudo is empty until they choose one (they cannot paint before);
 // a banned user cannot paint either.
 type User struct {
-	ID     string `json:"id"`
-	Pseudo string `json:"pseudo"`
-	Banned bool   `json:"banned"`
+	ID       string `json:"id"`
+	Pseudo   string `json:"pseudo"`
+	Banned   bool   `json:"banned"`
+	Provider string `json:"provider"` // one of Providers: the service the account signs in with
 }
 
 // Providers are the sign-in services an account can come from; each name prefixes its Redis keys.
@@ -130,7 +131,13 @@ func (s *Store) SessionUser(ctx context.Context, tok string) (User, bool, error)
 	if err != nil || len(h) == 0 {
 		return User{}, false, err
 	}
-	return User{ID: id, Pseudo: h["pseudo"], Banned: h["banned"] != ""}, true, nil
+	u := User{ID: id, Pseudo: h["pseudo"], Banned: h["banned"] != ""}
+	for _, p := range Providers {
+		if h[p] != "" {
+			u.Provider = p
+		}
+	}
+	return u, true, nil
 }
 
 // KEYS: pseudo:{pkey}. ARGV: "1" to ban, "" to lift the ban, then Providers. Returns 0 (no such pseudo) or 1.
