@@ -15,6 +15,7 @@
   import SitePanel from './components/SitePanel.svelte'
   import StatsDialog from './components/StatsDialog.svelte'
   import Toolbar from './components/Toolbar.svelte'
+  import WelcomeDialog from './components/WelcomeDialog.svelte'
   import {
     deleteAccount,
     dismissReport,
@@ -52,6 +53,7 @@
   let about: { open: () => void }
   let settingsDialog: { open: () => void }
   let accountDialog: { open: () => void }
+  let welcome: { open: (pseudo: string) => void }
   let adminDialog = $state<{ open: () => void }>()
   let reportDialog = $state<{ open: () => void }>()
   let downloadDialog = $state<{ open: () => void }>()
@@ -170,6 +172,7 @@
     user.pseudo = pseudo
     live?.reconnect() // the server reads the account when the connection opens
     announce(first ? `Bienvenue ${pseudo}, tu peux peindre` : `Pseudo changé en ${pseudo}`)
+    if (first) setTimeout(() => welcome.open(pseudo)) // once the account dialog has closed
     return null
   }
 
@@ -347,6 +350,8 @@
   onsignout={() => leave(signOut, 'Déconnecté')}
   ondelete={() => leave(deleteAccount, 'Compte supprimé')}
 />
+
+<WelcomeDialog bind:this={welcome} quota={limits} />
 
 <!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. -->
 {#if down || lost}

@@ -196,11 +196,23 @@ describe('accounts', () => {
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Minou')
     await page.getByRole('button', { name: 'Enregistrer' }).click()
     await announced('Bienvenue Minou, tu peux peindre')
+    await expect.element(page.getByRole('heading', { name: 'Bienvenue Minou !' })).toBeVisible()
     expect(FakeWebSocket.instances).toHaveLength(2)
     FakeWebSocket.last.open()
     click(10, 10)
     expect(FakeWebSocket.last.sent).toHaveLength(1)
     await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).not.toBeInTheDocument()
+  })
+
+  test('a changed pseudo is not welcomed again', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Minou', admin: false, banned: false, provider: 'google' }
+    await start()
+    await page.getByRole('button', { name: /^Mon compte/ }).click()
+    await page.getByRole('textbox', { name: 'Pseudo' }).fill('Matou')
+    await page.getByRole('button', { name: 'Enregistrer' }).click()
+    await announced('Pseudo changé en Matou')
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
   })
 
   test('signed in: changes the pseudo, signs out, deletes; a failure is announced', async () => {

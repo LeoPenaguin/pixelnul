@@ -21,6 +21,7 @@ import SettingsDialog from './SettingsDialog.svelte'
 import SitePanel from './SitePanel.svelte'
 import StatsDialog from './StatsDialog.svelte'
 import Toolbar from './Toolbar.svelte'
+import WelcomeDialog from './WelcomeDialog.svelte'
 
 describe('NavControls', () => {
   test('each button calls its action', async () => {
@@ -658,5 +659,36 @@ describe('StatsDialog', () => {
     const screen = await render(StatsDialog, { colors, onjump: vi.fn() })
     void screen.component.open()
     await expect.element(screen.getByRole('status')).toHaveTextContent('Chargement…')
+  })
+})
+
+describe('WelcomeDialog', () => {
+  test('walks through the steps, back and forth, and ends on having fun', async () => {
+    const screen = await render(WelcomeDialog, { quota: { burst: 3, refillMs: 30_000 } })
+    screen.component.open('Minou')
+    await expect.element(screen.getByRole('heading', { name: 'Bienvenue Minou !' })).toBeVisible()
+    await expect.element(screen.getByText('1 / 5')).toBeVisible()
+    await expect.element(screen.getByRole('button', { name: 'Précédent' })).toBeDisabled()
+    await screen.getByRole('button', { name: 'Suivant' }).click()
+    await expect.element(screen.getByRole('heading', { name: 'Choisis une couleur, puis clique' })).toBeVisible()
+    await screen.getByRole('button', { name: 'Précédent' }).click()
+    await expect.element(screen.getByText('1 / 5')).toBeVisible()
+    await screen.getByRole('button', { name: 'Suivant' }).click()
+    await screen.getByRole('button', { name: 'Suivant' }).click()
+    await expect.element(screen.getByText(/Tu peux poser 3 pixels d'affilée.*d'un pixel en 30 secondes/)).toBeVisible()
+    await screen.getByRole('button', { name: 'Suivant' }).click()
+    await screen.getByRole('button', { name: 'Suivant' }).click()
+    await expect.element(screen.getByRole('heading', { name: 'Amuse-toi bien !' })).toBeVisible()
+    await screen.getByRole('button', { name: "C'est parti !" }).click()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+
+    screen.component.open('Matou') // again: back to the first step
+    await expect.element(screen.getByRole('heading', { name: 'Bienvenue Matou !' })).toBeVisible()
+  })
+
+  test('without a quota, no stock step', async () => {
+    const screen = await render(WelcomeDialog, { quota: null })
+    screen.component.open('Minou')
+    await expect.element(screen.getByText('1 / 4')).toBeVisible()
   })
 })
