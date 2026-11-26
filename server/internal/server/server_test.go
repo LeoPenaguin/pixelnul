@@ -296,11 +296,11 @@ func TestClientIPTrustsOnlyTheLocalProxy(t *testing.T) {
 }
 
 // adminEnv: sign-in on, with an admin (session adminTok) and a painter "Kevin" (session kevinTok).
-func adminEnv(t *testing.T) (e testEnv, adminTok, kevinTok string) {
+func adminEnv(t *testing.T, tweaks ...func(*Server)) (e testEnv, adminTok, kevinTok string) {
 	t.Helper()
 	o := signInOn(t, 100, 0)
 	o.Admins = map[string]bool{}
-	e = newTestEnv(t, o)
+	e = newTestEnv(t, o, tweaks...)
 	adminTok = signedIn(t, e, "admin", "Chef")
 	u, _, _ := e.s.accounts.SessionUser(context.Background(), adminTok)
 	o.Admins[u.ID] = true // the server holds the same map

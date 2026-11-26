@@ -24,6 +24,8 @@ const (
 	lookupsBurst = 20               // pixel history lookups in a row per IP
 	lookupsRate  = 10               // per second after that: the front asks at most ~5/s (after a 200 ms pause)
 	statsMaxAge  = 10 * time.Second // the stats scan the whole world: computed at most this often
+	reportsBurst = 3                // reports in a row per IP, then one more per reportEvery
+	reportEvery  = time.Minute
 )
 
 // jsonOnly refuses a body that is not JSON (415). A page of another site can only send a form or
@@ -57,8 +59,10 @@ type Server struct {
 	opts      Options
 	quotas    *quotas // per account when sign-in is on, per IP otherwise
 	lookups   *quotas // pixel history requests, per IP
-	conns     *connLimit
-	hub       *hub
+	// Reports, per IP.
+	reportQuotas *quotas
+	conns        *connLimit
+	hub          *hub
 
 	// ponytail: global lock around painting so Redis order = broadcast order. One Redis round trip
 	// per paint under it: ~20k pixels/s with a local Redis, ~1/RTT with a remote one (1 ms → 1k/s);
@@ -94,6 +98,7 @@ func New(store *board.Store, accounts *account.Store, o Options) *Server {
 		opts:         o,
 		quotas:       newQuotas(o.Burst, every),
 		lookups:      newQuotas(lookupsBurst, lookupsRate),
+		reportQuotas: newQuotas(reportsBurst, rate.Every(reportEvery)),
 		conns:        newConnLimit(maxConnsIP),
 		hub:          newHub(),
 		flushEvery:   100 * time.Millisecond,
@@ -122,6 +127,9 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("DELETE /api/me", jsonOnly(s.deleteMe))
 		mux.HandleFunc("POST /api/admin/fill", jsonOnly(s.fill))
 		mux.HandleFunc("POST /api/admin/ban", jsonOnly(s.ban))
+		mux.HandleFunc("POST /api/reports", jsonOnly(s.report)) // read by admins only: needs sign-in
+		mux.HandleFunc("GET /api/admin/reports", s.reports)
+		mux.HandleFunc("DELETE /api/admin/reports/{id}", jsonOnly(s.dismissReport))
 	}
 	return mux
 }
@@ -139,6 +147,7 @@ func (s *Server) Loop(ctx context.Context) {
 		case <-forget.C:
 			s.quotas.forgetIdle(s.conns.connected)
 			s.lookups.forgetIdle(func(string) bool { return false })
+			s.reportQuotas.forgetIdle(func(string) bool { return false })
 		case <-ctx.Done():
 			return
 		}

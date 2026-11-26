@@ -4,6 +4,8 @@ export type Point = { x: number; y: number }
 /** x, y = world coordinate at the screen centre; zoom = on-screen pixel size, in CSS px. */
 export type Cam = Point & { zoom: number }
 export type Viewport = { w: number; h: number }
+/** Rectangle of pixels, corners included: x0 ≤ x1, y0 ≤ y1. */
+export type Rect = { x0: number; y0: number; x1: number; y1: number }
 
 export const MIN_ZOOM = 0.5 // max zoom out: the whole 1280 × 720 world fits in 640 × 360 screen px
 export const MAX_ZOOM = 24 // max zoom in: enough to aim, more adds nothing
@@ -25,6 +27,17 @@ export const chunkRange = (half: number, size: number): [number, number] => [
 
 /** Is pixel p inside the world? */
 export const inWorld = (p: Point, half: Point) => p.x >= -half.x && p.x < half.x && p.y >= -half.y && p.y < half.y
+
+/** The rectangle with corners a and b, in any order. */
+export const rectFrom = (a: Point, b: Point): Rect => ({
+  x0: Math.min(a.x, b.x),
+  y0: Math.min(a.y, b.y),
+  x1: Math.max(a.x, b.x),
+  y1: Math.max(a.y, b.y),
+})
+
+/** Number of pixels in r. */
+export const area = (r: Rect) => (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1)
 
 /** Nearest world pixel to p. */
 export const clampPixel = (p: Point, half: Point): Point => ({

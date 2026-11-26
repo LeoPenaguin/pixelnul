@@ -12,10 +12,12 @@ import {
   inWorld,
   interpolate,
   keepVisible,
+  rectFrom,
   toWorld,
   zoomAround,
   type Cam,
   type Point,
+  type Rect,
 } from './camera'
 import { context2d } from './canvas'
 import { Chunks } from './chunks'
@@ -26,6 +28,7 @@ const GRID_MIN_ZOOM = 6 // below this, grid lines would be too dense
 const ANIM_MS = 450
 const TARGET_MS = 2500 // highlight duration after a jump
 const BACKGROUND = '#e5e5e5' // outside the world; same as the page background in app.css (no flash on load)
+const SELECTION = 'rgba(0,0,0,0.3)' // zones to paint over: darkened, so that any colour shows through
 
 // The UI stays monochrome: only the board is in colour. A black outline doubled with white
 // stays readable on any pixel, black included.
@@ -51,6 +54,12 @@ export class World {
   onPlace: (x: number, y: number) => void = () => undefined
   /** Pixel at the screen centre, on every frame. */
   onView: (center: Point) => void = () => undefined
+  /** Moderation: a drag or two clicks (or Enter on two pixels) draw zones, instead of panning and painting. */
+  selecting = false
+  rects: Rect[] = []
+  corner: Point | null = null // first corner of a zone drawn by clicks
+  /** The zones or the pending corner changed. */
+  onSelect: () => void = () => undefined
 
   private ctx: CanvasRenderingContext2D
   private board: Chunks
@@ -58,7 +67,16 @@ export class World {
   private anim: { from: Cam; to: Cam; t0: number; done?: () => void } | null = null
   private target: Point | null = null // jump target, briefly highlighted
   private targetTimer: ReturnType<typeof setTimeout> | undefined
-  private drag: { id: number; sx: number; sy: number; lx: number; ly: number; moved: boolean } | null = null
+  private drag: {
+    id: number
+    sx: number
+    sy: number
+    lx: number
+    ly: number
+    moved: boolean
+    from: Point | null // start pixel of a zone being drawn; null: the drag pans
+  } | null = null
+  private sketch: Rect | null = null // zone being dragged
   private minimap?: HTMLCanvasElement
   private mini = { x0: 0, y0: 0, span: MINIMAP_SPAN[0] as number } // world area shown by the minimap
   private miniTarget: number = MINIMAP_SPAN[0] // target step; `mini.span` glides towards it
@@ -142,6 +160,32 @@ export class World {
     this.cam = clampCam(keepVisible(this.cam, this.vp, this.hover), this.half)
     this.redraw()
     return this.hover
+  }
+
+  /** Enters or leaves the selection mode, with no zone. */
+  setSelecting(on: boolean) {
+    this.selecting = on
+    this.setRects([])
+    this.updateCursor()
+  }
+
+  /** Replaces the zones and drops the pending corner. */
+  setRects(rects: Rect[]) {
+    this.rects = rects
+    this.corner = null
+    this.onSelect()
+    this.redraw()
+  }
+
+  /** Selection: the first corner waits, the second one closes a zone. */
+  mark(p: Point) {
+    if (this.corner) {
+      this.setRects([...this.rects, rectFrom(this.corner, p)])
+      return
+    }
+    this.corner = p
+    this.onSelect()
+    this.redraw()
   }
 
   /** Whether a click can paint right now: shown by the cursor. */
@@ -278,6 +322,13 @@ export class World {
       }
       ctx.stroke()
     }
+    for (const r of this.sketch ? [...this.rects, this.sketch] : this.rects) {
+      const [rw, rh] = [r.x1 - r.x0 + 1, r.y1 - r.y0 + 1]
+      ctx.fillStyle = SELECTION
+      ctx.fillRect(r.x0, r.y0, rw, rh)
+      outline(ctx, r.x0, r.y0, rw, rh, 2 / cam.zoom)
+    }
+    if (this.corner) outline(ctx, this.corner.x, this.corner.y, 1, 1, 4 / cam.zoom)
     if (this.hover) outline(ctx, this.hover.x, this.hover.y, 1, 1, 2 / cam.zoom)
     // Rounded like the panels (8 CSS px), at most a circle when zoomed out.
     if (this.target)
@@ -337,9 +388,14 @@ export class World {
     outline(mctx, tl.x, tl.y, br.x - tl.x, br.y - tl.y, (2 * dpr) / k)
   }
 
-  private updateHover(e: PointerEvent) {
+  /** Pixel under a pointer event (possibly outside the world). */
+  private cellAt(e: PointerEvent): Point {
     const p = this.toWorld(e.offsetX, e.offsetY)
-    const cell = { x: Math.floor(p.x), y: Math.floor(p.y) }
+    return { x: Math.floor(p.x), y: Math.floor(p.y) }
+  }
+
+  private updateHover(e: PointerEvent) {
+    const cell = this.cellAt(e)
     const next = inWorld(cell, this.half) ? cell : null
     const h = this.hover
     if (h === next || (next && h?.x === next.x && h.y === next.y)) return
@@ -351,14 +407,19 @@ export class World {
   private down = (e: PointerEvent) => {
     if (this.drag) return
     this.canvas.setPointerCapture(e.pointerId)
-    this.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, moved: false }
+    // Selecting: the main button draws, the others still pan.
+    const from = this.selecting && e.button === 0 ? clampPixel(this.cellAt(e), this.half) : null
+    this.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, moved: false, from }
   }
 
   private move = (e: PointerEvent) => {
     const d = this.drag
     if (d?.id === e.pointerId) {
       if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > DRAG_THRESHOLD) d.moved = true
-      if (d.moved) {
+      if (d.moved && d.from) {
+        this.sketch = rectFrom(d.from, clampPixel(this.cellAt(e), this.half))
+        this.redraw()
+      } else if (d.moved) {
         this.stopAnim()
         this.clearTarget()
         const { x, y, zoom } = this.cam
@@ -376,7 +437,9 @@ export class World {
   // the world (dragging is all there is), not-allowed = a click paints nothing.
   private updateCursor() {
     const { style } = this.canvas
-    if (this.drag?.moved) style.cursor = 'grabbing'
+    if (this.selecting)
+      style.cursor = '' // crosshair: a drag draws a zone
+    else if (this.drag?.moved) style.cursor = 'grabbing'
     else if (!this.hover) style.cursor = 'grab'
     else style.cursor = this.canPaint ? '' : 'not-allowed'
   }
@@ -386,10 +449,15 @@ export class World {
     if (d?.id !== e.pointerId) return
     this.drag = null
     this.updateCursor()
-    if (!d.moved && e.button === 0) {
-      const p = this.toWorld(e.offsetX, e.offsetY)
-      const cell = { x: Math.floor(p.x), y: Math.floor(p.y) }
-      if (inWorld(cell, this.half)) this.onPlace(cell.x, cell.y)
+    if (this.sketch) {
+      const zone = this.sketch
+      this.sketch = null
+      this.setRects([...this.rects, zone])
+    } else if (!d.moved && e.button === 0) {
+      const cell = this.cellAt(e)
+      if (!inWorld(cell, this.half)) return
+      if (this.selecting) this.mark(cell)
+      else this.onPlace(cell.x, cell.y)
     }
   }
 

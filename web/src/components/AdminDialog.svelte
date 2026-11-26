@@ -1,38 +1,61 @@
-<!-- Moderation (admins only): paint over a rectangle in the chosen colour, ban or unban a player. -->
+<!-- Moderation (admins only): pending reports, zones to paint over (drawn on the board), ban or unban a player. -->
 <script lang="ts">
-  import type { Point } from '../lib/engine/camera'
+  import type { Report } from '../lib/api'
+  import { REASONS } from '../lib/reasons'
+  import { ago } from '../lib/time'
   import Modal from './Modal.svelte'
   import { Button } from './ui/button'
   import { Input } from './ui/input'
   import { Label } from './ui/label'
 
   type Props = {
-    from: Point // targeted pixel: both corners start there
-    colorName: string // the colour chosen in the toolbar
-    onfill: (x0: number, y0: number, x1: number, y1: number) => Promise<string | null> // resolves to a refusal
-    onban: (pseudo: string, banned: boolean) => Promise<string | null>
+    now: number
+    onreports: () => Promise<Report[]>
+    ondismiss: (id: string) => Promise<void>
+    onjump: (x: number, y: number) => void
+    onselect: () => void // starts drawing the zones to paint over, on the board
+    onban: (pseudo: string, banned: boolean) => Promise<string | null> // resolves to a refusal
   }
-  const { from, colorName, onfill, onban }: Props = $props()
+  const { now, onreports, ondismiss, onjump, onselect, onban }: Props = $props()
+
+  const LATER = 'Impossible pour le moment'
 
   const id = $props.id()
-  let modal: { open: () => void }
-  let corners = $state([0, 0, 0, 0]) // x0, y0, x1, y1
+  let modal: { open: () => void; close: () => void }
+  let reports = $state<Report[]>([])
+  let reportStatus = $state('')
   let pseudo = $state('')
-  let fillStatus = $state('')
   let banStatus = $state('')
 
-  const CORNERS = ['X du premier coin', 'Y du premier coin', 'X du coin opposé', 'Y du coin opposé']
-
   export function open() {
-    corners = [from.x, from.y, from.x, from.y]
-    fillStatus = banStatus = ''
+    reports = []
+    reportStatus = banStatus = ''
     modal.open()
+    void load()
   }
 
-  async function fill(e: SubmitEvent) {
-    e.preventDefault()
-    const [x0, y0, x1, y1] = corners
-    fillStatus = (await onfill(x0, y0, x1, y1)) ?? 'Rectangle rempli'
+  async function load() {
+    try {
+      reports = await onreports()
+    } catch {
+      reportStatus = LATER
+    }
+  }
+
+  async function dismiss(r: Report) {
+    try {
+      await ondismiss(r.id)
+      reports = reports.filter((o) => o.id !== r.id)
+      reportStatus = 'Signalement classé'
+    } catch {
+      reportStatus = LATER
+    }
+  }
+
+  /** Closes the dialog, then acts on the board. */
+  function onboard(action: () => void) {
+    modal.close()
+    action()
   }
 
   async function ban(banned: boolean) {
@@ -42,22 +65,38 @@
 </script>
 
 <Modal bind:this={modal} title="Modération">
-  <h3>Repeindre un rectangle</h3>
-  <p>{`En ${colorName}, la couleur choisie, coins compris.`}</p>
-  <form onsubmit={fill}>
-    <div class="grid">
-      {#each CORNERS as label, i (label)}
-        <div>
-          <Label for={`${id}-c${String(i)}`}>{label}</Label>
-          <Input id={`${id}-c${String(i)}`} type="number" required bind:value={corners[i]} />
-        </div>
+  <h3>Signalements</h3>
+  {#if reports.length === 0}
+    <p>Aucun signalement en attente.</p>
+  {:else}
+    <ul>
+      {#each reports as r (r.id)}
+        <li>
+          <strong>{REASONS[r.reason]}</strong>
+          <span class="meta">{`${String(r.x)}, ${String(r.y)} · ${ago(r.at, now)} · ${r.by || 'anonyme'}`}</span>
+          {#if r.comment}<p class="comment">{r.comment}</p>{/if}
+          <div class="row">
+            <Button
+              size="sm"
+              aria-label={`Voir ${String(r.x)}, ${String(r.y)}`}
+              onclick={() => onboard(() => onjump(r.x, r.y))}>Voir</Button
+            >
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Classer le signalement en ${String(r.x)}, ${String(r.y)}`}
+              onclick={() => void dismiss(r)}>Classer</Button
+            >
+          </div>
+        </li>
       {/each}
-    </div>
-    <div class="row">
-      <Button type="submit">Remplir</Button>
-      <span class="hint" role="status">{fillStatus}</span>
-    </div>
-  </form>
+    </ul>
+  {/if}
+  <span class="hint" role="status">{reportStatus}</span>
+
+  <h3>Repeindre des zones</h3>
+  <p>Trace une ou plusieurs zones sur la toile, puis remplis-les dans la couleur choisie.</p>
+  <Button onclick={() => onboard(onselect)}>Sélectionner sur la toile</Button>
 
   <h3>Bannir un joueur</h3>
   <p>Un joueur banni ne peut plus peindre, tout de suite.</p>
@@ -82,10 +121,30 @@
     margin: 0 0 12px;
     font-weight: var(--font-weight-normal);
   }
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px 12px;
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--ink);
+  }
+  strong {
+    display: block;
+    font-weight: var(--font-weight-bold);
+  }
+  .meta {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+  }
+  .comment {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
   }
   .row {
     display: flex;

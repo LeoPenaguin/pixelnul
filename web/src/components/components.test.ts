@@ -2,11 +2,14 @@ import { describe, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-svelte'
 import type { Stats } from '../lib/api'
+import type { Point, Rect } from '../lib/engine/camera'
 import '../app.css' // the dialog overlay needs its size to be clicked
 import { config, stubFetch } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
 import AccountDialog from './AccountDialog.svelte'
 import AdminDialog from './AdminDialog.svelte'
+import ReportDialog from './ReportDialog.svelte'
+import SelectionBar from './SelectionBar.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HelpDialog from './HelpDialog.svelte'
 import PixelPanel from './PixelPanel.svelte'
@@ -28,6 +31,7 @@ describe('NavControls', () => {
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
+      onreport: vi.fn(),
     }
     const screen = await render(NavControls, props)
     await screen.getByRole('button', { name: 'Zoomer' }).click()
@@ -36,6 +40,7 @@ describe('NavControls', () => {
     await screen.getByRole('button', { name: "Télécharger l'image" }).click()
     await screen.getByRole('button', { name: 'Paramètres' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
+    await screen.getByRole('button', { name: 'Signaler un contenu ou un bug' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
   })
 
@@ -47,6 +52,7 @@ describe('NavControls', () => {
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
+      onreport: vi.fn(),
     })
     // Icon keys are read by their name ("plus"), text keys as they are.
     const tips = {
@@ -54,6 +60,7 @@ describe('NavControls', () => {
       Dézoomer: 'Dézoomer moins',
       'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
       Paramètres: 'Paramètres', // no shortcut
+      'Signaler un contenu ou un bug': 'Signaler un contenu ou un bug',
       'Raccourcis clavier': 'Raccourcis clavier ?',
     }
     for (const [name, description] of Object.entries(tips)) {
@@ -311,38 +318,144 @@ describe('SitePanel', () => {
 })
 
 describe('AdminDialog', () => {
-  test('fills a rectangle from the targeted pixel, says when it is done or refused', async () => {
-    const onfill = vi.fn(() => Promise.resolve<string | null>(null))
-    const screen = await render(AdminDialog, { from: { x: 3, y: -2 }, colorName: 'Noir', onfill, onban: vi.fn() })
+  const report = { id: 'r1', x: 3, y: -4, reason: 'hate', comment: 'une croix', by: '', at: 0 }
+  const props = () => ({
+    now: 120_000,
+    onreports: vi.fn(() => Promise.resolve([report, { ...report, id: 'r2', x: 9, comment: '', by: 'Minou' }])),
+    ondismiss: vi.fn(() => Promise.resolve()),
+    onjump: vi.fn(),
+    onselect: vi.fn(),
+    onban: vi.fn(() => Promise.resolve<string | null>(null)),
+  })
+
+  test('lists the reports: goes to one, dismisses another', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
     screen.component.open()
-    await expect.element(screen.getByText('En Noir, la couleur choisie, coins compris.')).toBeVisible()
-    await expect.element(screen.getByRole('spinbutton', { name: 'Y du premier coin' })).toHaveValue(-2)
-    await screen.getByRole('spinbutton', { name: 'X du coin opposé' }).fill('10')
-    await screen.getByRole('spinbutton', { name: 'Y du coin opposé' }).fill('4')
-    await screen.getByRole('button', { name: 'Remplir' }).click()
-    expect(onfill).toHaveBeenCalledWith(3, -2, 10, 4)
-    await expect.element(screen.getByText('Rectangle rempli')).toBeVisible()
-    onfill.mockResolvedValueOnce('Trop grand : 65 536 pixels au plus')
-    await screen.getByRole('button', { name: 'Remplir' }).click()
-    await expect.element(screen.getByText('Trop grand : 65 536 pixels au plus')).toBeVisible()
+    await expect.element(screen.getByText('3, -4 · il y a 2 minutes · anonyme')).toBeVisible()
+    await expect.element(screen.getByText('une croix')).toBeVisible()
+    await expect.element(screen.getByText('9, -4 · il y a 2 minutes · Minou')).toBeVisible()
+    await screen.getByRole('button', { name: 'Classer le signalement en 9, -4' }).click()
+    expect(p.ondismiss).toHaveBeenCalledWith('r2')
+    await expect.element(screen.getByText('Signalement classé')).toBeVisible()
+    await expect.element(screen.getByText(/Minou/)).not.toBeInTheDocument()
+    p.ondismiss.mockRejectedValueOnce(new Error('down'))
+    await screen.getByRole('button', { name: 'Classer le signalement en 3, -4' }).click()
+    await expect.element(screen.getByText('Impossible pour le moment')).toBeVisible()
+    await screen.getByRole('button', { name: 'Voir 3, -4' }).click()
+    expect(p.onjump).toHaveBeenCalledWith(3, -4)
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('says when there is no report, or when they cannot load', async () => {
+    const p = props()
+    p.onreports.mockResolvedValueOnce([])
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    await expect.element(screen.getByText('Aucun signalement en attente.')).toBeVisible()
+    screen.component.open()
+    p.onreports.mockRejectedValueOnce(new Error('down'))
+    screen.component.open()
+    await expect.element(screen.getByText('Impossible pour le moment')).toBeVisible()
+  })
+
+  test('closes to select zones on the board', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    await screen.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    expect(p.onselect).toHaveBeenCalledOnce()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
 
   test('bans and unbans a pseudo, says when it is unknown', async () => {
-    const onban = vi.fn(() => Promise.resolve<string | null>(null))
-    const screen = await render(AdminDialog, { from: { x: 0, y: 0 }, colorName: 'Noir', onfill: vi.fn(), onban })
+    const p = props()
+    const screen = await render(AdminDialog, p)
     screen.component.open()
     const unban = screen.getByRole('button', { name: 'Débannir' })
     await expect.element(unban).toBeDisabled()
     await screen.getByRole('textbox', { name: 'Pseudo' }).fill(' Kevin ')
     await screen.getByRole('button', { name: 'Bannir' }).click()
-    expect(onban).toHaveBeenCalledWith('Kevin', true)
+    expect(p.onban).toHaveBeenCalledWith('Kevin', true)
     await expect.element(screen.getByText('Kevin : compte banni')).toBeVisible()
     await unban.click()
-    expect(onban).toHaveBeenCalledWith('Kevin', false)
+    expect(p.onban).toHaveBeenCalledWith('Kevin', false)
     await expect.element(screen.getByText('Kevin : bannissement levé')).toBeVisible()
-    onban.mockResolvedValueOnce('aucun compte avec ce pseudo')
+    p.onban.mockResolvedValueOnce('aucun compte avec ce pseudo')
     await screen.getByRole('button', { name: 'Bannir' }).click()
     await expect.element(screen.getByText('aucun compte avec ce pseudo')).toBeVisible()
+  })
+})
+
+describe('ReportDialog', () => {
+  test('reports the content around the pixel, frozen on open, then thanks', async () => {
+    const onsend = vi.fn(() => Promise.resolve<string | null>(null))
+    const screen = await render(ReportDialog, { position: { x: 3, y: -4 }, onsend })
+    screen.component.open()
+    await screen.rerender({ position: { x: 50, y: 50 } }) // the pointer moved since
+    await expect.element(screen.getByText(/Le contenu autour de 3, -4/)).toBeVisible()
+    await screen.getByRole('radio', { name: 'Informations personnelles' }).click()
+    await screen.getByRole('textbox', { name: 'Précisions (facultatif)' }).fill('  un numéro  ')
+    await screen.getByRole('button', { name: 'Envoyer' }).click()
+    expect(onsend).toHaveBeenCalledWith(3, -4, 'personal', 'un numéro')
+    await expect.element(screen.getByText("Merci, c'est envoyé : la modération va regarder.")).toBeVisible()
+  })
+
+  test('a bug needs a description, not a place; a refusal is shown', async () => {
+    const onsend = vi.fn(() => Promise.resolve<string | null>('Impossible pour le moment'))
+    const screen = await render(ReportDialog, { position: { x: 0, y: 0 }, onsend })
+    screen.component.open()
+    await screen.getByRole('radio', { name: 'Un bug sur le site' }).click()
+    await expect.element(screen.getByText(/Le contenu autour/)).not.toBeInTheDocument()
+    const description = screen.getByRole('textbox', { name: 'Description' })
+    await expect.element(description).toBeRequired()
+    await description.fill('la palette reste fermée')
+    await screen.getByRole('button', { name: 'Envoyer' }).click()
+    await expect.element(screen.getByRole('alert')).toHaveTextContent('Impossible pour le moment')
+    await expect.element(description).toHaveAttribute('aria-invalid', 'true')
+  })
+})
+
+describe('SelectionBar', () => {
+  const props = () => ({
+    rects: [] as Rect[],
+    corner: null as Point | null,
+    colorName: 'Noir',
+    onfill: vi.fn(() => Promise.resolve<string | null>(null)),
+    onclear: vi.fn(),
+    ondone: vi.fn(),
+  })
+
+  test('says how to draw, then the pending corner, then what is selected', async () => {
+    const screen = await render(SelectionBar, props())
+    await expect.element(screen.getByText(/Glisse sur la toile/)).toBeVisible()
+    await expect.element(screen.getByRole('button', { name: 'Remplir en Noir' })).toBeDisabled()
+    await expect.element(screen.getByRole('button', { name: 'Tout effacer' })).toBeDisabled()
+    await screen.rerender({ corner: { x: 2, y: -1 } })
+    await expect.element(screen.getByText('Premier coin en 2, -1 : choisis le coin opposé')).toBeVisible()
+    await screen.rerender({
+      corner: null,
+      rects: [
+        { x0: 0, y0: 0, x1: 1, y1: 1 },
+        { x0: 5, y0: 5, x1: 5, y1: 5 },
+      ],
+    })
+    await expect.element(screen.getByText('2 zones · 5 pixels')).toBeVisible()
+  })
+
+  test('fills, clears and stops', async () => {
+    const p = { ...props(), rects: [{ x0: 0, y0: 0, x1: 0, y1: 0 }] }
+    const screen = await render(SelectionBar, p)
+    await screen.getByRole('button', { name: 'Remplir en Noir' }).click()
+    expect(p.onfill).toHaveBeenCalledOnce()
+    await expect.element(screen.getByText('Zones repeintes')).toBeVisible()
+    p.onfill.mockResolvedValueOnce('Trop grand : 65 536 pixels au plus')
+    await screen.getByRole('button', { name: 'Remplir en Noir' }).click()
+    await expect.element(screen.getByText('Trop grand : 65 536 pixels au plus')).toBeVisible()
+    await screen.getByRole('button', { name: 'Tout effacer' }).click()
+    await screen.getByRole('button', { name: 'Terminer' }).click()
+    expect(p.onclear).toHaveBeenCalledOnce()
+    expect(p.ondone).toHaveBeenCalledOnce()
   })
 })
 

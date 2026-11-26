@@ -83,6 +83,23 @@ export async function setBanned(pseudo: string, banned: boolean): Promise<string
   return LATER
 }
 
+/** A player's report of the content around x, y, or of a bug. by: pseudo of the reporter, '' if signed out. */
+export type Report = { id: string; x: number; y: number; reason: string; comment: string; by: string; at: number }
+
+/** Reports the content around x, y (or a bug: reason 'bug'). Resolves to the reason of a refusal, or null once sent. */
+export async function sendReport(x: number, y: number, reason: string, comment: string): Promise<string | null> {
+  const r = await postJSON('/api/reports', { x, y, reason, comment })
+  if (r.ok) return null
+  if (r.status === 429) return "Trop de signalements d'affilée, réessaie dans une minute"
+  return LATER
+}
+
+/** Admin: the pending reports, newest first. */
+export const fetchReports = () => getJSON<Report[]>('/api/admin/reports')
+
+/** Admin: removes a handled report. */
+export const dismissReport = (id: string) => send('DELETE', `/api/admin/reports/${encodeURIComponent(id)}`)
+
 async function send(method: string, url: string) {
   const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' } })
   if (!r.ok) throw new Error(`${url} : ${String(r.status)}`)

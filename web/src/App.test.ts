@@ -3,7 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-svelte'
 import './app.css'
 import App from './App.svelte'
-import type { PixelInfo, User } from './lib/api'
+import type { PixelInfo, Report, User } from './lib/api'
 import { FakeWebSocket, config as baseConfig, frames, stubFetch, stubWebSocket } from './test/fakes'
 
 // The default colour is index 5 (black): a full row of greys is needed.
@@ -23,6 +23,9 @@ let statsUp = true
 let accountStatus = 204 // answer of the account actions (pseudo, sign out, delete)
 let adminStatus = 204 // answer of the moderation routes
 let adminCalls: { url: string; body: unknown }[] = []
+let reports: Report[] = []
+let reportStatus = 204 // answer of POST /api/reports
+let reportCalls: unknown[] = []
 
 beforeEach(() => {
   localStorage.clear() // settings
@@ -32,6 +35,9 @@ beforeEach(() => {
   accountStatus = 204
   adminStatus = 204
   adminCalls = []
+  reports = []
+  reportStatus = 204
+  reportCalls = []
   hottest = { x: 40, y: -3, changes: 1 }
   statsUp = true
   stubWebSocket()
@@ -41,6 +47,15 @@ beforeEach(() => {
     '/api/me': (_, init) =>
       init?.method === 'DELETE' ? new Response(null, { status: accountStatus }) : Response.json(me),
     '/api/auth/logout': () => new Response(null, { status: accountStatus }),
+    '/api/reports': (_, init) => {
+      reportCalls.push(JSON.parse(init?.body as string))
+      return new Response(null, { status: reportStatus })
+    },
+    '/api/admin/reports': (url, init) => {
+      if (init?.method !== 'DELETE') return Response.json(reports)
+      reports = reports.filter((r) => !url.endsWith(r.id))
+      return new Response(null, { status: 204 })
+    },
     '/api/admin/': (url, init) => {
       adminCalls.push({ url, body: JSON.parse(init?.body as string) })
       return new Response(adminStatus === 404 ? 'aucun compte avec ce pseudo\n' : null, { status: adminStatus })
@@ -225,23 +240,100 @@ describe('accounts', () => {
     await expect.element(page.getByRole('button', { name: 'Modération' })).not.toBeInTheDocument()
   })
 
-  test('an admin fills a rectangle in the chosen colour and bans a pseudo', async () => {
+  test('an admin paints over zones drawn with the keyboard and the mouse, in the chosen colour', async () => {
     withAuth()
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
-    await start()
+    const { ws } = await start()
     await page.getByRole('button', { name: 'Modération' }).click()
-    await page.getByRole('spinbutton', { name: 'X du coin opposé' }).fill('5')
+    await page.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(board())
+    })
+    press('Enter') // shows the cursor on 0, 0
+    press('Enter')
+    await expect.element(page.getByText('Premier coin en 0, 0 : choisis le coin opposé')).toBeVisible()
+    press('ArrowRight')
+    press('ArrowRight')
+    press('ArrowDown')
+    press('Enter')
+    await expect.element(page.getByText('1 zone · 6 pixels')).toBeVisible()
+    press('Enter')
+    press('Escape') // drops the pending corner only
+    await expect.element(page.getByText('1 zone · 6 pixels')).toBeVisible()
+
+    const r = board().getBoundingClientRect()
+    const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2] // pixel x = floor((sx - cx) / 12)
+    const drag = (type: string, sx: number) =>
+      board().dispatchEvent(new PointerEvent(type, { clientX: sx, clientY: cy + 61, pointerId: 1, bubbles: true }))
+    drag('pointerdown', cx + 61)
+    drag('pointermove', cx + 90)
+    drag('pointerup', cx + 90)
+    await expect.element(page.getByText('2 zones · 9 pixels')).toBeVisible()
+
     for (const [status, text] of [
-      [500, 'Impossible pour le moment'], // first: the ban answer below says the same
-      [204, 'Rectangle rempli'],
+      [500, 'Impossible pour le moment'],
       [400, 'Un coin est hors de la toile'],
       [413, 'Trop grand : 65 536 pixels au plus'],
     ] as const) {
       adminStatus = status
-      await page.getByRole('button', { name: 'Remplir' }).click()
+      await page.getByRole('button', { name: 'Remplir en Noir' }).click()
       await expect.element(page.getByText(text)).toBeVisible()
     }
-    expect(adminCalls[1]).toEqual({ url: '/api/admin/fill', body: { x0: 0, y0: 0, x1: 5, y1: 0, c: 5 } })
+    adminStatus = 204
+    await page.getByRole('button', { name: 'Remplir en Noir' }).click()
+    await expect.element(page.getByText('Zones repeintes')).toBeVisible()
+    expect(adminCalls.slice(3)).toEqual([
+      { url: '/api/admin/fill', body: { x0: 0, y0: 0, x1: 2, y1: 1, c: 5 } },
+      { url: '/api/admin/fill', body: { x0: 5, y0: 5, x1: 7, y1: 5, c: 5 } },
+    ])
+    expect(ws.sent).toEqual([]) // nothing was painted on the way
+
+    drag('pointerdown', cx + 61)
+    drag('pointerup', cx + 61)
+    drag('pointerdown', cx + 73)
+    drag('pointerup', cx + 73)
+    await expect.element(page.getByText('1 zone · 2 pixels')).toBeVisible()
+    await page.getByRole('button', { name: 'Tout effacer' }).click()
+    await expect.element(page.getByText(/Glisse sur la toile/)).toBeVisible()
+    await page.getByRole('button', { name: 'Terminer' }).click()
+    await expect.element(page.getByRole('region', { name: 'Zones à repeindre' })).not.toBeInTheDocument()
+
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(board())
+    })
+    press('Escape') // no pending corner: stops selecting
+    await expect.element(page.getByRole('region', { name: 'Zones à repeindre' })).not.toBeInTheDocument()
+    click(cx, cy)
+    expect(ws.sent).toEqual([{ x: 0, y: 0, c: 5 }]) // a click paints again
+  })
+
+  test('an admin goes to a report and dismisses it', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    reports = [{ id: 'r1', x: 40, y: -3, reason: 'hate', comment: 'une croix', by: 'Minou', at: Date.now() }]
+    await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('button', { name: 'Classer le signalement en 40, -3' }).click()
+    await expect.element(page.getByText('Signalement classé')).toBeVisible()
+    expect(reports).toEqual([])
+    reports = [{ id: 'r2', x: 40, y: -3, reason: 'bug', comment: 'lent', by: '', at: Date.now() }]
+    await page.getByRole('button', { name: 'Fermer' }).click()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('button', { name: 'Voir 40, -3' }).click()
+    await vi.waitFor(() => {
+      expect(fields()).toEqual([40, -3])
+    })
+  })
+
+  test('an admin bans a pseudo', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Kevin')
     for (const [status, text] of [
       [204, 'Kevin : compte banni'],
@@ -253,6 +345,24 @@ describe('accounts', () => {
       await expect.element(page.getByText(text)).toBeVisible()
     }
     expect(adminCalls.at(-1)).toEqual({ url: '/api/admin/ban', body: { pseudo: 'Kevin', banned: true } })
+  })
+
+  test('anyone reports what is around the view centre; a refusal says why', async () => {
+    withAuth()
+    await start()
+    await page.getByRole('button', { name: 'Signaler un contenu ou un bug' }).click()
+    for (const [status, text] of [
+      [429, "Trop de signalements d'affilée, réessaie dans une minute"],
+      [503, 'Impossible pour le moment'],
+    ] as const) {
+      reportStatus = status
+      await page.getByRole('button', { name: 'Envoyer' }).click()
+      await expect.element(page.getByRole('alert')).toHaveTextContent(text)
+    }
+    reportStatus = 204
+    await page.getByRole('button', { name: 'Envoyer' }).click()
+    await expect.element(page.getByText("Merci, c'est envoyé : la modération va regarder.")).toBeVisible()
+    expect(reportCalls.at(-1)).toEqual({ x: 0, y: 0, reason: 'hate', comment: '' })
   })
 
   test('signs out', async () => {

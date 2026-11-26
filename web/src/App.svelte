@@ -8,6 +8,8 @@
   import HelpDialog from './components/HelpDialog.svelte'
   import PixelPanel from './components/PixelPanel.svelte'
   import NavControls from './components/NavControls.svelte'
+  import ReportDialog from './components/ReportDialog.svelte'
+  import SelectionBar from './components/SelectionBar.svelte'
   import ServerDown from './components/ServerDown.svelte'
   import SettingsDialog from './components/SettingsDialog.svelte'
   import SitePanel from './components/SitePanel.svelte'
@@ -15,11 +17,14 @@
   import Toolbar from './components/Toolbar.svelte'
   import {
     deleteAccount,
+    dismissReport,
     fetchConfig,
     fetchMe,
     fetchPixelInfo,
+    fetchReports,
     fillRect,
     savePseudo,
+    sendReport,
     setBanned,
     signOut,
     type Config,
@@ -29,7 +34,7 @@
   import { colorName } from './lib/colors'
   import { plural } from './lib/format'
   import { downloadBoard } from './lib/download'
-  import type { Point } from './lib/engine/camera'
+  import type { Point, Rect } from './lib/engine/camera'
   import { World } from './lib/engine/world'
   import { shortcut, type Action } from './lib/keyboard'
   import { Live } from './lib/live'
@@ -48,6 +53,7 @@
   let settingsDialog: { open: () => void }
   let accountDialog: { open: () => void }
   let adminDialog = $state<{ open: () => void }>()
+  let reportDialog = $state<{ open: () => void }>()
   let downloadDialog = $state<{ open: () => void }>()
   let statsDialog = $state<{ open: () => Promise<void> }>()
   let world: World | undefined
@@ -66,6 +72,7 @@
   let lost = $state(false) // true only after a disconnection, not on first load
   let down = $state(false) // server unreachable on load (retried every RETRY_MS)
   let message = $state('') // screen reader announcement
+  let selection = $state<{ rects: Rect[]; corner: Point | null } | null>(null) // moderation: zones to paint over
 
   let colors: string[] = [] // flattened palette, filled when the configuration loads
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
@@ -178,14 +185,40 @@
     }
   }
 
+  /** Moderation: clicks and drags on the board draw zones until `stopSelecting`. */
+  function startSelecting() {
+    world?.setSelecting(true)
+    selection = { rects: [], corner: null }
+    setTimeout(() => canvas.focus()) // after the dialog gives the focus back: the arrows move the cursor
+  }
+
+  function stopSelecting() {
+    selection = null // first: the engine's last onSelect must not bring it back
+    world?.setSelecting(false)
+  }
+
+  /** Fills the zones one by one; a filled zone leaves the selection, a refusal stops there. */
+  async function fillSelection(rects: Rect[]) {
+    let left = rects
+    for (const r of rects) {
+      const refusal = await fillRect(r.x0, r.y0, r.x1, r.y1, color)
+      if (refusal) return refusal
+      left = left.slice(1)
+      world?.setRects(left)
+    }
+    return null
+  }
+
   function run(a: Action) {
     switch (a.type) {
       case 'move':
         moveCursor(a.dx, a.dy)
         break
       case 'place':
-        if (world?.hover) place(world.hover.x, world.hover.y)
-        else moveCursor(0, 0) // first press: shows the cursor
+        if (!world?.hover)
+          moveCursor(0, 0) // first press: shows the cursor
+        else if (selection) world.mark(world.hover)
+        else place(world.hover.x, world.hover.y)
         break
       case 'zoomIn':
         world?.zoomBy(1.5)
@@ -207,6 +240,9 @@
         break
       case 'escape':
         toolbar?.close()
+        if (world?.corner)
+          world.setRects(world.rects) // drops the pending corner
+        else if (selection) stopSelecting()
         break
     }
   }
@@ -240,6 +276,9 @@
       w.onPlace = (x, y) => {
         paletteOpen = false // a click on the board closes the palette
         place(x, y)
+      }
+      w.onSelect = () => {
+        if (selection) selection = { rects: w.rects, corner: w.corner }
       }
       w.onView = (p) => {
         if (p.x !== center.x || p.y !== center.y) center = p
@@ -340,11 +379,27 @@
   {#if user?.admin}
     <AdminDialog
       bind:this={adminDialog}
-      from={hover ?? center}
-      colorName={colorName(conf.palette.flat()[color])}
-      onfill={(x0: number, y0: number, x1: number, y1: number) => fillRect(x0, y0, x1, y1, color)}
+      {now}
+      onreports={fetchReports}
+      ondismiss={dismissReport}
+      onjump={(x: number, y: number) => world?.jumpTo(x, y)}
+      onselect={startSelecting}
       onban={setBanned}
     />
+    {#if selection}
+      {@const sel = selection}
+      <SelectionBar
+        rects={sel.rects}
+        corner={sel.corner}
+        colorName={colorName(conf.palette.flat()[color])}
+        onfill={() => fillSelection(sel.rects)}
+        onclear={() => world?.setRects([])}
+        ondone={stopSelecting}
+      />
+    {/if}
+  {/if}
+  {#if auth}
+    <ReportDialog bind:this={reportDialog} position={hover ?? center} onsend={sendReport} />
   {/if}
   <DownloadDialog
     bind:this={downloadDialog}
@@ -359,6 +414,7 @@
     ondownload={() => downloadDialog?.open()}
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}
+    onreport={auth ? () => reportDialog?.open() : undefined}
   />
   <Toolbar
     bind:this={toolbar}

@@ -120,6 +120,8 @@ describe('rendering', () => {
     pointer(canvas, 'pointerdown', 10, 10)
     pointer(canvas, 'pointerup', 10, 10)
     expect(w.hover).not.toBeNull()
+    w.setSelecting(true)
+    expect(w.rects).toEqual([])
   })
 })
 
@@ -301,5 +303,54 @@ describe('minimap', () => {
     await settle()
     expect(w.cam.x).toBeCloseTo(51.2 + 25 * 2.56, 0)
     pointer(minimap, 'pointerup', 575, 50) // released without a press: nothing
+  })
+})
+
+describe('selection', () => {
+  test('a drag or two clicks draw zones instead of painting; the other buttons still pan', async () => {
+    const w = setup()
+    const place = vi.fn()
+    const select = vi.fn()
+    w.onPlace = place
+    w.onSelect = select
+    w.setCam({ x: 0, y: 0, zoom: 20 }) // pixel x = floor((sx - 200) / 20), y = floor((sy - 150) / 20)
+    w.setSelecting(true)
+    pointer(canvas, 'pointermove', 400, 150) // over the board: the crosshair, even outside the world
+    expect(canvas.style.cursor).toBe('')
+
+    pointer(canvas, 'pointerdown', 210, 150)
+    pointer(canvas, 'pointermove', 270, 190)
+    await frames()
+    expect(rgbAt(canvas, 250, 180)[0]).toBeLessThan(200) // the zone being drawn darkens the white
+    pointer(canvas, 'pointerup', 270, 190)
+    expect(w.rects).toEqual([{ x0: 0, y0: 0, x1: 3, y1: 2 }])
+    expect(w.cam.x).toBe(0) // the drag did not pan
+
+    pointer(canvas, 'pointerdown', 150, 150)
+    pointer(canvas, 'pointerup', 150, 150)
+    expect(w.corner).toEqual({ x: -3, y: 0 })
+    await frames()
+    pointer(canvas, 'pointerdown', 130, 130) // the opposite corner, in any direction
+    pointer(canvas, 'pointerup', 130, 130)
+    expect(w.rects[1]).toEqual({ x0: -4, y0: -1, x1: -3, y1: 0 })
+    expect(w.corner).toBeNull()
+    expect(place).not.toHaveBeenCalled()
+
+    pointer(canvas, 'pointerdown', 200, 150, { button: 2 })
+    pointer(canvas, 'pointermove', 260, 150, { button: 2 })
+    pointer(canvas, 'pointerup', 260, 150, { button: 2 })
+    expect(w.cam.x).toBe(-3)
+    expect(w.rects).toHaveLength(2)
+
+    w.setCam({ x: HX, y: 0, zoom: 20 }) // the right half of the canvas is outside
+    pointer(canvas, 'pointerdown', 390, 150)
+    pointer(canvas, 'pointerup', 390, 150)
+    expect(w.corner).toBeNull()
+    expect(select).toHaveBeenCalledTimes(4) // entering, the drag, both corners
+
+    w.setSelecting(false)
+    expect(w.rects).toEqual([])
+    pointer(canvas, 'pointermove', 390, 150)
+    expect(canvas.style.cursor).toBe('grab')
   })
 })

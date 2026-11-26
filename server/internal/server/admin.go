@@ -1,9 +1,13 @@
 package server
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/LeoPenaguin/pixels/server/internal/board"
 )
@@ -71,4 +75,69 @@ func (s *Server) ban(w http.ResponseWriter, r *http.Request) {
 	if !accountError(w, s.accounts.SetBanned(r.Context(), strings.TrimSpace(b.Pseudo), b.Banned)) {
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// maxComment is the longest report description, in characters.
+const maxComment = 500
+
+// report stores a report from anyone, signed in or not: {"x", "y", "reason", "comment"}. "other"
+// and "bug" need a comment: the reason alone says nothing.
+func (s *Server) report(w http.ResponseWriter, r *http.Request) {
+	if !s.reportQuotas.get(clientIP(r)).Allow() {
+		http.Error(w, "too many reports", http.StatusTooManyRequests)
+		return
+	}
+	var b struct {
+		X, Y            int
+		Reason, Comment string
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&b); err != nil {
+		http.Error(w, "bad body", http.StatusBadRequest)
+		return
+	}
+	b.Comment = strings.TrimSpace(b.Comment)
+	if !board.InWorld(b.X, b.Y) || !slices.Contains(board.Reasons, b.Reason) ||
+		utf8.RuneCountInString(b.Comment) > maxComment || (b.Comment == "" && (b.Reason == "other" || b.Reason == "bug")) {
+		http.Error(w, "bad report", http.StatusBadRequest)
+		return
+	}
+	var by string
+	if u, ok := s.user(r); ok {
+		by = u.Pseudo
+	}
+	rep := board.Report{ID: rand.Text(), X: b.X, Y: b.Y, Reason: b.Reason, Comment: b.Comment, By: by, At: s.now().UnixMilli()}
+	switch err := s.store.AddReport(r.Context(), &rep); {
+	case errors.Is(err, board.ErrTooManyReports):
+		http.Error(w, "too many pending reports", http.StatusServiceUnavailable)
+	case err != nil:
+		http.Error(w, "redis error", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// reports lists the pending reports, newest first.
+func (s *Server) reports(w http.ResponseWriter, r *http.Request) {
+	if !s.admin(w, r) {
+		return
+	}
+	list, err := s.store.Reports(r.Context())
+	if err != nil {
+		http.Error(w, "redis error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, list)
+}
+
+// dismissReport removes a report once handled.
+func (s *Server) dismissReport(w http.ResponseWriter, r *http.Request) {
+	if !s.admin(w, r) {
+		return
+	}
+	if err := s.store.DeleteReport(r.Context(), r.PathValue("id")); err != nil {
+		http.Error(w, "redis error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

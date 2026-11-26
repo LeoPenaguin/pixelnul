@@ -3,17 +3,25 @@ import {
   HOME,
   MAX_ZOOM,
   MIN_ZOOM,
+  area,
   clampCam,
   clampZoom,
   ease,
   flightStart,
   interpolate,
   keepVisible,
+  rectFrom,
   toWorld,
   zoomAround,
 } from './camera'
 
 const vp = { w: 800, h: 600 }
+
+test('rectFrom orders the corners, area counts them in', () => {
+  const r = rectFrom({ x: 3, y: -1 }, { x: 1, y: 2 })
+  expect(r).toEqual({ x0: 1, y0: -1, x1: 3, y1: 2 })
+  expect(area(r)).toBe(12)
+})
 
 test('clampZoom clamps the zoom', () => {
   expect(clampZoom(0.1)).toBe(MIN_ZOOM)

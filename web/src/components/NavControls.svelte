@@ -1,8 +1,9 @@
-<!-- Bottom-right controls: zoom, recenter, download, settings, keyboard help. -->
+<!-- Bottom-right controls: zoom, recenter, download, report (sign-in on), settings, keyboard help. -->
 <script lang="ts">
   import type { Component } from 'svelte'
   import Plus from '~icons/mingcute/add-fill'
   import Download from '~icons/mingcute/download-2-fill'
+  import Flag from '~icons/mingcute/flag-1-fill'
   import Keyboard from '~icons/mingcute/keyboard-fill'
   import Minus from '~icons/mingcute/minimize-fill'
   import Gear from '~icons/mingcute/settings-1-fill'
@@ -19,8 +20,9 @@
     ondownload: () => void
     onsettings: () => void
     onhelp: () => void
+    onreport?: () => void // none: reports are off (no sign-in, so no moderator to read them)
   }
-  const { onzoomin, onzoomout, onrecenter, ondownload, onsettings, onhelp }: Props = $props()
+  const { onzoomin, onzoomout, onrecenter, ondownload, onsettings, onhelp, onreport }: Props = $props()
 </script>
 
 <!-- `key` (shown) and `keys` (aria-keyshortcuts): empty when the button has no shortcut. -->
@@ -63,6 +65,7 @@
     {@render tool('Recentrer sur 0, 0', '0', '0', onrecenter, '0,0')}
     <Separator class="sep" />
     {@render tool("Télécharger l'image", '', '', ondownload, Download, true)}
+    {#if onreport}{@render tool('Signaler un contenu ou un bug', '', '', onreport, Flag, true)}{/if}
     {@render tool('Paramètres', '', '', onsettings, Gear, true)}
     <Separator class="sep help" />
     <span class="help">{@render tool('Raccourcis clavier', '?', 'Shift+?', onhelp, Keyboard, true)}</span>
