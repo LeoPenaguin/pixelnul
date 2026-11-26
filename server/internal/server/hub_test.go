@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/LeoPenaguin/pixels/server/internal/board"
+	"github.com/LeoPenaguin/pixelnul/server/internal/board"
 )
 
 func TestHubFlush(t *testing.T) {

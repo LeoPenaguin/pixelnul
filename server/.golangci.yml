@@ -44,4 +44,4 @@ formatters:
     - goimports
   settings:
     goimports:
-      local-prefixes: [github.com/LeoPenaguin/pixels]
+      local-prefixes: [github.com/LeoPenaguin/pixelnul]

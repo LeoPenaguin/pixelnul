@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LeoPenaguin/pixels/server/internal/account"
-	"github.com/LeoPenaguin/pixels/server/internal/board"
+	"github.com/LeoPenaguin/pixelnul/server/internal/account"
+	"github.com/LeoPenaguin/pixelnul/server/internal/board"
 
 	"github.com/redis/go-redis/v9"
 )

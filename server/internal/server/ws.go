@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LeoPenaguin/pixels/server/internal/board"
+	"github.com/LeoPenaguin/pixelnul/server/internal/board"
 
 	"github.com/coder/websocket"
 	"golang.org/x/time/rate"

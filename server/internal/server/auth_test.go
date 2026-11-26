@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/LeoPenaguin/pixels/server/internal/account"
+	"github.com/LeoPenaguin/pixelnul/server/internal/account"
 )
 
 // idToken builds an unsigned ID token around claims (the server does not check signatures).

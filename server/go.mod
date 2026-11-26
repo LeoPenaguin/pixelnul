@@ -1,4 +1,4 @@
-module github.com/LeoPenaguin/pixels/server
+module github.com/LeoPenaguin/pixelnul/server
 
 go 1.27.4
 

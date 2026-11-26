@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LeoPenaguin/pixels/server/internal/account"
+	"github.com/LeoPenaguin/pixelnul/server/internal/account"
 )
 
 const (

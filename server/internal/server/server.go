@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LeoPenaguin/pixels/server/internal/account"
-	"github.com/LeoPenaguin/pixels/server/internal/board"
+	"github.com/LeoPenaguin/pixelnul/server/internal/account"
+	"github.com/LeoPenaguin/pixelnul/server/internal/board"
 
 	"golang.org/x/time/rate"
 )

@@ -532,7 +532,7 @@ describe('AboutDialog', () => {
     await expect.element(screen.getByRole('heading', { name: 'À propos' })).toBeVisible()
     await expect
       .element(screen.getByRole('link', { name: 'GitHub' }))
-      .toHaveAttribute('href', 'https://github.com/LeoPenaguin/pixels')
+      .toHaveAttribute('href', 'https://github.com/LeoPenaguin/pixelnul')
   })
 })
 

@@ -7,7 +7,7 @@
   import { Separator } from './ui/separator'
 
   // ponytail: placeholder (the code repository) until a donation page exists; put its URL here.
-  const DONATE_URL = 'https://github.com/LeoPenaguin/pixels'
+  const DONATE_URL = 'https://github.com/LeoPenaguin/pixelnul'
 
   // auth: sign-in on (otherwise no account button). user: null when signed out. onadmin: moderation (admins only).
   type Props = {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/LeoPenaguin/pixels/server/internal/board"
+	"github.com/LeoPenaguin/pixelnul/server/internal/board"
 )
 
 const sendBuffer = 256 // queued messages per client before it starts dropping

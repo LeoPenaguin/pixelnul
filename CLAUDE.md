@@ -6,7 +6,7 @@ User-facing behaviour, protocol and configuration are described in [docs/technic
 ## Layout
 
 ```text
-server/                     Go module github.com/LeoPenaguin/pixels/server
+server/                     Go module github.com/LeoPenaguin/pixelnul/server
   main.go                   entry point only: signals → server.Run
   internal/account/         users, pseudos and sessions in Redis (Lua scripts)
   internal/board/           world model: pixel geometry, palette, Redis Store (Lua paint script)

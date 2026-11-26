@@ -20,7 +20,7 @@
     libre.
   </p>
   <p>
-    Le code source est sur <a href="https://github.com/LeoPenaguin/pixels" target="_blank" rel="noopener noreferrer"
+    Le code source est sur <a href="https://github.com/LeoPenaguin/pixelnul" target="_blank" rel="noopener noreferrer"
       >GitHub</a
     >.
   </p>

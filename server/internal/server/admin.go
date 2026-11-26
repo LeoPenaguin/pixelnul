@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/LeoPenaguin/pixels/server/internal/board"
+	"github.com/LeoPenaguin/pixelnul/server/internal/board"
 )
 
 // ponytail: one fill is broadcast as one batch (~12 bytes a pixel per client): capped at a chunk's

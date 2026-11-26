@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LeoPenaguin/pixels/server/internal/board"
+	"github.com/LeoPenaguin/pixelnul/server/internal/board"
 
 	"golang.org/x/time/rate"
 )

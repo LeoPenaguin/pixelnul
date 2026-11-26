@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/LeoPenaguin/pixels/server/internal/server"
+	"github.com/LeoPenaguin/pixelnul/server/internal/server"
 )
 
 func main() {
