@@ -23,8 +23,11 @@
 
 <header class="panel site">
   <!-- The logo is the favicon (Pixel-chat, 10 × 10 pixels): 3 px per pixel, 2 on phones to keep the panel on one row. -->
-  <img class="max-[480px]:size-5" src="/favicon.svg" alt="Pixels" width="30" height="30" />
   <!-- Phones: logo, heart and account alone keep the panel on one row; the words stay for screen readers. -->
+  <span class="brand">
+    <img class="max-[480px]:size-5" src="/favicon.svg" alt="" width="30" height="30" />
+    <span class="max-[480px]:sr-only">Pixelnul</span>
+  </span>
   <Separator orientation="vertical" decorative class="sep" />
   <nav aria-label="Site">
     <Button variant="ghost" aria-haspopup="dialog" onclick={onstats}>Stats</Button>
@@ -63,6 +66,12 @@
     align-items: center;
     gap: 8px;
     padding: 4px 4px 4px 10px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: var(--font-weight-bold);
   }
   nav {
     display: flex;

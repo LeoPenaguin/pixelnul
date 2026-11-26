@@ -11,7 +11,7 @@
 
 <Modal bind:this={modal} title="À propos">
   <p>
-    Pixels est une toile collaborative de 1280 × 720 pixels : chacun peut y poser des pixels, en direct avec tout le
+    Pixelnul est une toile collaborative de 1280 × 720 pixels : chacun peut y poser des pixels, en direct avec tout le
     monde.
   </p>
   <p>
