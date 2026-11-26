@@ -1,0 +1,101 @@
+# A `vX.Y.Z` tag on main ships: CI again, build, GitHub Release, then deploy to the VPS over SSH.
+# Create one with `gh release create vX.Y.Z --target main --generate-notes`.
+# Roll back: run this workflow by hand (Actions → Release → Run workflow) with an older tag; it skips CI.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to deploy again (e.g. v1.2.0)
+        required: true
+
+concurrency: production # one deploy at a time, never cancelled midway
+
+permissions:
+  contents: write # attach the build to the Release
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  ci:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    if: ${{ !failure() && !cancelled() }} # runs after CI, or alone on a manual redeploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tag is vX.Y.Z (it ends up in remote shell commands)
+        run: '[[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.21.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Server binary (Linux amd64, static)
+        working-directory: server
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o ../dist/pixelnul .
+      - name: Front
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          cp -r dist ../dist/web
+      - name: Archive and attach to the Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tar -czf "pixelnul-$TAG.tar.gz" -C dist .
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --verify-tag --generate-notes
+          gh release upload "$TAG" "pixelnul-$TAG.tar.gz" --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: pixelnul-${{ env.TAG }}.tar.gz
+
+  deploy:
+    needs: build
+    # ponytail: skipped until the VPS exists; set the `production` environment variables (docs/technical.md) to turn it on.
+    if: ${{ !failure() && !cancelled() && vars.DEPLOY_HOST != '' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+      - name: SSH key and known host
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Upload, switch the `current` link, restart, keep the last 5 releases
+        env:
+          TARGET: ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}
+          DIR: ${{ vars.DEPLOY_PATH || '/opt/pixelnul' }}
+        run: |
+          scp "pixelnul-$TAG.tar.gz" "$TARGET:/tmp/"
+          ssh "$TARGET" "set -e
+            mkdir -p '$DIR/releases/$TAG'
+            tar -xzf '/tmp/pixelnul-$TAG.tar.gz' -C '$DIR/releases/$TAG'
+            rm '/tmp/pixelnul-$TAG.tar.gz'
+            ln -sfn 'releases/$TAG' '$DIR/current'
+            sudo systemctl restart pixelnul
+            cd '$DIR/releases' && ls -t | grep -vx '$TAG' | tail -n +5 | xargs -r rm -rf"

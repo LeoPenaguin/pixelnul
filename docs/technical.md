@@ -106,3 +106,73 @@ Behind a reverse proxy, the proxy must run on the same machine (loopback) and ap
 | `GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_SECRET` | required with the matching client id |
 | `PUBLIC_URL` | `http://localhost:5173` (the site's address; each provider calls back `{PUBLIC_URL}/api/auth/{provider}/callback`) |
 | `ADMIN_IDS` | empty (user ids allowed to moderate, separated by commas; sign in, then read your `id` at `/api/me`) |
+
+## Release and deploy
+
+`main` is always releasable (protected: pull requests only, CI green). A version is a `vX.Y.Z` tag on `main`, numbered from the Conventional Commits since the last one: `fix` → patch, `feat` → minor, `!` → major.
+
+```sh
+gh release create v1.2.0 --target main --generate-notes
+```
+
+The tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml): CI again, then a build (static Linux amd64 binary `pixelnul` + front in `web/`) attached to the GitHub Release as `pixelnul-v1.2.0.tar.gz`, then the deploy. To roll back, run the workflow by hand (Actions → Release → Run workflow) with an older tag; tags are never moved or deleted.
+
+The deploy is skipped until the `production` environment has a `DEPLOY_HOST`, so tags already produce Releases without a server.
+
+### One-time VPS setup
+
+On the server (Debian/Ubuntu, Redis installed), with a `deploy` user that owns `/opt/pixelnul`:
+
+```text
+/opt/pixelnul/
+  .env                 server configuration (see the table above), read from the working directory
+  current -> releases/v1.2.0
+  releases/v1.2.0/     pixelnul (binary), web/ (static front); the last 5 are kept
+```
+
+`/etc/systemd/system/pixelnul.service`, then `systemctl enable pixelnul`:
+
+```ini
+[Unit]
+Description=pixelnul
+After=network.target redis-server.service
+
+[Service]
+User=deploy
+WorkingDirectory=/opt/pixelnul
+ExecStart=/opt/pixelnul/current/pixelnul
+Environment=ADDR=127.0.0.1:3007
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Let the deploy user restart it, and nothing else (`visudo -f /etc/sudoers.d/pixelnul`):
+
+```text
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart pixelnul
+```
+
+The reverse proxy, on the same machine, serves `/opt/pixelnul/current/web` and forwards `/api` and `/ws` to `127.0.0.1:3007`, appending the client to `X-Forwarded-For` (Caddy does both by default):
+
+```text
+pixelnul.example {
+  root * /opt/pixelnul/current/web
+  reverse_proxy /api/* 127.0.0.1:3007
+  reverse_proxy /ws 127.0.0.1:3007
+  file_server
+}
+```
+
+### GitHub side
+
+Settings → Environments → `production` (optionally with yourself as required reviewer, to approve each deploy):
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| secret | `DEPLOY_SSH_KEY` | private key of a dedicated pair (`ssh-keygen -t ed25519 -f deploy`), public half in `~deploy/.ssh/authorized_keys` |
+| variable | `DEPLOY_HOST` | server address |
+| variable | `DEPLOY_USER` | `deploy` |
+| variable | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan <host>`, checked against the server's fingerprint |
+| variable | `DEPLOY_PATH` | optional, default `/opt/pixelnul` |
