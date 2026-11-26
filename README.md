@@ -1,6 +1,6 @@
 # pixelnul
 
-![Pixel the cat, in a few pixels](brand/pixel-chat.svg)
+![Pixel the cat, in a few pixels](web/public/favicon.svg)
 
 **One canvas. 921,600 pixels. Everyone paints at once.**
 
