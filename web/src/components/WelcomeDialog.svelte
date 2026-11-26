@@ -40,7 +40,7 @@
 
 {#snippet hello()}
   <p>
-    Pixelnul est une toile de 1280 × 720 pixels que tout le monde peint ensemble, en direct. Voici l'essentiel, en
+    pixelnul est une toile de 1280 × 720 pixels que tout le monde peint ensemble, en direct. Voici l'essentiel, en
     quelques étapes.
   </p>
 {/snippet}

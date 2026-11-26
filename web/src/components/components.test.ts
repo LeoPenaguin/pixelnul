@@ -278,7 +278,7 @@ describe('SitePanel', () => {
       onaccount: vi.fn(),
       onadmin: vi.fn(),
     })
-    await expect.element(screen.getByText('Pixelnul')).toBeInTheDocument()
+    await expect.element(screen.getByText('pixelnul')).toBeInTheDocument()
     await expect.element(screen.getByRole('link', { name: 'Faire un don' })).toBeVisible()
     await screen.getByRole('button', { name: 'À propos' }).click()
     expect(onabout).toHaveBeenCalledOnce()

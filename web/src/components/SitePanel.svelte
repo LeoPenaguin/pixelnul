@@ -26,7 +26,7 @@
   <!-- Phones: logo, heart and account alone keep the panel on one row; the words stay for screen readers. -->
   <span class="brand">
     <img class="max-[480px]:size-5" src="/favicon.svg" alt="" width="30" height="30" />
-    <span class="max-[480px]:sr-only">Pixelnul</span>
+    <span class="max-[480px]:sr-only">pixelnul</span>
   </span>
   <Separator orientation="vertical" decorative class="sep" />
   <nav aria-label="Site">

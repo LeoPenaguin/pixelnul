@@ -1,4 +1,4 @@
-# Pixelnul
+# pixelnul
 
 A 1280 × 720 collaborative pixel canvas in the spirit of r/place, navigated like a Figma board.
 
