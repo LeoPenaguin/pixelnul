@@ -1,5 +1,10 @@
-<!-- Same head as logo.svg, white on dark browser tabs. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <style>path { fill: #111 } @media (prefers-color-scheme: dark) { path { fill: #fff } }</style>
-  <path fill-rule="evenodd" d="M2.5 20.5C2.5 16 4.6 12 7 10L7.2 3.5l5.6 3.3Q14.4 6.4 16 6.4t3.2.4l5.6-3.3L25 10c2.4 2 4.5 6 4.5 10.5 0 5.2-5.6 8.3-13.5 8.3S2.5 25.7 2.5 20.5zM8.6 18.5a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0zM18.6 18.5a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0zM14.6 22.4h2.8L16 24z"/>
+<!-- Pixel-chat: the house cat as one square pixel. The contour keeps its white muzzle visible on light tabs. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" shape-rendering="crispEdges">
+  <path fill="#111111" d="M1 0h1v1h-1zM2 0h1v1h-1zM7 0h1v1h-1zM8 0h1v1h-1zM0 1h1v1h-1zM3 1h1v1h-1zM4 1h1v1h-1zM5 1h1v1h-1zM6 1h1v1h-1zM9 1h1v1h-1zM0 2h1v1h-1zM9 2h1v1h-1zM0 3h1v1h-1zM9 3h1v1h-1zM0 4h1v1h-1zM9 4h1v1h-1zM0 5h1v1h-1zM9 5h1v1h-1zM0 6h1v1h-1zM9 6h1v1h-1zM0 7h1v1h-1zM9 7h1v1h-1zM0 8h1v1h-1zM9 8h1v1h-1zM1 9h1v1h-1zM2 9h1v1h-1zM3 9h1v1h-1zM4 9h1v1h-1zM5 9h1v1h-1zM6 9h1v1h-1zM7 9h1v1h-1zM8 9h1v1h-1z"/>
+  <path fill="#7D6B5D" d="M1 1h1v1h-1zM2 1h1v1h-1zM7 1h1v1h-1zM8 1h1v1h-1zM1 2h1v1h-1zM2 2h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM1 3h1v1h-1zM2 3h1v1h-1zM3 3h1v1h-1zM6 3h1v1h-1zM7 3h1v1h-1zM8 3h1v1h-1zM1 4h1v1h-1zM3 4h1v1h-1zM6 4h1v1h-1zM8 4h1v1h-1zM1 5h1v1h-1zM8 5h1v1h-1z"/>
+  <path fill="#4B3B30" d="M3 2h1v1h-1zM6 2h1v1h-1z"/>
+  <path fill="#FFFFFF" d="M4 2h1v1h-1zM5 2h1v1h-1zM4 3h1v1h-1zM5 3h1v1h-1zM4 4h1v1h-1zM5 4h1v1h-1zM2 5h1v1h-1zM3 5h1v1h-1zM4 5h1v1h-1zM5 5h1v1h-1zM6 5h1v1h-1zM7 5h1v1h-1zM1 6h1v1h-1zM2 6h1v1h-1zM6 6h1v1h-1zM7 6h1v1h-1zM8 6h1v1h-1zM1 7h1v1h-1zM2 7h1v1h-1zM4 7h1v1h-1zM5 7h1v1h-1zM6 7h1v1h-1zM7 7h1v1h-1zM8 7h1v1h-1zM1 8h1v1h-1zM2 8h1v1h-1zM3 8h1v1h-1zM4 8h1v1h-1zM5 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1z"/>
+  <path fill="#221C15" d="M2 4h1v1h-1zM7 4h1v1h-1z"/>
+  <path fill="#5A4636" d="M3 6h1v1h-1zM3 7h1v1h-1z"/>
+  <path fill="#E8A3A0" d="M4 6h1v1h-1zM5 6h1v1h-1z"/>
 </svg>
