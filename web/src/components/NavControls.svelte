@@ -1,8 +1,9 @@
-<!-- Bottom-right controls: zoom, recenter, download, report (sign-in on), settings, keyboard help. -->
+<!-- Bottom-right controls: zoom, recenter, download, report (sign-in on), grid, accessibility settings, keyboard help. -->
 <script lang="ts">
   import type { Component } from 'svelte'
   import Plus from '~icons/mingcute/add-fill'
   import Download from '~icons/mingcute/download-2-fill'
+  import Grid from '~icons/mingcute/grid-3x3-fill'
   import Flag from '~icons/mingcute/flag-1-fill'
   import Keyboard from '~icons/mingcute/keyboard-fill'
   import Minus from '~icons/mingcute/minimize-fill'
@@ -17,16 +18,26 @@
     onzoomin: () => void
     onzoomout: () => void
     onrecenter: () => void
+    grid: boolean // grid shown: the button is pressed
+    ongrid: () => void
     ondownload: () => void
     onsettings: () => void
     onhelp: () => void
     onreport?: () => void // none: reports are off (no sign-in, so no moderator to read them)
   }
-  const { onzoomin, onzoomout, onrecenter, ondownload, onsettings, onhelp, onreport }: Props = $props()
+  const { onzoomin, onzoomout, onrecenter, grid, ongrid, ondownload, onsettings, onhelp, onreport }: Props = $props()
 </script>
 
-<!-- `key` (shown) and `keys` (aria-keyshortcuts): empty when the button has no shortcut. -->
-{#snippet tool(label: string, key: Key, keys: string, onclick: () => void, Icon: Component | string, dialog = false)}
+<!-- `key` (shown) and `keys` (aria-keyshortcuts): empty when the button has no shortcut. `pressed`: a toggle's state. -->
+{#snippet tool(
+  label: string,
+  key: Key,
+  keys: string,
+  onclick: () => void,
+  Icon: Component | string,
+  dialog = false,
+  pressed?: boolean,
+)}
   <Tooltip.Root>
     <Tooltip.Trigger>
       {#snippet child({ props })}
@@ -37,6 +48,7 @@
           aria-label={label}
           aria-keyshortcuts={keys || undefined}
           aria-haspopup={dialog ? 'dialog' : undefined}
+          aria-pressed={pressed}
           {onclick}
         >
           {#if typeof Icon === 'string'}
@@ -66,7 +78,8 @@
     <Separator class="sep" />
     {@render tool("Télécharger l'image", '', '', ondownload, Download, true)}
     {#if onreport}{@render tool('Signaler un contenu ou un bug', '', '', onreport, Flag, true)}{/if}
-    {@render tool('Paramètres', '', '', onsettings, Gear, true)}
+    {@render tool('Grille', 'G', 'G', ongrid, Grid, false, grid)}
+    {@render tool('Accessibilité', '', '', onsettings, Gear, true)}
     <Separator class="sep help" />
     <span class="help">{@render tool('Raccourcis clavier', '?', 'Shift+?', onhelp, Keyboard, true)}</span>
   </div>
@@ -80,6 +93,10 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+  /* Grid shown: same "on" look as the open palette's button. */
+  .controls :global([aria-pressed='true']) {
+    background: var(--active);
   }
   span.help {
     display: contents;
