@@ -50,7 +50,7 @@ See [CLAUDE.md](../CLAUDE.md) for conventions (naming, commits, branches, layout
 - Bottom toolbar: palette button (`C`), showing the current colour and its name (never colour alone). Clicking a colour picks it and closes the palette; arrow keys browse it, Escape closes it. Quota gauge.
 - Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), download, settings, shortcut list (`?`, hidden on small touch screens).
 - Download: an image of the whole board, ×1 to ×4 (pixels stay square), in PNG (lossless: pixels stay sharp). Built in the browser from the chunks.
-- Settings (remembered in the browser): grid (`G`), interface size 100 / 125 / 150 % (the board is not affected).
+- Settings (remembered in the browser): grid (`G`: a line every pixel once zoomed in, darker ones every 10 and every 100 pixels at any zoom where they stay 16 px apart; two levels at most at a time), interface size 100 / 125 / 150 % (the board is not affected).
 - The coordinates (top left) follow the pointer or the keyboard cursor, with the history of that pixel.
 - Recenter, button / keyboard zoom and jumps are animated; a far jump starts a few screens before the target.
 - Minimap (top right, hidden on small touch screens): drag to pan, click to fly there.
@@ -60,7 +60,7 @@ See [CLAUDE.md](../CLAUDE.md) for conventions (naming, commits, branches, layout
 - Hovering a pixel shows how many times it was painted, when it was last painted and by whom (pseudo).
 - No heatmap view in the front any more, but the server still counts every pixel's paints and serves them (`GET /api/heat/{cx}/{cy}`): the view can come back (it was removed after commit `1c6208e`).
 - Accounts (when a sign-in provider is configured: Google, Discord): watching is free, painting needs a sign-in and a pseudo chosen at the first one. The account menu changes the pseudo, signs out, or deletes the account (its past pixels stay, anonymous). Without any provider configured, anyone can paint, counted by IP.
-- Stats (site panel): paints in total, share of the board painted, connected tabs, paints per hour over the last 24 h, colours on the board, the day's 10 best painters (UTC day), the most disputed pixel.
+- Stats (site panel): paints in total, share of the board painted, connected visitors (an account or an IP counts once, whatever its tabs), visitors today (UTC day, estimated by a Redis HyperLogLog `visitors:{day}`, kept for every day), paints per hour over the last 24 h, colours on the board, the day's 10 best painters (UTC day), the most disputed pixel.
 
 ## How it works
 

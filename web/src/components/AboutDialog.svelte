@@ -1,8 +1,12 @@
-<!-- What the site is, its rules, and where the code lives. -->
+<!-- What the site is, its rules, where the code lives, and the welcome tour to replay. -->
 <script lang="ts">
   import Modal from './Modal.svelte'
+  import { Button } from './ui/button'
 
-  let modal: { open: () => void }
+  type Props = { onwelcome: () => void }
+  const { onwelcome }: Props = $props()
+
+  let modal: { open: () => void; close: () => void }
 
   export function open() {
     modal.open()
@@ -24,6 +28,15 @@
       >GitHub</a
     >.
   </p>
+  <!-- Bottom right, like the welcome tour's own buttons. -->
+  <div class="actions">
+    <Button
+      onclick={() => {
+        modal.close()
+        onwelcome()
+      }}>Revoir la présentation</Button
+    >
+  </div>
 </Modal>
 
 <style>
@@ -31,8 +44,10 @@
     margin: 0 0 10px;
     font-weight: var(--font-weight-normal);
   }
-  p:last-child {
-    margin-bottom: 0;
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
   }
   a {
     color: var(--active);

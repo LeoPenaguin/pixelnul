@@ -10,7 +10,7 @@ import (
 
 func TestHubFlush(t *testing.T) {
 	h := newHub()
-	a, b := h.subscribe(), h.subscribe()
+	a, b := h.subscribe("1.2.3.4"), h.subscribe("u:1")
 
 	h.flush()
 	if len(a) != 0 {
@@ -47,5 +47,15 @@ func TestTrySendDropsWhenFull(t *testing.T) {
 	trySend(c, []byte("2")) // full buffer: dropped, without blocking
 	if got := string(<-c); got != "1" || len(c) != 0 {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestOnlineCountsVisitorsNotTabs(t *testing.T) {
+	h := newHub()
+	h.subscribe("u:1")
+	h.subscribe("u:1") // a second tab of the same account
+	h.subscribe("1.2.3.4")
+	if n := h.online(); n != 2 {
+		t.Errorf("online = %d; want 2", n)
 	}
 }

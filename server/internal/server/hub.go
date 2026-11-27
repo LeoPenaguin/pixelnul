@@ -13,20 +13,20 @@ const sendBuffer = 256 // queued messages per client before it starts dropping
 // ponytail: in memory, single process. Several instances → Redis Pub/Sub.
 type hub struct {
 	mu      sync.Mutex
-	clients map[chan []byte]struct{}
+	clients map[chan []byte]string // → visitor: an account or an IP
 
 	pendMu  sync.Mutex
 	pending map[[2]int]int // pixels painted since the last batch; for the same pixel, the last one wins
 }
 
 func newHub() *hub {
-	return &hub{clients: map[chan []byte]struct{}{}, pending: map[[2]int]int{}}
+	return &hub{clients: map[chan []byte]string{}, pending: map[[2]int]int{}}
 }
 
-func (h *hub) subscribe() chan []byte {
+func (h *hub) subscribe(visitor string) chan []byte {
 	c := make(chan []byte, sendBuffer)
 	h.mu.Lock()
-	h.clients[c] = struct{}{}
+	h.clients[c] = visitor
 	h.mu.Unlock()
 	return c
 }
@@ -37,11 +37,15 @@ func (h *hub) unsubscribe(c chan []byte) {
 	h.mu.Unlock()
 }
 
-// online is the number of connected clients (tabs, not people).
+// online is the number of connected visitors: several tabs of one account or one IP count once.
 func (h *hub) online() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return len(h.clients)
+	seen := make(map[string]struct{}, len(h.clients))
+	for _, v := range h.clients {
+		seen[v] = struct{}{}
+	}
+	return len(seen)
 }
 
 // queue adds pixels to the next batch, all under one lock so that a flush never splits them.
