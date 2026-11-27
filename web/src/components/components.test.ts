@@ -267,7 +267,7 @@ describe('Toolbar', () => {
 })
 
 describe('SitePanel', () => {
-  test('shows the site name, opens the about dialog and links to donations', async () => {
+  test('shows the site name and opens the about dialog and the stats', async () => {
     const onabout = vi.fn()
     const onstats = vi.fn()
     const screen = await render(SitePanel, {
@@ -279,7 +279,7 @@ describe('SitePanel', () => {
       onadmin: vi.fn(),
     })
     await expect.element(screen.getByText('pixelnul')).toBeInTheDocument()
-    await expect.element(screen.getByRole('link', { name: 'Faire un don' })).toBeVisible()
+    await expect.element(screen.getByRole('link', { name: 'Faire un don' })).not.toBeInTheDocument() // no donation page yet
     await screen.getByRole('button', { name: 'À propos' }).click()
     expect(onabout).toHaveBeenCalledOnce()
     await screen.getByRole('button', { name: 'Stats' }).click()

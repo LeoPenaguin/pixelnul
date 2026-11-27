@@ -1,14 +1,10 @@
 <!-- Site panel (top left, above the X / Y panel): brand | site links | account. -->
 <script lang="ts">
-  import Heart from '~icons/mingcute/heart-fill'
   import Shield from '~icons/mingcute/shield-fill'
   import UserIcon from '~icons/mingcute/user-3-fill'
   import type { User } from '../lib/api'
   import { Button } from './ui/button'
   import { Separator } from './ui/separator'
-
-  // ponytail: placeholder (the code repository) until a donation page exists; put its URL here.
-  const DONATE_URL = 'https://github.com/LeoPenaguin/pixelnul'
 
   // auth: sign-in on (otherwise no account button). user: null when signed out. onadmin: moderation (admins only).
   type Props = {
@@ -24,7 +20,7 @@
 
 <header class="panel site">
   <!-- The logo is the favicon (Pixel-chat, 10 × 10 pixels): 3 px per pixel, 2 on phones to keep the panel on one row. -->
-  <!-- Phones: logo, heart and account alone keep the panel on one row; the words stay for screen readers. -->
+  <!-- Phones: the logo and the account keep the panel on one row; the words stay for screen readers. -->
   <span class="brand">
     <img class="max-[480px]:size-5" src="/favicon.svg" alt="" width="30" height="30" />
     <span class="max-[480px]:sr-only">pixelnul</span>
@@ -33,10 +29,7 @@
   <nav aria-label="Site">
     <Button variant="ghost" aria-haspopup="dialog" onclick={onstats}>Stats</Button>
     <Button variant="ghost" aria-haspopup="dialog" onclick={onabout}>À propos</Button>
-    <Button variant="ghost" class="donate" href={DONATE_URL} target="_blank" rel="noopener noreferrer">
-      <Heart aria-hidden="true" />
-      <span class="max-[480px]:sr-only">Faire un don</span>
-    </Button>
+    <!-- ponytail: no donate button until a donation page exists (git history has the heart button). -->
     {#if auth}
       <Separator orientation="vertical" decorative class="sep" />
       {#if user?.admin}
@@ -85,9 +78,5 @@
   /* Like the toolbar separator: joins the panel border (cancels the 4 px padding). */
   .site :global(.sep) {
     margin: -4px 4px;
-  }
-  /* Same look as the "À propos" button next to it: only the heart is in colour. */
-  .site :global(.donate svg) {
-    color: var(--active);
   }
 </style>
