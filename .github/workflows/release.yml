@@ -70,8 +70,7 @@ jobs:
 
   deploy:
     needs: build
-    # ponytail: skipped until the VPS exists; set the `production` environment variables (docs/technical.md) to turn it on.
-    if: ${{ !failure() && !cancelled() && vars.DEPLOY_HOST != '' }}
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     environment: production
     steps:

@@ -117,8 +117,6 @@ gh release create v1.2.0 --target main --generate-notes
 
 The tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml): CI again, then a build (static Linux amd64 binary `pixelnul` + front in `web/`) attached to the GitHub Release as `pixelnul-v1.2.0.tar.gz`, then the deploy. To roll back, run the workflow by hand (Actions → Release → Run workflow) with an older tag; tags are never moved or deleted.
 
-The deploy is skipped until the `production` environment has a `DEPLOY_HOST`, so tags already produce Releases without a server.
-
 ### One-time VPS setup
 
 Production runs on an OVH VPS (Ubuntu 26.04, x86_64), reached by `ssh pixelnul-vps` (admin user `ubuntu`, key only). Base hardening: SSH keys only and no root login (`/etc/ssh/sshd_config.d/00-hardening.conf`, read before the cloud-init file that turns passwords on), `ufw` open on 22 (rate-limited: more than 6 connections in 30 s from one IP are refused), 80 and 443 (TCP + UDP), Ubuntu's automatic security updates.
