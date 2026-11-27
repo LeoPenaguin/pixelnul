@@ -477,8 +477,9 @@ describe('keyboard', () => {
 
   test('the settings are applied and remembered', async () => {
     await start()
-    await page.getByRole('button', { name: 'Paramètres' }).click()
-    await page.getByRole('checkbox', { name: 'Grille' }).click()
+    await page.getByRole('button', { name: 'Grille' }).click()
+    await expect.element(page.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'false')
+    await page.getByRole('button', { name: 'Accessibilité' }).click()
     await page.getByRole('radio', { name: '150 %' }).click()
     expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1.5')
     await userEvent.keyboard('{Escape}')

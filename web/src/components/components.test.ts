@@ -29,17 +29,20 @@ describe('NavControls', () => {
       onzoomin: vi.fn(),
       onzoomout: vi.fn(),
       onrecenter: vi.fn(),
+      ongrid: vi.fn(),
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
       onreport: vi.fn(),
     }
-    const screen = await render(NavControls, props)
+    const screen = await render(NavControls, { ...props, grid: true })
+    await expect.element(screen.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'true')
+    await screen.getByRole('button', { name: 'Grille' }).click()
     await screen.getByRole('button', { name: 'Zoomer' }).click()
     await screen.getByRole('button', { name: 'Dézoomer' }).click()
     await screen.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
     await screen.getByRole('button', { name: "Télécharger l'image" }).click()
-    await screen.getByRole('button', { name: 'Paramètres' }).click()
+    await screen.getByRole('button', { name: 'Accessibilité' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
     await screen.getByRole('button', { name: 'Signaler un contenu ou un bug' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
@@ -50,6 +53,8 @@ describe('NavControls', () => {
       onzoomin: vi.fn(),
       onzoomout: vi.fn(),
       onrecenter: vi.fn(),
+      grid: false,
+      ongrid: vi.fn(),
       ondownload: vi.fn(),
       onsettings: vi.fn(),
       onhelp: vi.fn(),
@@ -60,7 +65,8 @@ describe('NavControls', () => {
       Zoomer: 'Zoomer plus',
       Dézoomer: 'Dézoomer moins',
       'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
-      Paramètres: 'Paramètres', // no shortcut
+      Grille: 'Grille G',
+      Accessibilité: 'Accessibilité', // no shortcut
       'Signaler un contenu ou un bug': 'Signaler un contenu ou un bug',
       'Raccourcis clavier': 'Raccourcis clavier ?',
     }
@@ -550,14 +556,11 @@ describe('SettingsDialog', () => {
     const settings = { grid: true, scale: 1 }
     const screen = await render(SettingsDialog, { settings })
     screen.component.open()
-    const grid = screen.getByRole('checkbox', { name: 'Grille' })
-    await expect.element(grid).toBeChecked()
-    await expect.element(grid).toHaveAccessibleDescription(/touche G/)
-    await grid.click()
+    await expect.element(screen.getByRole('checkbox', { name: 'Grille' })).not.toBeInTheDocument() // in the controls now
     const size = screen.getByRole('radio', { name: '125 %' })
     await size.click()
     await size.click() // the chosen size again: ignored, it stays chosen
-    expect(settings).toEqual({ grid: false, scale: 1.25 })
+    expect(settings).toEqual({ grid: true, scale: 1.25 })
   })
 })
 
@@ -706,15 +709,15 @@ describe('WelcomeDialog', () => {
     await expect.element(screen.getByRole('heading', { name: 'Un clic, un pixel' })).toBeVisible()
     expect(document.querySelector<HTMLElement>('.cells .on')?.style.background).toBe('rgb(0, 0, 0)') // black
     await screen.getByRole('button', { name: 'Suivant' }).click()
-    await expect.element(screen.getByRole('heading', { name: 'En bas à droite : réglages et outils' })).toBeVisible()
+    await expect.element(screen.getByRole('heading', { name: 'En bas à droite : les outils' })).toBeVisible()
     await expect
-      .element(screen.getByText("télécharger l'image, signaler, les réglages", { exact: false }))
+      .element(screen.getByText("signaler, afficher ou cacher la grille, l'accessibilité", { exact: false }))
       .toBeVisible()
     const shot = document.querySelector<HTMLElement>('.shot')
     expect(shot?.querySelector('.controls')).not.toBeNull()
     if (shot) shot.inert = false // were it not inert, its buttons would still do nothing
     shot?.querySelector<HTMLElement>('[aria-label="Zoomer"]')?.click()
-    await expect.element(screen.getByRole('heading', { name: 'En bas à droite : réglages et outils' })).toBeVisible()
+    await expect.element(screen.getByRole('heading', { name: 'En bas à droite : les outils' })).toBeVisible()
     await screen.getByRole('button', { name: 'Suivant' }).click()
     await expect.element(screen.getByRole('heading', { name: 'En haut à droite : la minicarte' })).toBeVisible()
     expect(document.querySelector<HTMLImageElement>('.shot img')?.src).toMatch(/^data:image\/png/)
@@ -741,7 +744,9 @@ describe('WelcomeDialog', () => {
     await screen.getByRole('button', { name: 'Suivant' }).click()
     await screen.getByRole('button', { name: 'Suivant' }).click()
     expect(document.querySelector('.shot [aria-label="Signaler un contenu ou un bug"]')).toBeNull()
-    await expect.element(screen.getByText("télécharger l'image, les réglages", { exact: false })).toBeVisible()
+    await expect
+      .element(screen.getByText("télécharger l'image, afficher ou cacher la grille", { exact: false }))
+      .toBeVisible()
     await expect.element(screen.getByRole('button', { name: 'Au travail' })).toBeVisible() // no minimap, no flag
     vi.unstubAllGlobals()
   })
