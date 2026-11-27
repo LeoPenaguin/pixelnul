@@ -48,9 +48,9 @@ See [CLAUDE.md](../CLAUDE.md) for conventions (naming, commits, branches, layout
 - The cursor shows what a click would do: crosshair = paint, hand = outside the world (pan only), forbidden = no pixel left or offline, closed hand while dragging.
 - Phones (small touch screens): no X / Y panel and no minimap, the board is navigated by hand.
 - Bottom toolbar: palette button (`C`), showing the current colour and its name (never colour alone). Clicking a colour picks it and closes the palette; arrow keys browse it, Escape closes it. Quota gauge.
-- Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), download, settings, shortcut list (`?`, hidden on small touch screens).
+- Bottom-right buttons: zoom in / out, back to 0, 0 (`0`), download, report (sign-in on), grid (`G`, pressed when shown; remembered in the browser: a line every pixel once zoomed in, darker ones every 10 and every 100 pixels at any zoom where they stay 16 px apart; two levels at most at a time), accessibility settings, shortcut list (`?`, hidden on small touch screens).
 - Download: an image of the whole board, ×1 to ×4 (pixels stay square), in PNG (lossless: pixels stay sharp). Built in the browser from the chunks.
-- Settings (remembered in the browser): grid (`G`: a line every pixel once zoomed in, darker ones every 10 and every 100 pixels at any zoom where they stay 16 px apart; two levels at most at a time), interface size 100 / 125 / 150 % (the board is not affected).
+- Accessibility settings (remembered in the browser): interface size 100 / 125 / 150 % (the board is not affected).
 - The coordinates (top left) follow the pointer or the keyboard cursor, with the history of that pixel.
 - Recenter, button / keyboard zoom and jumps are animated; a far jump starts a few screens before the target.
 - Minimap (top right, hidden on small touch screens): drag to pan, click to fly there.

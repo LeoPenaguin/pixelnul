@@ -38,7 +38,7 @@
     { title: 'La toile', zone: 'board', body: board, shot: none },
     { title: quota ? 'En bas : couleur et stock' : 'En bas : la couleur', zone: 'bottom', body: tools, shot: toolbar },
     { title: 'Un clic, un pixel', zone: 'board', body: click, shot: cell },
-    { title: 'En bas à droite : réglages et outils', zone: 'bottom-right', body: nav, shot: controls },
+    { title: 'En bas à droite : les outils', zone: 'bottom-right', body: nav, shot: controls },
     ...(phone ? [] : [{ title: 'En haut à droite : la minicarte', zone: 'top-right', body: map, shot: mini } as const]),
     ...(report ? [{ title: 'Le drapeau : signaler', zone: 'bottom-right', body: flag, shot: flagShot } as const] : []),
   ])
@@ -46,7 +46,7 @@
   const last = $derived(i === steps.length - 1)
   const greeting = $derived(pseudo ? `Bienvenue, ${pseudo}. ` : '')
   const toolsText = $derived(
-    `Zoomer, dézoomer, revenir en 0, 0, télécharger l'image, ${report ? 'signaler, ' : ''}les réglages, les raccourcis clavier`,
+    `Zoomer, dézoomer, revenir en 0, 0, télécharger l'image, ${report ? 'signaler, ' : ''}afficher ou cacher la grille, l'accessibilité, les raccourcis clavier`,
   )
   const stockText = $derived(
     quota &&
@@ -119,6 +119,8 @@
     onzoomin={noop}
     onzoomout={noop}
     onrecenter={noop}
+    grid
+    ongrid={noop}
     ondownload={noop}
     onsettings={noop}
     onhelp={noop}

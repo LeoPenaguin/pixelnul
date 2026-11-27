@@ -423,6 +423,8 @@
     onzoomin={() => world?.zoomBy(1.5)}
     onzoomout={() => world?.zoomBy(1 / 1.5)}
     onrecenter={() => world?.recenter()}
+    grid={settings.grid}
+    ongrid={() => (settings.grid = !settings.grid)}
     ondownload={() => downloadDialog?.open()}
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}
