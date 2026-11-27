@@ -44,9 +44,12 @@ func (h *hub) online() int {
 	return len(h.clients)
 }
 
-func (h *hub) queue(p board.Pixel) {
+// queue adds pixels to the next batch, all under one lock so that a flush never splits them.
+func (h *hub) queue(ps ...board.Pixel) {
 	h.pendMu.Lock()
-	h.pending[[2]int{p.X, p.Y}] = p.C
+	for _, p := range ps {
+		h.pending[[2]int{p.X, p.Y}] = p.C
+	}
 	h.pendMu.Unlock()
 }
 
