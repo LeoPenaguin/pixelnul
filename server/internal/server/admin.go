@@ -51,11 +51,13 @@ func (s *Server) fill(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "redis error", http.StatusInternalServerError)
 		return
 	}
+	ps := make([]board.Pixel, 0, (x1-x0+1)*(y1-y0+1))
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
-			s.hub.queue(board.Pixel{X: x, Y: y, C: b.C})
+			ps = append(ps, board.Pixel{X: x, Y: y, C: b.C})
 		}
 	}
+	s.hub.queue(ps...) // one batch: everyone sees the rectangle appear at once
 	w.WriteHeader(http.StatusNoContent)
 }
 
