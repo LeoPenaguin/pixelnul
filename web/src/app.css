@@ -17,7 +17,7 @@
   --ink: #111;
   --paper: #fff;
   --highlight: #d9ff66; /* lime: hover, fields, keys */
-  --active: #5b7cfa; /* electric blue: active controls, available pixels, donate heart, links */
+  --active: #5b7cfa; /* electric blue: active controls, available pixels, links */
   --focus: #ff4d4d; /* red: keyboard focus, refilling pixel */
   --red: #e5484d;
   --stroke: 3px;
