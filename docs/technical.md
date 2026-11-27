@@ -106,3 +106,94 @@ Behind a reverse proxy, the proxy must run on the same machine (loopback) and ap
 | `GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_SECRET` | required with the matching client id |
 | `PUBLIC_URL` | `http://localhost:5173` (the site's address; each provider calls back `{PUBLIC_URL}/api/auth/{provider}/callback`) |
 | `ADMIN_IDS` | empty (user ids allowed to moderate, separated by commas; sign in, then read your `id` at `/api/me`) |
+
+## Release and deploy
+
+`main` is always releasable (protected: pull requests only, CI green). A version is a `vX.Y.Z` tag on `main`, numbered from the Conventional Commits since the last one: `fix` → patch, `feat` → minor, `!` → major.
+
+```sh
+gh release create v1.2.0 --target main --generate-notes
+```
+
+The tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml): CI again, then a build (static Linux amd64 binary `pixelnul` + front in `web/`) attached to the GitHub Release as `pixelnul-v1.2.0.tar.gz`, then the deploy. To roll back, run the workflow by hand (Actions → Release → Run workflow) with an older tag; tags are never moved or deleted.
+
+The deploy is skipped until the `production` environment has a `DEPLOY_HOST`, so tags already produce Releases without a server.
+
+### One-time VPS setup
+
+Production runs on an OVH VPS (Ubuntu 26.04, x86_64), reached by `ssh pixelnul-vps` (admin user `ubuntu`, key only). Base hardening: SSH keys only and no root login (`/etc/ssh/sshd_config.d/00-hardening.conf`, read before the cloud-init file that turns passwords on), `ufw` open on 22 (rate-limited: more than 6 connections in 30 s from one IP are refused), 80 and 443 (TCP + UDP), Ubuntu's automatic security updates.
+
+`apt install redis-server caddy`. Redis listens on loopback only, with `appendonly yes` (at most one second of pixels lost on a crash).
+
+One user per app, so other sites on the same VPS cannot touch it: `adduser --disabled-password pixelnul`, owner of `/opt/pixelnul` (mode 750). Caddy joins its group (`usermod -aG pixelnul caddy`) to read the front; `.env` stays 600.
+
+```text
+/opt/pixelnul/
+  .env                 server configuration (see the table above), read from the working directory
+  current -> releases/v1.2.0
+  releases/v1.2.0/     pixelnul (binary), web/ (static front); the last 5 are kept
+```
+
+`/etc/systemd/system/pixelnul.service`, then `systemctl enable pixelnul`:
+
+```ini
+[Unit]
+Description=pixelnul
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+User=pixelnul
+WorkingDirectory=/opt/pixelnul
+ExecStart=/opt/pixelnul/current/pixelnul
+Environment=ADDR=127.0.0.1:3007
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadOnlyPaths=/opt/pixelnul
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Let that user restart it, and nothing else (`/etc/sudoers.d/pixelnul`, mode 440):
+
+```text
+pixelnul ALL=(root) NOPASSWD: /usr/bin/systemctl restart pixelnul
+```
+
+`/etc/caddy/Caddyfile`, one block per site. Caddy gets the certificates by itself once the domain points to the VPS, and appends the client to `X-Forwarded-For`:
+
+```text
+pixelnul.com {
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options nosniff
+    Referrer-Policy same-origin
+    Content-Security-Policy "frame-ancestors 'none'"
+  }
+  reverse_proxy /api/* 127.0.0.1:3007
+  reverse_proxy /ws 127.0.0.1:3007
+  root * /opt/pixelnul/current/web
+  file_server
+}
+
+www.pixelnul.com {
+  redir https://pixelnul.com{uri} permanent
+}
+```
+
+### GitHub side
+
+Settings → Environments → `production` (optionally with yourself as required reviewer, to approve each deploy):
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| secret | `DEPLOY_SSH_KEY` | private key of a dedicated pair (`ssh-keygen -t ed25519 -f pixelnul-deploy`), public half in `~pixelnul/.ssh/authorized_keys` prefixed with `restrict` (no forwarding, no terminal) |
+| variable | `DEPLOY_HOST` | `57.129.196.187` |
+| variable | `DEPLOY_USER` | `pixelnul` |
+| variable | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 <host>`, checked against the server's fingerprint |
+| variable | `DEPLOY_PATH` | optional, default `/opt/pixelnul` |
