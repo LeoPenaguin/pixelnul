@@ -24,7 +24,14 @@ import { Chunks } from './chunks'
 import { MINIMAP_SPAN, smoothSpan, stepSpan } from './minimap'
 
 const DRAG_THRESHOLD = 4 // px: below this, it is a click
-const GRID_MIN_ZOOM = 6 // below this, grid lines would be too dense
+// Lines every pixel, every 10 and every 100, darker as they get rarer: once the pixel lines are too dense,
+// the others still tell where you are. Only the two finest that fit are drawn: three is too busy.
+// min: CSS px between two lines, below which the level is not drawn (landmarks need more room than pixels).
+const GRID_LEVELS = [
+  { step: 1, min: 6, color: 'rgba(0,0,0,0.05)' },
+  { step: 10, min: 16, color: 'rgba(0,0,0,0.08)' },
+  { step: 100, min: 16, color: 'rgba(0,0,0,0.12)' },
+]
 const ANIM_MS = 450
 const TARGET_MS = 2500 // highlight duration after a jump
 const BACKGROUND = '#e5e5e5' // outside the world; same as the page background in app.css (no flash on load)
@@ -304,23 +311,25 @@ export class World {
     const br = this.toWorld(w, h)
     this.drawChunks(ctx, tl, br)
 
-    if (this.showGrid && cam.zoom >= GRID_MIN_ZOOM) {
-      ctx.strokeStyle = 'rgba(0,0,0,0.08)'
+    if (this.showGrid) {
       ctx.lineWidth = 1 / cam.zoom
       // Only inside the world: the area around it stays plain.
       const { half } = this
-      const [x0, x1] = [Math.max(Math.floor(tl.x), -half.x), Math.min(br.x, half.x)]
-      const [y0, y1] = [Math.max(Math.floor(tl.y), -half.y), Math.min(br.y, half.y)]
-      ctx.beginPath()
-      for (let x = x0; x <= x1; x++) {
-        ctx.moveTo(x, y0)
-        ctx.lineTo(x, y1)
+      const [x0, x1] = [Math.max(tl.x, -half.x), Math.min(br.x, half.x)]
+      const [y0, y1] = [Math.max(tl.y, -half.y), Math.min(br.y, half.y)]
+      for (const { step, color } of GRID_LEVELS.filter((l) => l.step * cam.zoom >= l.min).slice(0, 2)) {
+        ctx.strokeStyle = color
+        ctx.beginPath()
+        for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) {
+          ctx.moveTo(x, y0)
+          ctx.lineTo(x, y1)
+        }
+        for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) {
+          ctx.moveTo(x0, y)
+          ctx.lineTo(x1, y)
+        }
+        ctx.stroke()
       }
-      for (let y = y0; y <= y1; y++) {
-        ctx.moveTo(x0, y)
-        ctx.lineTo(x1, y)
-      }
-      ctx.stroke()
     }
     for (const r of this.sketch ? [...this.rects, this.sketch] : this.rects) {
       const [rw, rh] = [r.x1 - r.x0 + 1, r.y1 - r.y0 + 1]

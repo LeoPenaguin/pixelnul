@@ -1,4 +1,4 @@
-<!-- World statistics: key figures, activity over the last 24 hours, colours on the board, the most disputed pixel. -->
+<!-- World statistics: key figures (visitors included), activity over the last 24 hours, colours on the board, the most disputed pixel. -->
 <script lang="ts">
   import { fetchStats, type Stats } from '../lib/api'
   import { colorName } from '../lib/colors'
@@ -65,6 +65,10 @@
       </div>
       <div class="tile">
         <span class="big">{fmt(s.online)}</span><span>{s.online > 1 ? 'connectés' : 'connecté'}</span>
+      </div>
+      <div class="tile">
+        <span class="big">{fmt(s.visitors)}</span>
+        <span>{s.visitors > 1 ? "visiteurs aujourd'hui" : "visiteur aujourd'hui"}</span>
       </div>
     </div>
 
@@ -139,7 +143,7 @@
   .note {
     margin: 0;
   }
-  /* Three in a row, fewer per row when the dialog is narrow (phone, enlarged interface). */
+  /* Four in a row, fewer per row when the dialog is narrow (phone, enlarged interface). */
   .tiles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));

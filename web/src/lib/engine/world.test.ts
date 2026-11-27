@@ -81,6 +81,27 @@ describe('rendering', () => {
     await frames(10)
   })
 
+  test('zoomed out, the grid keeps a line every 10 and every 100 pixels, darker', async () => {
+    const w = setup()
+    w.setCam({ x: 50, y: 0, zoom: 2 }) // (50, 0) at the centre (200, 150); a pixel line every 2 px: too dense
+    const red = (x: number) => rgbAt(canvas, x, 105)[0] // y = -22.5: on no horizontal line
+    await vi.waitFor(async () => {
+      await frames()
+      expect(red(120)).toBeLessThan(red(110)) // x = 10
+    })
+    expect(red(300)).toBeLessThan(red(120)) // x = 100: darker
+    expect(red(110)).toBe(red(112)) // x = 5, 6: no pixel lines
+
+    w.setCam({ x: 50, y: 0, zoom: 1 }) // tens 10 px apart: too dense, only the hundreds stay
+    await frames()
+    expect(red(160)).toBe(red(155)) // x = 10, 5
+    expect(red(250)).toBeLessThan(red(155)) // x = 100
+
+    w.setCam({ x: 95, y: 0, zoom: 12 }) // pixel lines too: the hundreds go, two levels at most
+    await frames()
+    expect(rgbAt(canvas, 260, 106)[0]).toBe(rgbAt(canvas, 140, 106)[0]) // x = 100 like x = 90
+  })
+
   test('live pixels and reload', async () => {
     const w = setup()
     w.setGrid(false) // no grid: exact colours

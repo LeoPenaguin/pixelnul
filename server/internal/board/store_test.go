@@ -160,6 +160,18 @@ func TestStats(t *testing.T) {
 		t.Errorf("hours = %v", st.Hours)
 	}
 
+	for _, v := range []struct {
+		who string
+		at  int64
+	}{{"u:1", now}, {"u:1", now}, {"1.2.3.4", now}, {"u:2", now - dayMs}} { // the last one, yesterday
+		if err := s.Visit(ctx, v.who, v.at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if st, _ = s.Stats(ctx, now); st.Visitors != 2 {
+		t.Errorf("visitors = %d; want 2 (twice the same, once yesterday)", st.Visitors)
+	}
+
 	mr.Close()
 	if _, err := s.Stats(ctx, now); err == nil {
 		t.Error("a Redis failure must be returned")

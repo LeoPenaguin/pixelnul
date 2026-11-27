@@ -69,6 +69,7 @@ beforeEach(() => {
             painted: 1,
             pixels: 921_600,
             online: 1,
+            visitors: 1,
             hottest,
             colors: [0, 1],
             hours: Array<number>(24).fill(0),
@@ -196,7 +197,7 @@ describe('accounts', () => {
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Minou')
     await page.getByRole('button', { name: 'Enregistrer' }).click()
     await announced('Bienvenue Minou, tu peux peindre')
-    await expect.element(page.getByRole('heading', { name: 'Bienvenue Minou !' })).toBeVisible()
+    await expect.element(page.getByRole('heading', { name: 'La toile' })).toBeVisible()
     expect(FakeWebSocket.instances).toHaveLength(2)
     FakeWebSocket.last.open()
     click(10, 10)
@@ -517,6 +518,27 @@ describe('keyboard', () => {
     await expect.element(page.getByRole('heading', { name: 'À propos' })).toBeVisible()
     press('g')
     await expect.poll(grid).toBe(true)
+    await userEvent.keyboard('{Escape}')
+  })
+
+  test('the welcome tour replays before the board loads, without the toolbar copy', async () => {
+    configResponse = () => new Promise<Response>(() => undefined)
+    const screen = await render(App)
+    await page.getByRole('button', { name: 'À propos' }).click()
+    await page.getByRole('button', { name: 'Revoir la présentation' }).click()
+    await page.getByRole('button', { name: 'Suivant' }).click()
+    await expect.element(page.getByRole('heading', { name: 'En bas : la couleur' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await screen.unmount()
+  })
+
+  test('the about dialog replays the welcome tour', async () => {
+    await start()
+    await page.getByRole('button', { name: 'À propos' }).click()
+    await page.getByRole('button', { name: 'Revoir la présentation' }).click()
+    await expect.element(page.getByRole('heading', { name: 'La toile' })).toBeVisible()
+    await page.getByRole('button', { name: 'Suivant' }).click()
+    expect(document.querySelector('.shot .toolbar')).not.toBeNull() // the palette is loaded
     await userEvent.keyboard('{Escape}')
   })
 

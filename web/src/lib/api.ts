@@ -36,7 +36,8 @@ export type Stats = {
   placed: number
   painted: number
   pixels: number
-  online: number
+  online: number // connected visitors: an account or an IP, whatever its number of tabs
+  visitors: number // visitors today (UTC day), estimated
   hottest: { x: number; y: number; changes: number } | null
   colors: number[]
   hours: number[]

@@ -24,6 +24,7 @@ import (
 //
 //	stats:hourly hash, "{Unix hour}" = paints during that hour (counted since this key exists)
 //	top:{day}    sorted set, user id → paints during that UTC day (Unix ms / 86,400,000); kept 2 days
+//	visitors:{day} HyperLogLog of the visitors of that UTC day (~1 % error, 12 KB a day, kept)
 type Store struct{ rdb redis.UniversalClient }
 
 // NewStore stores the world in the given Redis.
@@ -87,6 +88,12 @@ const (
 	// the visitor's time zone in the key.
 	dayMs = 86_400_000
 )
+
+// Visit counts a visitor (an account or an IP) for the UTC day of `at` (Unix ms). A HyperLogLog keeps
+// no visitor, only an estimate of how many there were.
+func (s *Store) Visit(ctx context.Context, who string, at int64) error {
+	return s.rdb.PFAdd(ctx, "visitors:"+strconv.FormatInt(at/dayMs, 10), who).Err()
+}
 
 // chunkKeys are the keys of a chunk: colours, counts, times, painters.
 func chunkKeys(id string) []string {
@@ -216,6 +223,8 @@ type Stats struct {
 	Colors  []int   `json:"colors"`  // pixels of each palette colour on the board (index 0 = white, unpainted included)
 	Hours   []int64 `json:"hours"`   // paints during each of the last 24 hours, oldest first, current hour last
 	Top     []Score `json:"-"`       // most paints today (UTC), best first, at most TopSize
+	// Visitors today (UTC): signed-in accounts and anonymous IPs, estimated.
+	Visitors int64 `json:"visitors"`
 }
 
 // Score is a user's paint count.
@@ -250,12 +259,14 @@ func (s *Store) Stats(ctx context.Context, now int64) (Stats, error) {
 		fields[i] = strconv.FormatInt(hour-23+int64(i), 10)
 	}
 	hours := pipe.HMGet(ctx, "stats:hourly", fields...)
-	top := pipe.ZRevRangeWithScores(ctx, "top:"+strconv.FormatInt(now/dayMs, 10), 0, TopSize-1)
+	day := strconv.FormatInt(now/dayMs, 10)
+	top := pipe.ZRevRangeWithScores(ctx, "top:"+day, 0, TopSize-1)
+	visitors := pipe.PFCount(ctx, "visitors:"+day)
 	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
 		return Stats{}, err
 	}
 
-	st := Stats{Pixels: WorldWidth * WorldHeight, Colors: make([]int, len(Palette)), Hours: make([]int64, 24)}
+	st := Stats{Pixels: WorldWidth * WorldHeight, Colors: make([]int, len(Palette)), Hours: make([]int64, 24), Visitors: visitors.Val()}
 	inWorld := func(c chunk, off int) (int, int, bool) {
 		x, y := c.cx*ChunkSize+off%ChunkSize, c.cy*ChunkSize+off/ChunkSize
 		return x, y, InWorld(x, y)

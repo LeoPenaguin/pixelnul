@@ -255,7 +255,7 @@ func TestStatsRoute(t *testing.T) {
 		_ = json.Unmarshal(w.Body.Bytes(), &st)
 		return w.Code, st
 	}
-	c := e.s.hub.subscribe() // one connected client
+	c := e.s.hub.subscribe("1.2.3.4") // one connected client
 	defer e.s.hub.unsubscribe(c)
 
 	if code, st := stats(); code != 200 || st.Placed != 0 || st.Online != 1 || st.Pixels != board.WorldWidth*board.WorldHeight {

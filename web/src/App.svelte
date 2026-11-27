@@ -340,7 +340,7 @@
      is bound before the engine starts. -->
 <canvas class="panel minimap" bind:this={minimap} hidden={!cfg} aria-hidden="true"></canvas>
 <HelpDialog bind:this={help} />
-<AboutDialog bind:this={about} />
+<AboutDialog bind:this={about} onwelcome={() => welcome.open(user?.pseudo ?? '')} />
 <SettingsDialog bind:this={settingsDialog} bind:settings />
 <AccountDialog
   bind:this={accountDialog}
@@ -351,7 +351,14 @@
   ondelete={() => leave(deleteAccount, 'Compte supprimé')}
 />
 
-<WelcomeDialog bind:this={welcome} quota={limits} />
+<WelcomeDialog
+  bind:this={welcome}
+  quota={limits}
+  rows={cfg?.palette ?? []}
+  {color}
+  report={auth}
+  minimap={() => minimap}
+/>
 
 <!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. -->
 {#if down || lost}

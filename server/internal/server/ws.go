@@ -41,7 +41,12 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	send := s.hub.subscribe()
+	visitor := ip
+	if user != "" {
+		visitor = "u:" + user
+	}
+	_ = s.store.Visit(ctx, visitor, s.now().UnixMilli()) // best effort: a lost count is not worth a lost connection
+	send := s.hub.subscribe(visitor)
 	defer s.hub.unsubscribe(send)
 	go s.writeLoop(ctx, conn, send)
 	if canPaint && user != "" {

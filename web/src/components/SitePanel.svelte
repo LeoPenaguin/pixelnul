@@ -1,6 +1,7 @@
 <!-- Site panel (top left, above the X / Y panel): brand | site links | account. -->
 <script lang="ts">
   import Heart from '~icons/mingcute/heart-fill'
+  import Shield from '~icons/mingcute/shield-fill'
   import UserIcon from '~icons/mingcute/user-3-fill'
   import type { User } from '../lib/api'
   import { Button } from './ui/button'
@@ -39,7 +40,10 @@
     {#if auth}
       <Separator orientation="vertical" decorative class="sep" />
       {#if user?.admin}
-        <Button variant="ghost" aria-haspopup="dialog" onclick={onadmin}>Modération</Button>
+        <Button variant="ghost" aria-haspopup="dialog" title="Modération" onclick={onadmin}>
+          <Shield aria-hidden="true" />
+          <span class="sr-only">Modération</span>
+        </Button>
       {/if}
       <!-- Signed in: the pseudo is the name. -->
       <Button
