@@ -121,7 +121,7 @@ The deploy is skipped until the `production` environment has a `DEPLOY_HOST`, so
 
 ### One-time VPS setup
 
-On the server (Debian/Ubuntu, Redis installed), with a `deploy` user that owns `/opt/pixelnul`:
+On the server (Debian/Ubuntu, Redis installed), with a `pixelnul` user that owns `/opt/pixelnul` and nothing else (one user per app, so other sites on the same VPS cannot touch it: `adduser --disabled-password pixelnul`):
 
 ```text
 /opt/pixelnul/
@@ -138,7 +138,7 @@ Description=pixelnul
 After=network.target redis-server.service
 
 [Service]
-User=deploy
+User=pixelnul
 WorkingDirectory=/opt/pixelnul
 ExecStart=/opt/pixelnul/current/pixelnul
 Environment=ADDR=127.0.0.1:3007
@@ -148,10 +148,10 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-Let the deploy user restart it, and nothing else (`visudo -f /etc/sudoers.d/pixelnul`):
+Let that user restart it, and nothing else (`visudo -f /etc/sudoers.d/pixelnul`):
 
 ```text
-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart pixelnul
+pixelnul ALL=(root) NOPASSWD: /usr/bin/systemctl restart pixelnul
 ```
 
 The reverse proxy, on the same machine, serves `/opt/pixelnul/current/web` and forwards `/api` and `/ws` to `127.0.0.1:3007`, appending the client to `X-Forwarded-For` (Caddy does both by default):
@@ -171,8 +171,8 @@ Settings → Environments → `production` (optionally with yourself as required
 
 | Kind | Name | Value |
 | --- | --- | --- |
-| secret | `DEPLOY_SSH_KEY` | private key of a dedicated pair (`ssh-keygen -t ed25519 -f deploy`), public half in `~deploy/.ssh/authorized_keys` |
+| secret | `DEPLOY_SSH_KEY` | private key of a dedicated pair (`ssh-keygen -t ed25519 -f pixelnul-deploy`), public half in `~pixelnul/.ssh/authorized_keys` |
 | variable | `DEPLOY_HOST` | server address |
-| variable | `DEPLOY_USER` | `deploy` |
+| variable | `DEPLOY_USER` | `pixelnul` |
 | variable | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan <host>`, checked against the server's fingerprint |
 | variable | `DEPLOY_PATH` | optional, default `/opt/pixelnul` |
