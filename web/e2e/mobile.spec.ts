@@ -87,3 +87,10 @@ test('a pinch on the interface does not zoom the page', async ({ page }) => {
   expect(await action(page.locator('.toolbar'))).toBe('pan-x pan-y')
   expect(await action(page.getByRole('application', { name: 'Board de pixels' }))).toBe('none')
 })
+
+test('tapping a button again and again does not select its label', async ({ page }) => {
+  await open(page)
+  // Text selection by taps is not scriptable reliably: the CSS that stops it is checked instead.
+  const zoom = page.getByRole('button', { name: 'Zoomer', exact: true })
+  expect(await zoom.evaluate((el) => getComputedStyle(el).userSelect)).toBe('none')
+})
