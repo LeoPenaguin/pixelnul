@@ -148,10 +148,9 @@ describe('painting pixels', () => {
     expect(ws.sent).toHaveLength(3)
   })
 
-  test('offline: nothing is sent, the disconnection and then the reconnection are shown', async () => {
+  test('offline: nothing is sent, a short drop shows nothing, a lasting one is shown until reconnected', async () => {
     const { ws } = await start()
     ws.close()
-    await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).toBeVisible()
     click(10, 10)
     await announced('Hors ligne, pixel non posé')
     await vi.waitFor(
@@ -159,6 +158,15 @@ describe('painting pixels', () => {
         expect(FakeWebSocket.instances).toHaveLength(2)
       },
       { timeout: 3000 }, // reconnects after 1 to 2 s
+    )
+    expect(page.getByRole('heading', { name: 'Petit souci technique' }).query()).toBeNull() // not yet 3 s
+    FakeWebSocket.last.close() // that retry fails too: the error shows once the drop has lasted 3 s
+    await expect.element(page.getByRole('heading', { name: 'Petit souci technique' }), { timeout: 3000 }).toBeVisible()
+    await vi.waitFor(
+      () => {
+        expect(FakeWebSocket.instances).toHaveLength(3)
+      },
+      { timeout: 3000 },
     )
     FakeWebSocket.last.open()
     await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).not.toBeInTheDocument()
@@ -696,11 +704,13 @@ describe('keyboard', () => {
 })
 
 describe('loading', () => {
-  test('server unreachable: a message instead of the board, inert shortcuts, then retry', async () => {
+  test('server unreachable: loading at first, then a message instead of the board, inert shortcuts, then retry', async () => {
     let fail = true
     configResponse = () => (fail ? new Response('', { status: 503 }) : Response.json(config))
     const screen = await render(App)
-    await expect.element(page.getByRole('heading', { name: 'Petit souci technique' })).toBeVisible()
+    await expect.element(page.getByText('Chargement…')).toBeVisible() // a first failure is not shown
+    await expect.element(page.getByRole('heading', { name: 'Petit souci technique' }), { timeout: 4000 }).toBeVisible()
+    await expect.element(page.getByText('Chargement…')).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', { name: 'Zoomer', exact: true })).not.toBeInTheDocument()
     for (const k of ['ArrowUp', 'Enter', '+', '-', '0', 'g', 'c', 'Escape']) press(k)
     fail = false

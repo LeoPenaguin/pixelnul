@@ -49,6 +49,8 @@
   import { STICKERS, stickerPicture } from './lib/stickers'
 
   const RETRY_MS = 2000 // server unreachable on load: retry
+  // A failure shorter than this (a retry that works, a connection dropped while the phone was asleep) shows no error.
+  const DOWN_DELAY_MS = 3000
   const INFO_DELAY_MS = 200 // a pixel's history loads after a short pause on it
 
   let canvas: HTMLCanvasElement
@@ -78,8 +80,8 @@
   let info = $state<PixelInfo | null>(null)
   let quota = $state({ n: Infinity, at: 0 }) // the server is authoritative ("q" message)
   let now = $state(Date.now())
-  let lost = $state(false) // true only after a disconnection, not on first load
-  let down = $state(false) // server unreachable on load (retried every RETRY_MS)
+  let lost = $state(0) // when the live connection dropped after loading; 0: connected (or not yet)
+  let down = $state(0) // when the server became unreachable on load (retried every RETRY_MS); 0: reachable
   let message = $state('') // screen reader announcement
   let selection = $state<{ rects: Rect[]; corner: Point | null } | null>(null) // moderation: zones to paint over
   let sticker = $state<number | null>(null) // moderation: the sticker a click pastes (index in STICKERS), null: off
@@ -343,7 +345,7 @@
     try {
       // /api/me answers null when signed out, or when sign-in is off.
       const [conf, me] = await Promise.all([fetchConfig(), fetchMe()])
-      down = false
+      down = 0
       cfg = conf
       colors = conf.palette.flat()
       half = { w: conf.worldWidth / 2, h: conf.worldHeight / 2 }
@@ -372,10 +374,10 @@
       w.setMinimap(minimap)
       live = new Live({
         onOpen: () => {
-          lost = false
+          lost = 0
           w.reload() // pixels may have been missed while disconnected
         },
-        onClose: () => (lost = true),
+        onClose: () => (lost ||= Date.now()), // kept across retries: the time of the first one
         onPixel: (x, y, c) => {
           w.setPixel(x, y, c)
           if (isHovered({ x, y })) loadInfo() // the targeted pixel just changed
@@ -388,7 +390,7 @@
       })
       live.connect()
     } catch {
-      down = true
+      down ||= Date.now()
       setTimeout(() => void init(), RETRY_MS)
     }
   }
@@ -447,9 +449,12 @@
 
 <WelcomeDialog bind:this={welcome} quota={limits} rows={cfg?.palette ?? []} {color} report={auth} />
 
-<!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. -->
-{#if down || lost}
+<!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. Only
+     once it lasts: until then, and while the page loads, a plain loading notice. -->
+{#if (down || lost) && now - (down || lost) >= DOWN_DELAY_MS}
   <ServerDown />
+{:else if !cfg}
+  <p class="panel loading" role="status">Chargement…</p>
 {/if}
 
 <!-- Top-left column: the site panel, then the pixel panel (once loaded) which grows on its own. -->
@@ -561,6 +566,13 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+  .loading {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    padding: 12px 16px;
   }
   .minimap {
     top: 12px;
