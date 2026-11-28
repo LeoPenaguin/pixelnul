@@ -22,8 +22,10 @@ import {
 import { context2d } from './canvas'
 import { Chunks } from './chunks'
 import { MINIMAP_SPAN, smoothSpan, stepSpan } from './minimap'
+import type { Picture } from '../stamp'
 
 const DRAG_THRESHOLD = 4 // px: below this, it is a click
+const GHOST_ALPHA = 0.7 // the sticker about to be pasted, over the board
 // Lines every pixel, every 10 and every 100, darker as they get rarer: once the pixel lines are too dense,
 // the others still tell where you are. Only the two finest that fit are drawn: three is too busy.
 // min: CSS px between two lines, below which the level is not drawn (landmarks need more room than pixels).
@@ -64,6 +66,7 @@ export class World {
   /** Moderation: a drag or two clicks (or Enter on two pixels) draw zones, instead of panning and painting. */
   selecting = false
   rects: Rect[] = []
+  private ghost: OffscreenCanvas | null = null
   corner: Point | null = null // first corner of a zone drawn by clicks
   /** The zones or the pending corner changed. */
   onSelect: () => void = () => undefined
@@ -192,6 +195,17 @@ export class World {
     }
     this.corner = p
     this.onSelect()
+    this.redraw()
+  }
+
+  /** Moderation: the sticker a click pastes, drawn centred on the targeted pixel; null: none. */
+  setGhost(p: Picture | null) {
+    this.ghost = null
+    if (p) {
+      const c = new OffscreenCanvas(p.width, p.height)
+      context2d(c).putImageData(new ImageData(p.data, p.width, p.height), 0, 0)
+      this.ghost = c
+    }
     this.redraw()
   }
 
@@ -338,6 +352,11 @@ export class World {
       outline(ctx, r.x0, r.y0, rw, rh, 2 / cam.zoom)
     }
     if (this.corner) outline(ctx, this.corner.x, this.corner.y, 1, 1, 4 / cam.zoom)
+    if (this.hover && this.ghost) {
+      ctx.globalAlpha = GHOST_ALPHA
+      ctx.drawImage(this.ghost, this.hover.x - (this.ghost.width >> 1), this.hover.y - (this.ghost.height >> 1))
+      ctx.globalAlpha = 1
+    }
     if (this.hover) outline(ctx, this.hover.x, this.hover.y, 1, 1, 2 / cam.zoom)
     // Rounded like the panels (8 CSS px), at most a circle when zoomed out.
     if (this.target)

@@ -10,6 +10,7 @@ import AccountDialog from './AccountDialog.svelte'
 import AdminDialog from './AdminDialog.svelte'
 import ReportDialog from './ReportDialog.svelte'
 import SelectionBar from './SelectionBar.svelte'
+import StickerBar from './StickerBar.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HelpDialog from './HelpDialog.svelte'
 import PixelPanel from './PixelPanel.svelte'
@@ -334,6 +335,7 @@ describe('AdminDialog', () => {
     onselect: vi.fn(),
     onban: vi.fn(() => Promise.resolve<string | null>(null)),
     onstamp: vi.fn(() => Promise.resolve<string | null>(null)),
+    onstickers: vi.fn(),
   })
 
   test('lists the reports: goes to one, dismisses another', async () => {
@@ -390,6 +392,15 @@ describe('AdminDialog', () => {
     p.onstamp.mockResolvedValueOnce('Image illisible')
     await screen.getByRole('button', { name: 'Poser' }).click()
     await expect.element(screen.getByText('Image illisible')).toBeVisible()
+  })
+
+  test('closes to paste stickers on the board', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    await screen.getByRole('button', { name: 'Coller des stickers' }).click()
+    expect(p.onstickers).toHaveBeenCalledOnce()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
 
   test('bans and unbans a pseudo, says when it is unknown', async () => {
@@ -766,5 +777,19 @@ describe('WelcomeDialog', () => {
       .toBeVisible()
     await expect.element(screen.getByRole('button', { name: 'Au travail' })).toBeVisible() // no minimap, no flag
     vi.unstubAllGlobals()
+  })
+})
+
+describe('StickerBar', () => {
+  test('shows every sticker, the picked one pressed; picks another, says what happened, stops', async () => {
+    const props = { picked: 0, status: 'Chat collé en 1, 2', onpick: vi.fn(), ondone: vi.fn() }
+    const screen = await render(StickerBar, props)
+    await expect.element(screen.getByRole('button', { name: 'Chat' })).toHaveAttribute('aria-pressed', 'true')
+    await expect.element(screen.getByRole('button', { name: 'Aubergine' })).toHaveAttribute('aria-pressed', 'false')
+    await expect.element(screen.getByRole('status')).toHaveTextContent('Chat collé en 1, 2')
+    await screen.getByRole('button', { name: 'Étoile' }).click()
+    expect(props.onpick).toHaveBeenCalledWith(2)
+    await screen.getByRole('button', { name: 'Terminer' }).click()
+    expect(props.ondone).toHaveBeenCalledOnce()
   })
 })

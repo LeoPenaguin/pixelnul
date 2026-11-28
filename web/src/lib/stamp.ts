@@ -3,7 +3,7 @@
 import { hexToRgb } from './colors'
 import { context2d } from './engine/canvas'
 
-export type Picture = { data: Uint8ClampedArray; width: number; height: number }
+export type Picture = { data: Uint8ClampedArray<ArrayBuffer>; width: number; height: number }
 export type Block = { x0: number; y0: number; x1: number; y1: number; c: number } // corners included
 
 /** Decodes an image file (rejects when it is not one). */

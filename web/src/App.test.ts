@@ -379,7 +379,7 @@ describe('accounts', () => {
       await expect.element(page.getByText(text)).toBeVisible()
     }
     await lay(new File(['nope'], 'nope.png', { type: 'image/png' }), '0', 'Image illisible')
-    await lay(png, '639', "L'image dépasse de la toile")
+    await lay(png, '639', 'Ça dépasse de la toile')
     adminStatus = 500
     await lay(png, '-639', 'Impossible pour le moment')
     adminStatus = 204
@@ -389,6 +389,31 @@ describe('accounts', () => {
       { url: '/api/admin/fill', body: { x0: 9, y0: 0, x1: 10, y1: 0, c: 5 } },
       { url: '/api/admin/fill', body: { x0: 11, y0: 0, x1: 11, y1: 0, c: 6 } },
     ])
+  })
+
+  test('an admin pastes stickers with Enter or a click, instead of painting', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    const { ws } = await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('button', { name: 'Coller des stickers' }).click()
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(board())
+    })
+    press('Enter') // shows the cursor on 0, 0
+    press('Enter')
+    await announced('Chat collé en 0, 0')
+    expect(adminCalls[0]).toEqual({ url: '/api/admin/fill', body: { x0: -4, y0: -5, x1: -3, y1: -5, c: 5 } }) // left ear
+    await page.getByRole('button', { name: 'Cœur' }).click()
+    await expect.element(page.getByRole('button', { name: 'Cœur' })).toHaveAttribute('aria-pressed', 'true')
+    adminStatus = 500
+    const r = board().getBoundingClientRect()
+    click(r.left + r.width / 2 + 1, r.top + r.height / 2 + 1)
+    await announced('Impossible pour le moment')
+    expect(ws.sent).toHaveLength(0) // no pixel painted
+    await page.getByRole('button', { name: 'Terminer' }).click()
+    await expect.element(page.getByRole('button', { name: 'Cœur' })).not.toBeInTheDocument()
   })
 
   test('anyone reports what is around the view centre; a refusal says why', async () => {

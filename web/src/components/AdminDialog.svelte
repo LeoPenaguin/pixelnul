@@ -16,8 +16,9 @@
     onselect: () => void // starts drawing the zones to paint over, on the board
     onban: (pseudo: string, banned: boolean) => Promise<string | null> // resolves to a refusal
     onstamp: (file: File, x: number, y: number) => Promise<string | null> // lays an image centred on x, y
+    onstickers: () => void // starts pasting stickers, on the board
   }
-  const { now, onreports, ondismiss, onjump, onselect, onban, onstamp }: Props = $props()
+  const { now, onreports, ondismiss, onjump, onselect, onban, onstamp, onstickers }: Props = $props()
 
   const LATER = 'Impossible pour le moment'
 
@@ -106,6 +107,10 @@
   <h3>Repeindre des zones</h3>
   <p>Trace une ou plusieurs zones sur la toile, puis remplis-les dans la couleur choisie.</p>
   <Button onclick={() => onboard(onselect)}>Sélectionner sur la toile</Button>
+
+  <h3>Stickers</h3>
+  <p>Un petit dessin collé d'un clic, par-dessus ce qui est là.</p>
+  <Button onclick={() => onboard(onstickers)}>Coller des stickers</Button>
 
   <h3>Poser une image</h3>
   <p>
