@@ -258,7 +258,8 @@ describe('accounts', () => {
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     const { ws } = await start()
     await page.getByRole('button', { name: 'Modération' }).click()
-    await page.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
+    await page.getByRole('button', { name: 'Repeindre des zones' }).click()
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
     await vi.waitFor(() => {
       expect(document.activeElement).toBe(board())
@@ -313,7 +314,8 @@ describe('accounts', () => {
     await expect.element(page.getByRole('region', { name: 'Zones à repeindre' })).not.toBeInTheDocument()
 
     await page.getByRole('button', { name: 'Modération' }).click()
-    await page.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
+    await page.getByRole('button', { name: 'Repeindre des zones' }).click()
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
     await vi.waitFor(() => {
       expect(document.activeElement).toBe(board())
@@ -347,6 +349,7 @@ describe('accounts', () => {
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     await start()
     await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Joueurs' }).click()
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Kevin')
     for (const [status, text] of [
       [204, 'Kevin : compte banni'],
@@ -365,6 +368,7 @@ describe('accounts', () => {
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     await start()
     await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
     const canvas = new OffscreenCanvas(3, 1)
     const ctx = canvas.getContext('2d')
     ctx!.fillStyle = '#000000'
@@ -396,6 +400,7 @@ describe('accounts', () => {
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     const { ws } = await start()
     await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
     await page.getByRole('button', { name: 'Coller des stickers' }).click()
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
     await vi.waitFor(() => {
@@ -421,6 +426,7 @@ describe('accounts', () => {
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     const { ws } = await start()
     await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Effacer' }).click()
     await page.getByRole('textbox', { name: 'Tape EFFACER pour confirmer' }).fill('EFFACER')
     await page.getByRole('button', { name: 'Effacer la toile' }).click()
     await expect.element(page.getByText('Toile effacée')).toBeVisible()
