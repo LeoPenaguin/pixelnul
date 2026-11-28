@@ -1,7 +1,9 @@
 """Pixel-art text for the board: the house cat (web/public/favicon.svg) above lines in a 3×5 font, as a PNG
 to lay with Modération → « Poser une image ». The logo uses palette colours only, so nothing shifts on import.
 
-    python3 tools/pixeltext.py out.png "1. CHOISIS UNE COULEUR EN BAS" "2. CLIQUE SUR LA TOILE" ...
+    python3 tools/pixeltext.py out.png "1. Choisis une *couleur* en bas" "2. Clique sur la toile" ...
+
+Words between asterisks are drawn in rainbow: one vivid palette colour per letter.
 
 Needs Pillow. Unknown characters are an error: add their glyph to CAPS or SMALL.
 """
@@ -49,6 +51,11 @@ SMALL = {  # x-height rows 1-3, plus row 0 (ascender, accent) and row 4 (descend
 FONT = {**{k: v + " " + "0" * len(v.split()[0]) for k, v in CAPS.items()}, **SMALL}
 
 
+# The palette's vivid row, red to purple.
+RAINBOW = [(0xE5, 0x25, 0x21), (0xFF, 0x8A, 0x1F), (0xFF, 0xE1, 0x35), (0x2E, 0xCC, 0x40),
+           (0x00, 0xB8, 0xB8), (0x1F, 0x5B, 0xFF), (0x8A, 0x2B, 0xE2)]
+
+
 def width(line: str) -> int:
     return sum(len(FONT[ch].split()[0]) + 1 for ch in line) - 1
 
@@ -59,19 +66,25 @@ def main(out: str, lines: list[str]) -> None:
     for fill, d in re.findall(r'fill="(#\w+)" d="([^"]+)"', svg):
         for x, y in re.findall(r"M(\d+) (\d+)", d):
             cat[int(x), int(y)] = fill
-    tw = max(width(line) for line in lines)
+    tw = max(width(line.replace("*", "")) for line in lines)
     w, h = max(tw, 10), 10 + GAP + 6 * len(lines) - 1
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     for (x, y), hexa in cat.items():
         img.putpixel(((w - 10) // 2 + x, y), tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5)) + (255,))
     for n, line in enumerate(lines):
         cx, top = (w - tw) // 2, 10 + GAP + 6 * n
+        rainbow, hue = False, 0
         for ch in line:
+            if ch == "*":
+                rainbow, hue = not rainbow, 0
+                continue
+            ink = RAINBOW[hue % len(RAINBOW)] if rainbow else INK
+            hue += rainbow and ch != " "
             rows = FONT[ch].split()
             for r, row in enumerate(rows):
                 for k, bit in enumerate(row):
                     if bit == "1":
-                        img.putpixel((cx + k, top + r), INK + (255,))
+                        img.putpixel((cx + k, top + r), ink + (255,))
             cx += len(rows[0]) + 1
     img.save(out)
     print(f"{out}: {w} × {h}")
