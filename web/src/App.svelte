@@ -393,10 +393,17 @@
     }
   }
 
+  /** Safari pinches the whole page whatever touch-action says: only the board zooms (it handles its own pinch). */
+  function gesturestart(e: Event) {
+    if (e.target !== canvas) e.preventDefault()
+  }
+
   onMount(() => {
+    document.addEventListener('gesturestart', gesturestart)
     const clock = setInterval(() => (now = Date.now()), 250)
     void init()
     return () => {
+      document.removeEventListener('gesturestart', gesturestart)
       clearInterval(clock)
       live?.close()
     }

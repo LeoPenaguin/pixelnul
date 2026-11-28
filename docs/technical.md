@@ -43,7 +43,7 @@ See [CLAUDE.md](../CLAUDE.md) for conventions (naming, commits, branches, layout
 
 ## Controls
 
-- Drag, wheel or two fingers: pan. Ctrl + wheel, pinch or `+` / `-`: zoom.
+- Drag, wheel or two fingers: pan. Ctrl + wheel, pinch or `+` / `-`: zoom. A pinch on the interface does nothing (`touch-action: pan-x pan-y`, and `gesturestart` stopped for Safari): only the board zooms.
 - Click (without dragging): paint a pixel with the selected colour. Outside the 1280 × 720 world (grey area), nothing is painted.
 - The cursor shows what a click would do: crosshair = paint, hand = outside the world (pan only), forbidden = no pixel left or offline, closed hand while dragging.
 - Phones (small touch screens): no X / Y panel and no minimap, the board is navigated by hand.
