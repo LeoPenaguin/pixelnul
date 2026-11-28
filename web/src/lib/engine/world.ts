@@ -1,4 +1,4 @@
-// Board engine: camera, animations, mouse / wheel / minimap input, Canvas2D rendering.
+// Board engine: camera, animations, mouse / touch / wheel / minimap input, Canvas2D rendering.
 // Independent of Svelte: App.svelte only wires it up.
 import type { Config } from '../api'
 import {
@@ -87,6 +87,8 @@ export class World {
     from: Point | null // start pixel of a zone being drawn; null: the drag pans
   } | null = null
   private sketch: Rect | null = null // zone being dragged
+  private fingers = new Map<number, Point>() // pointers down on the board, screen coordinates
+  private pinch: { dist: number; mx: number; my: number } | null = null // last two-finger measure
   private minimap?: HTMLCanvasElement
   private mini = { x0: 0, y0: 0, span: MINIMAP_SPAN[0] as number } // world area shown by the minimap
   private miniTarget: number = MINIMAP_SPAN[0] // target step; `mini.span` glides towards it
@@ -104,6 +106,7 @@ export class World {
     canvas.addEventListener('pointermove', this.move)
     canvas.addEventListener('pointerup', this.up)
     canvas.addEventListener('pointerleave', this.leave)
+    canvas.addEventListener('pointercancel', this.cancel)
     canvas.addEventListener('wheel', this.wheel, { passive: false })
     new ResizeObserver(this.redraw).observe(canvas)
   }
@@ -432,8 +435,24 @@ export class World {
     this.redraw()
   }
 
+  /** Distance and midpoint of the two fingers. */
+  private measurePinch() {
+    const [a, b] = [...this.fingers.values()] as [Point, Point]
+    return { dist: Math.hypot(b.x - a.x, b.y - a.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }
+  }
+
   private down = (e: PointerEvent) => {
-    if (this.drag) return
+    this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (this.fingers.size === 2) {
+      // A second finger: the gesture becomes a pinch, the first finger neither paints nor draws.
+      this.canvas.setPointerCapture(e.pointerId)
+      this.drag = null
+      this.sketch = null
+      this.pinch = this.measurePinch()
+      this.redraw()
+      return
+    }
+    if (this.drag || this.pinch) return
     this.canvas.setPointerCapture(e.pointerId)
     // Selecting: the main button draws, the others still pan.
     const from = this.selecting && e.button === 0 ? clampPixel(this.cellAt(e), this.half) : null
@@ -441,6 +460,17 @@ export class World {
   }
 
   private move = (e: PointerEvent) => {
+    if (this.fingers.has(e.pointerId)) this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (this.pinch && this.fingers.size === 2 && this.fingers.has(e.pointerId)) {
+      const last = this.pinch
+      const next = this.measurePinch()
+      // Zoom around the last midpoint, then move it to the new one: the board stays under the fingers.
+      this.zoomAt(next.dist / last.dist, last.mx, last.my)
+      const { x, y, zoom } = this.cam
+      this.cam = clampCam({ x: x - (next.mx - last.mx) / zoom, y: y - (next.my - last.my) / zoom, zoom }, this.half)
+      this.pinch = next
+      return
+    }
     const d = this.drag
     if (d?.id === e.pointerId) {
       if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > DRAG_THRESHOLD) d.moved = true
@@ -473,6 +503,12 @@ export class World {
   }
 
   private up = (e: PointerEvent) => {
+    this.fingers.delete(e.pointerId)
+    if (this.pinch) {
+      // Lifting a finger ends the pinch; the one left does nothing until it is lifted too.
+      if (!this.fingers.size) this.pinch = null
+      return
+    }
     const d = this.drag
     if (d?.id !== e.pointerId) return
     this.drag = null
@@ -487,6 +523,16 @@ export class World {
       if (this.selecting) this.mark(cell)
       else this.onPlace(cell.x, cell.y)
     }
+  }
+
+  /** The browser took the pointer over (e.g. a system gesture): forget it, paint nothing. */
+  private cancel = (e: PointerEvent) => {
+    this.fingers.delete(e.pointerId)
+    if (!this.fingers.size) this.pinch = null
+    if (this.drag?.id === e.pointerId) this.drag = null
+    this.sketch = null
+    this.updateCursor()
+    this.redraw()
   }
 
   private leave = () => {
