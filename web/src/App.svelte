@@ -252,7 +252,7 @@
     world?.setGhost(i === null ? null : stickerPicture(STICKERS[i]))
   }
 
-  /** Moderation: lays the welcome image (logo and first steps) back on 0, 0, where the view opens. */
+  /** Moderation: lays the welcome image (the cat and « Salut ! ») back on 0, 0, where the view opens. */
   async function layWelcome() {
     return stamp(await (await fetch(welcomeUrl)).blob(), 0, 0)
   }
