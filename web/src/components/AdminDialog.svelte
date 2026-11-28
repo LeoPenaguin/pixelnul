@@ -20,8 +20,10 @@
     onstamp: (file: File, x: number, y: number) => Promise<string | null> // lays an image centred on x, y
     onstickers: () => void // starts pasting stickers, on the board
     onreset: () => Promise<string | null> // empties the board; resolves to a refusal
+    onwelcome: () => Promise<string | null> // lays the welcome image back on 0, 0; resolves to a refusal
   }
-  const { now, onreports, ondismiss, onjump, onselect, onban, onstamp, onstickers, onreset }: Props = $props()
+  const { now, onreports, ondismiss, onjump, onselect, onban, onstamp, onstickers, onreset, onwelcome }: Props =
+    $props()
 
   const LATER = 'Impossible pour le moment'
 
@@ -70,9 +72,9 @@
     action()
   }
 
-  async function stamp(file: File) {
+  async function stamp(lay: () => Promise<string | null>) {
     stampStatus = 'Pose en cours…'
-    stampStatus = (await onstamp(file, sx, sy)) ?? 'Image posée'
+    stampStatus = (await lay()) ?? 'Image posée'
   }
 
   async function reset() {
@@ -134,12 +136,16 @@
         <Button onclick={() => onboard(onselect)}>Repeindre des zones</Button>
         <Button onclick={() => onboard(onstickers)}>Coller des stickers</Button>
       </div>
+      <h3>Accueil</h3>
+      <p>Le logo et les trois premières étapes, au centre de la toile (0, 0), là où la vue s'ouvre.</p>
+      <Button onclick={() => void stamp(onwelcome)}>Poser l'accueil</Button>
       <h3>Poser une image</h3>
       <p>Un PNG : chaque couleur devient la plus proche de la palette, la transparence laisse la toile telle quelle.</p>
       <form
         onsubmit={(e) => {
           e.preventDefault()
-          void stamp(new FormData(e.currentTarget).get('image') as File) // required: always there
+          const file = new FormData(e.currentTarget).get('image') as File // required: always there
+          void stamp(() => onstamp(file, sx, sy))
         }}
       >
         <Label for={`${id}-image`}>Image</Label>

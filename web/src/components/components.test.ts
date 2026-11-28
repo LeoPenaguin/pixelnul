@@ -337,6 +337,7 @@ describe('AdminDialog', () => {
     onstamp: vi.fn(() => Promise.resolve<string | null>(null)),
     onstickers: vi.fn(),
     onreset: vi.fn(() => Promise.resolve<string | null>(null)),
+    onwelcome: vi.fn(() => Promise.resolve<string | null>(null)),
   })
 
   test('lists the reports: goes to one, dismisses another', async () => {
@@ -392,6 +393,8 @@ describe('AdminDialog', () => {
     await screen.getByRole('button', { name: 'Poser' }).click()
     expect(p.onstamp).toHaveBeenCalledWith(expect.objectContaining({ name: 'logo.png' }), -20, 7)
     await expect.element(screen.getByText('Image posée')).toBeVisible()
+    await screen.getByRole('button', { name: "Poser l'accueil" }).click()
+    expect(p.onwelcome).toHaveBeenCalledOnce()
     p.onstamp.mockResolvedValueOnce('Image illisible')
     await screen.getByRole('button', { name: 'Poser' }).click()
     await expect.element(screen.getByText('Image illisible')).toBeVisible()

@@ -43,6 +43,7 @@
   import { Live } from './lib/live'
   import { quotaAt } from './lib/quota'
   import { loadSettings, saveSettings } from './lib/settings'
+  import welcomeUrl from './assets/welcome.png' // tools/pixeltext.py, see docs/technical.md
   import { readImage, toBlocks, type Picture } from './lib/stamp'
   import { STICKERS, stickerPicture } from './lib/stickers'
 
@@ -233,7 +234,7 @@
     return null
   }
 
-  async function stamp(file: File, x: number, y: number) {
+  async function stamp(file: Blob, x: number, y: number) {
     let img
     try {
       img = await readImage(file)
@@ -249,6 +250,11 @@
   function pickSticker(i: number | null) {
     sticker = i
     world?.setGhost(i === null ? null : stickerPicture(STICKERS[i]))
+  }
+
+  /** Moderation: lays the welcome image (logo and first steps) back on 0, 0, where the view opens. */
+  async function layWelcome() {
+    return stamp(await (await fetch(welcomeUrl)).blob(), 0, 0)
   }
 
   function startStickers() {
@@ -460,6 +466,7 @@
       onstamp={stamp}
       onstickers={startStickers}
       onreset={resetBoard}
+      onwelcome={layWelcome}
     />
     {#if sticker !== null}
       <StickerBar picked={sticker} status={stickerStatus} onpick={pickSticker} ondone={() => pickSticker(null)} />

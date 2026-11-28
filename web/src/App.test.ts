@@ -23,6 +23,7 @@ let statsUp = true
 let accountStatus = 204 // answer of the account actions (pseudo, sign out, delete)
 let adminStatus = 204 // answer of the moderation routes
 let adminCalls: { url: string; body: unknown }[] = []
+let welcomePng: Blob = new Blob() // what the bundled welcome image answers
 let reports: Report[] = []
 let reportStatus = 204 // answer of POST /api/reports
 let reportCalls: unknown[] = []
@@ -51,6 +52,7 @@ beforeEach(() => {
       reportCalls.push(JSON.parse(init?.body as string))
       return new Response(null, { status: reportStatus })
     },
+    '/src/assets/welcome.png': () => new Response(welcomePng),
     '/api/admin/reports': (url, init) => {
       if (init?.method !== 'DELETE') return Response.json(reports)
       reports = reports.filter((r) => !url.endsWith(r.id))
@@ -393,6 +395,13 @@ describe('accounts', () => {
       { url: '/api/admin/fill', body: { x0: 9, y0: 0, x1: 10, y1: 0, c: 5 } },
       { url: '/api/admin/fill', body: { x0: 11, y0: 0, x1: 11, y1: 0, c: 6 } },
     ])
+    welcomePng = png
+    adminCalls = []
+    await page.getByRole('button', { name: "Poser l'accueil" }).click()
+    await vi.waitFor(() => {
+      expect(adminCalls).toHaveLength(2) // the same 3 × 1 picture, centred on 0, 0
+    })
+    expect(adminCalls[0]).toEqual({ url: '/api/admin/fill', body: { x0: -1, y0: 0, x1: 0, y1: 0, c: 5 } })
   })
 
   test('an admin pastes stickers with Enter or a click, instead of painting', async () => {
