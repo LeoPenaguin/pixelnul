@@ -82,6 +82,17 @@ No need to memorise them: run the linters. Things they will push you towards:
 - Commits: [Conventional Commits](https://www.conventionalcommits.org), English, imperative subject starting with a lower-case letter, no trailing period: `type(scope): subject`. Scopes (optional): `web`, `server`, `e2e`, `deps`, `repo`. Example: `feat(web): announce painted pixels to screen readers`. Breaking change: `feat(server)!: …`.
 - Work on a branch, then merge into `main`.
 
+## Ask first
+
+Claude may edit files and create a local branch on its own. Everything below needs the owner's explicit go-ahead **in the current request**; a yes for one task (e.g. "make a PR") does not carry over to the next one.
+
+- Commit, push, open a pull request, merge.
+- Create a tag or a release, run the release / deploy workflow.
+- Delete a branch (local or remote), rewrite history (force-push, rebase of a pushed branch).
+- Any command on the VPS or on production data (SSH, Redis).
+- Change CI or hooks: `.github/workflows/`, `web/.husky/`, linter configs.
+- Hand-written tooling or generic logic (CI steps, scripts, helpers): first look for a well-known existing tool (GitHub Action, installed library, CLI), propose the options, and wait for the owner's choice before writing code.
+
 ## Principles
 
 - Simplest thing that works; no speculative abstraction. A deliberate shortcut with a known ceiling gets a `ponytail:` comment naming the ceiling and the upgrade path (see `hub.go`, `server.go`, `ws.go`).
