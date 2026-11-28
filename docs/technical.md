@@ -109,11 +109,9 @@ Behind a reverse proxy, the proxy must run on the same machine (loopback) and ap
 
 ## Release and deploy
 
-`main` is always releasable (protected: pull requests only, CI green). A version is a `vX.Y.Z` tag on `main`, numbered from the Conventional Commits since the last one: `fix` → patch, `feat` → minor, `!` → major.
+`main` is always releasable (protected: pull requests only, CI green). Versions are `vX.Y.Z` tags, numbered by [release-please](https://github.com/googleapis/release-please) from the Conventional Commits merged since the last one: `fix` → patch, `feat` → minor, `!` → major.
 
-```sh
-gh release create v1.2.0 --target main --generate-notes
-```
+After every merge into `main`, [`.github/workflows/release-please.yml`](../.github/workflows/release-please.yml) opens or updates a « chore(main): release X.Y.Z » pull request (version in `version.txt`, notes in `CHANGELOG.md`). To ship, merge it: release-please tags `main` and creates the GitHub Release.
 
 The tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml): CI again, then a build (static Linux amd64 binary `pixelnul` + front in `web/`) attached to the GitHub Release as `pixelnul-v1.2.0.tar.gz`, then the deploy. To roll back, run the workflow by hand (Actions → Release → Run workflow) with an older tag; tags are never moved or deleted.
 
@@ -195,3 +193,5 @@ Settings → Environments → `production` (optionally with yourself as required
 | variable | `DEPLOY_USER` | `pixelnul` |
 | variable | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 <host>`, checked against the server's fingerprint |
 | variable | `DEPLOY_PATH` | optional, default `/opt/pixelnul` |
+
+Settings → Secrets and variables → Actions → repository secret `RELEASE_PLEASE_TOKEN`: a fine-grained personal access token on this repository only, with Contents and Pull requests in read and write (Settings → Developer settings → Fine-grained tokens). It must not be the default `GITHUB_TOKEN`, whose tags and pull requests start no workflow.

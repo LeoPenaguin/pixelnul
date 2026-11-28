@@ -5,5 +5,5 @@
     "MD013": false
   },
   "globs": ["**/*.md"],
-  "ignores": ["**/node_modules/**", "web/coverage/**", "web/playwright-report/**", "web/test-results/**"]
+  "ignores": ["**/node_modules/**", "web/coverage/**", "web/playwright-report/**", "web/test-results/**", "CHANGELOG.md"] // CHANGELOG.md: written by release-please
 }
