@@ -2,8 +2,8 @@
      showing where a control sits on a screen plan, next to an inert copy of the real component. -->
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import Bug from '~icons/mingcute/bug-fill'
   import Flag from '~icons/mingcute/flag-1-fill'
-  import { plural } from '../lib/format'
   import type { QuotaRules } from '../lib/quota'
   import KeyCap from './KeyCap.svelte'
   import Modal from './Modal.svelte'
@@ -28,19 +28,12 @@
 
   // Moving, zooming, painting and the minimap are found by trying: only the controls are shown.
   const steps: Step[] = $derived([
-    { title: quota ? 'En bas : couleur et stock' : 'En bas : la couleur', zone: 'bottom', body: tools, shot: toolbar },
-    { title: 'En bas à droite : les outils', zone: 'bottom-right', body: nav, shot: controls },
-    ...(report ? [{ title: 'Le drapeau : signaler', zone: 'bottom-right', body: flag, shot: flagShot } as const] : []),
+    { title: 'Choisis ta couleur', zone: 'bottom', body: tools, shot: toolbar },
+    { title: 'Les outils', zone: 'bottom-right', body: nav, shot: controls },
+    ...(report ? [{ title: 'Un souci ?', zone: 'bottom-right', body: flag, shot: flagShot } as const] : []),
   ])
   const step = $derived(steps[i])
   const last = $derived(i === steps.length - 1)
-  const toolsText = $derived(
-    `Zoomer, dézoomer, revenir en 0, 0, télécharger l'image, ${report ? 'signaler, ' : ''}afficher ou cacher la grille, l'accessibilité, les raccourcis clavier`,
-  )
-  const stockText = $derived(
-    quota &&
-      `La jauge compte tes pixels : ${plural(quota.burst, 'pixel')} d'affilée au plus, et elle en regagne un en ${plural(quota.refillMs / 1000, 'seconde')}.`,
-  )
 
   /** name: the pseudo to greet, '' when signed out. */
   export function open(name: string) {
@@ -51,21 +44,17 @@
 </script>
 
 {#snippet tools()}
-  {#if pseudo}<p>{`Bienvenue, ${pseudo}.`}</p>{/if}
-  <p>Le carré de couleur ouvre la palette (touche <Kbd><KeyCap key="C" /></Kbd>).</p>
-  {#if stockText}<p>{stockText}</p>{/if}
+  {#if pseudo}<p>{`Salut ${pseudo} !`}</p>{/if}
+  <p>Le carré ouvre la palette (touche <Kbd><KeyCap key="C" /></Kbd>).</p>
+  {#if quota}<p>La jauge, ce sont tes pixels : ils se rechargent tout seuls.</p>{/if}
 {/snippet}
 
 {#snippet nav()}
-  <!-- The text in its own element: Svelte would otherwise add a branch for it. -->
-  <p><span>{toolsText}</span> (touche <Kbd><KeyCap key="?" /></Kbd>).</p>
+  <p>Zoom, grille, téléchargement et raccourcis (touche <Kbd><KeyCap key="?" /></Kbd>).</p>
 {/snippet}
 
 {#snippet flag()}
-  <p>
-    Un dessin qui dérape, ou un bug : le drapeau l'envoie aux modérateurs. Pour un dessin, vise-le d'abord, la zone
-    autour du pixel visé part avec le signalement.
-  </p>
+  <p>Un dessin à signaler : le drapeau. Un bug : l'insecte.</p>
 {/snippet}
 
 {#snippet toolbar()}
@@ -86,11 +75,12 @@
     onsettings={noop}
     onhelp={noop}
     onreport={report ? noop : undefined}
+    onbug={report ? noop : undefined}
   />
 {/snippet}
 
 {#snippet flagShot()}
-  <div class="panel flag"><Flag class="size-5.5" aria-hidden="true" /></div>
+  <div class="panel flag"><Flag class="size-5.5" aria-hidden="true" /><Bug class="size-5.5" aria-hidden="true" /></div>
 {/snippet}
 
 <Modal bind:this={modal} title={step.title}>
@@ -110,7 +100,7 @@
     <span class="count">{`${String(i + 1)} / ${String(steps.length)}`}</span>
     <Button variant="ghost" disabled={i === 0} onclick={() => i--}>Précédent</Button>
     {#if last}
-      <Button onclick={() => modal.close()}>Au travail</Button>
+      <Button onclick={() => modal.close()}>Go !</Button>
     {:else}
       <Button onclick={() => i++}>Suivant</Button>
     {/if}
@@ -195,10 +185,9 @@
     margin: -4px 4px;
   }
   .flag {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
+    display: flex;
+    gap: 14px;
+    padding: 11px 12px;
   }
   .row {
     display: flex;

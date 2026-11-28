@@ -8,6 +8,7 @@
   import HelpDialog from './components/HelpDialog.svelte'
   import PixelPanel from './components/PixelPanel.svelte'
   import NavControls from './components/NavControls.svelte'
+  import ReportBar from './components/ReportBar.svelte'
   import ReportDialog from './components/ReportDialog.svelte'
   import SelectionBar from './components/SelectionBar.svelte'
   import ServerDown from './components/ServerDown.svelte'
@@ -60,7 +61,8 @@
   let accountDialog: { open: () => void }
   let welcome: { open: (pseudo: string) => void }
   let adminDialog = $state<{ open: () => void }>()
-  let reportDialog = $state<{ open: () => void }>()
+  let reportDialog = $state<{ open: (p: Point, bug?: boolean) => void }>()
+  let aiming = $state(false) // reporting: the next click on the board picks the drawing
   let downloadDialog = $state<{ open: () => void }>()
   let statsDialog = $state<{ open: () => Promise<void> }>()
   let world: World | undefined
@@ -270,6 +272,20 @@
     announce(stickerStatus)
   }
 
+  /** The flag: the next click on the board picks the drawing to report; again: gives up. */
+  function toggleAiming() {
+    pickSticker(null)
+    aiming = !aiming
+    if (!aiming) return
+    announce('Clique sur le dessin à signaler')
+    canvas.focus()
+  }
+
+  function report(p: Point) {
+    aiming = false
+    reportDialog?.open(p)
+  }
+
   function run(a: Action) {
     switch (a.type) {
       case 'move':
@@ -279,6 +295,7 @@
         if (!world?.hover)
           moveCursor(0, 0) // first press: shows the cursor
         else if (selection) world.mark(world.hover)
+        else if (aiming) report(world.hover)
         else if (sticker !== null) void paste(sticker, world.hover.x, world.hover.y)
         else place(world.hover.x, world.hover.y)
         break
@@ -305,7 +322,10 @@
         if (world?.corner)
           world.setRects(world.rects) // drops the pending corner
         else if (selection) stopSelecting()
-        else pickSticker(null)
+        else {
+          aiming = false
+          pickSticker(null)
+        }
         break
     }
   }
@@ -339,7 +359,8 @@
       }
       w.onPlace = (x, y) => {
         paletteOpen = false // a click on the board closes the palette
-        if (sticker !== null) void paste(sticker, x, y)
+        if (aiming) report({ x, y })
+        else if (sticker !== null) void paste(sticker, x, y)
         else place(x, y)
       }
       w.onSelect = () => {
@@ -477,7 +498,10 @@
     {/if}
   {/if}
   {#if auth}
-    <ReportDialog bind:this={reportDialog} position={hover ?? center} onsend={sendReport} />
+    <ReportDialog bind:this={reportDialog} onsend={sendReport} />
+    {#if aiming}
+      <ReportBar oncancel={() => (aiming = false)} />
+    {/if}
   {/if}
   <DownloadDialog
     bind:this={downloadDialog}
@@ -494,7 +518,9 @@
     ondownload={() => downloadDialog?.open()}
     onsettings={() => settingsDialog.open()}
     onhelp={() => help.open()}
-    onreport={auth ? () => reportDialog?.open() : undefined}
+    onreport={auth ? toggleAiming : undefined}
+    {aiming}
+    onbug={auth ? () => reportDialog?.open(center, true) : undefined}
   />
   <Toolbar
     bind:this={toolbar}

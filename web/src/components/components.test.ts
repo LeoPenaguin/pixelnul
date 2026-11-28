@@ -8,6 +8,7 @@ import { config, stubFetch } from '../test/fakes'
 import AboutDialog from './AboutDialog.svelte'
 import AccountDialog from './AccountDialog.svelte'
 import AdminDialog from './AdminDialog.svelte'
+import ReportBar from './ReportBar.svelte'
 import ReportDialog from './ReportDialog.svelte'
 import SelectionBar from './SelectionBar.svelte'
 import StickerBar from './StickerBar.svelte'
@@ -35,6 +36,7 @@ describe('NavControls', () => {
       onsettings: vi.fn(),
       onhelp: vi.fn(),
       onreport: vi.fn(),
+      onbug: vi.fn(),
     }
     const screen = await render(NavControls, { ...props, grid: true })
     await expect.element(screen.getByRole('button', { name: 'Grille' })).toHaveAttribute('aria-pressed', 'true')
@@ -45,7 +47,8 @@ describe('NavControls', () => {
     await screen.getByRole('button', { name: "Télécharger l'image" }).click()
     await screen.getByRole('button', { name: 'Accessibilité' }).click()
     await screen.getByRole('button', { name: 'Raccourcis clavier' }).click()
-    await screen.getByRole('button', { name: 'Signaler un contenu ou un bug' }).click()
+    await screen.getByRole('button', { name: 'Signaler un dessin' }).click()
+    await screen.getByRole('button', { name: 'Signaler un bug' }).click()
     for (const fn of Object.values(props)) expect(fn).toHaveBeenCalledOnce()
   })
 
@@ -60,6 +63,7 @@ describe('NavControls', () => {
       onsettings: vi.fn(),
       onhelp: vi.fn(),
       onreport: vi.fn(),
+      onbug: vi.fn(),
     })
     // Icon keys are read by their name ("plus"), text keys as they are.
     const tips = {
@@ -68,7 +72,8 @@ describe('NavControls', () => {
       'Recentrer sur 0, 0': 'Recentrer sur 0, 0 0',
       Grille: 'Grille G',
       Accessibilité: 'Accessibilité', // no shortcut
-      'Signaler un contenu ou un bug': 'Signaler un contenu ou un bug',
+      'Signaler un dessin': 'Signaler un dessin',
+      'Signaler un bug': 'Signaler un bug',
       'Raccourcis clavier': 'Raccourcis clavier ?',
     }
     for (const [name, description] of Object.entries(tips)) {
@@ -452,12 +457,13 @@ describe('AdminDialog', () => {
 })
 
 describe('ReportDialog', () => {
-  test('reports the content around the pixel, frozen on open, then thanks', async () => {
+  test('reports the drawing around the picked pixel, then thanks', async () => {
     const onsend = vi.fn(() => Promise.resolve<string | null>(null))
-    const screen = await render(ReportDialog, { position: { x: 3, y: -4 }, onsend })
-    screen.component.open()
-    await screen.rerender({ position: { x: 50, y: 50 } }) // the pointer moved since
-    await expect.element(screen.getByText(/Le contenu autour de 3, -4/)).toBeVisible()
+    const screen = await render(ReportDialog, { onsend })
+    screen.component.open({ x: 3, y: -4 })
+    await expect.element(screen.getByRole('heading', { name: 'Signaler un dessin' })).toBeVisible()
+    await expect.element(screen.getByRole('radio', { name: 'Un bug sur le site' })).not.toBeInTheDocument()
+    await expect.element(screen.getByText('Le dessin autour de 3, -4 sera montré à la modération.')).toBeVisible()
     await screen.getByRole('radio', { name: 'Informations personnelles' }).click()
     await screen.getByRole('textbox', { name: 'Précisions (facultatif)' }).fill('  un numéro  ')
     await screen.getByRole('button', { name: 'Envoyer' }).click()
@@ -465,12 +471,13 @@ describe('ReportDialog', () => {
     await expect.element(screen.getByText("Merci, c'est envoyé : la modération va regarder.")).toBeVisible()
   })
 
-  test('a bug needs a description, not a place; a refusal is shown', async () => {
+  test('a bug needs a description, not a place nor a reason; a refusal is shown', async () => {
     const onsend = vi.fn(() => Promise.resolve<string | null>('Impossible pour le moment'))
-    const screen = await render(ReportDialog, { position: { x: 0, y: 0 }, onsend })
-    screen.component.open()
-    await screen.getByRole('radio', { name: 'Un bug sur le site' }).click()
-    await expect.element(screen.getByText(/Le contenu autour/)).not.toBeInTheDocument()
+    const screen = await render(ReportDialog, { onsend })
+    screen.component.open({ x: 0, y: 0 }, true)
+    await expect.element(screen.getByRole('heading', { name: 'Signaler un bug' })).toBeVisible()
+    await expect.element(screen.getByRole('radio')).not.toBeInTheDocument()
+    await expect.element(screen.getByText(/Le dessin autour/)).not.toBeInTheDocument()
     const description = screen.getByRole('textbox', { name: 'Description' })
     await expect.element(description).toBeRequired()
     await description.fill('la palette reste fermée')
@@ -741,11 +748,9 @@ describe('WelcomeDialog', () => {
     const screen = await render(WelcomeDialog, props)
     const plan = () => document.querySelector('.plan')?.className
     screen.component.open('Minou')
-    await expect.element(screen.getByRole('heading', { name: 'En bas : couleur et stock' })).toBeVisible()
-    await expect.element(screen.getByText('Bienvenue, Minou.')).toBeVisible()
-    await expect
-      .element(screen.getByText(/3 pixels d'affilée au plus, et elle en regagne un en 30 secondes/))
-      .toBeVisible()
+    await expect.element(screen.getByRole('heading', { name: 'Choisis ta couleur' })).toBeVisible()
+    await expect.element(screen.getByText('Salut Minou !')).toBeVisible()
+    await expect.element(screen.getByText(/La jauge, ce sont tes pixels/)).toBeVisible()
     await expect.element(screen.getByText('1 / 3')).toBeVisible()
     expect(plan()).toContain('bottom')
     expect(document.querySelector('.shot .toolbar')).not.toBeNull() // the real toolbar, copied
@@ -754,40 +759,46 @@ describe('WelcomeDialog', () => {
     await expect.element(screen.getByRole('button', { name: 'Précédent' })).toBeDisabled()
 
     await screen.getByRole('button', { name: 'Suivant' }).click()
-    await expect.element(screen.getByRole('heading', { name: 'En bas à droite : les outils' })).toBeVisible()
-    await expect
-      .element(screen.getByText("signaler, afficher ou cacher la grille, l'accessibilité", { exact: false }))
-      .toBeVisible()
+    await expect.element(screen.getByRole('heading', { name: 'Les outils' })).toBeVisible()
+    await expect.element(screen.getByText(/Zoom, grille, téléchargement et raccourcis/)).toBeVisible()
     const shot = document.querySelector<HTMLElement>('.shot')
     expect(shot?.querySelector('.controls')).not.toBeNull()
     if (shot) shot.inert = false // were it not inert, its buttons would still do nothing
     shot?.querySelector<HTMLElement>('[aria-label="Zoomer"]')?.click()
-    await expect.element(screen.getByRole('heading', { name: 'En bas à droite : les outils' })).toBeVisible()
+    await expect.element(screen.getByRole('heading', { name: 'Les outils' })).toBeVisible()
     await screen.getByRole('button', { name: 'Précédent' }).click()
     await expect.element(screen.getByText('1 / 3')).toBeVisible()
     await screen.getByRole('button', { name: 'Suivant' }).click()
     await screen.getByRole('button', { name: 'Suivant' }).click()
-    await expect.element(screen.getByRole('heading', { name: 'Le drapeau : signaler' })).toBeVisible()
-    await screen.getByRole('button', { name: 'Au travail' }).click()
+    await expect.element(screen.getByRole('heading', { name: 'Un souci ?' })).toBeVisible()
+    await expect.element(screen.getByText("Un dessin à signaler : le drapeau. Un bug : l'insecte.")).toBeVisible()
+    await screen.getByRole('button', { name: 'Go !' }).click()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
 
     screen.component.open('Matou') // again: back to the first step
-    await expect.element(screen.getByText('Bienvenue, Matou.')).toBeVisible()
+    await expect.element(screen.getByText('Salut Matou !')).toBeVisible()
   })
 
   test('skips what is not there: stock, reports, the name when signed out', async () => {
     const screen = await render(WelcomeDialog, { quota: null, rows: [], color: 0, report: false })
     screen.component.open('')
-    await expect.element(screen.getByRole('heading', { name: 'En bas : la couleur' })).toBeVisible()
-    await expect.element(screen.getByText(/Bienvenue/)).not.toBeInTheDocument()
+    await expect.element(screen.getByText(/Salut/)).not.toBeInTheDocument()
+    await expect.element(screen.getByText(/La jauge/)).not.toBeInTheDocument()
     await expect.element(screen.getByText('1 / 2')).toBeVisible()
     expect(document.querySelector('.shot .toolbar')).toBeNull() // palette not loaded yet
     await screen.getByRole('button', { name: 'Suivant' }).click()
-    expect(document.querySelector('.shot [aria-label="Signaler un contenu ou un bug"]')).toBeNull()
-    await expect
-      .element(screen.getByText("télécharger l'image, afficher ou cacher la grille", { exact: false }))
-      .toBeVisible()
-    await expect.element(screen.getByRole('button', { name: 'Au travail' })).toBeVisible() // no flag
+    expect(document.querySelector('.shot [aria-label="Signaler un dessin"]')).toBeNull()
+    await expect.element(screen.getByRole('button', { name: 'Go !' })).toBeVisible() // no flag
+  })
+})
+
+describe('ReportBar', () => {
+  test('says where to click, and cancels', async () => {
+    const props = { oncancel: vi.fn() }
+    const screen = await render(ReportBar, props)
+    await expect.element(screen.getByText('Clique sur le dessin à signaler.')).toBeVisible()
+    await screen.getByRole('button', { name: 'Annuler' }).click()
+    expect(props.oncancel).toHaveBeenCalledOnce()
   })
 })
 

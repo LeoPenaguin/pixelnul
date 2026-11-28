@@ -1,7 +1,8 @@
-<!-- Bottom-right controls: zoom, recenter, download, report (sign-in on), grid, accessibility settings, keyboard help. -->
+<!-- Bottom-right controls: zoom, recenter, download, report a drawing or a bug (sign-in on), grid, accessibility settings, keyboard help. -->
 <script lang="ts">
   import type { Component } from 'svelte'
   import Plus from '~icons/mingcute/add-fill'
+  import Bug from '~icons/mingcute/bug-fill'
   import Download from '~icons/mingcute/download-2-fill'
   import Grid from '~icons/mingcute/grid-3x3-fill'
   import Flag from '~icons/mingcute/flag-1-fill'
@@ -24,8 +25,22 @@
     onsettings: () => void
     onhelp: () => void
     onreport?: () => void // none: reports are off (no sign-in, so no moderator to read them)
+    aiming?: boolean // picking the drawing to report: the flag is pressed
+    onbug?: () => void // likewise
   }
-  const { onzoomin, onzoomout, onrecenter, grid, ongrid, ondownload, onsettings, onhelp, onreport }: Props = $props()
+  const {
+    onzoomin,
+    onzoomout,
+    onrecenter,
+    grid,
+    ongrid,
+    ondownload,
+    onsettings,
+    onhelp,
+    onreport,
+    onbug,
+    aiming = false,
+  }: Props = $props()
 </script>
 
 <!-- `key` (shown) and `keys` (aria-keyshortcuts): empty when the button has no shortcut. `pressed`: a toggle's state. -->
@@ -77,7 +92,8 @@
     {@render tool('Recentrer sur 0, 0', '0', '0', onrecenter, '0,0')}
     <Separator class="sep" />
     {@render tool("Télécharger l'image", '', '', ondownload, Download, true)}
-    {#if onreport}{@render tool('Signaler un contenu ou un bug', '', '', onreport, Flag, true)}{/if}
+    {#if onreport}{@render tool('Signaler un dessin', '', '', onreport, Flag, false, aiming)}{/if}
+    {#if onbug}{@render tool('Signaler un bug', '', '', onbug, Bug, true)}{/if}
     {@render tool('Grille', 'G', 'G', ongrid, Grid, false, grid)}
     {@render tool('Accessibilité', '', '', onsettings, Gear, true)}
     <Separator class="sep help" />

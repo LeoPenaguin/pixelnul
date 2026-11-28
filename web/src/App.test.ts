@@ -199,7 +199,7 @@ describe('accounts', () => {
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Minou')
     await page.getByRole('button', { name: 'Enregistrer' }).click()
     await announced('Bienvenue Minou, tu peux peindre')
-    await expect.element(page.getByRole('heading', { name: 'En bas : couleur et stock' })).toBeVisible()
+    await expect.element(page.getByRole('heading', { name: 'Choisis ta couleur' })).toBeVisible()
     expect(FakeWebSocket.instances).toHaveLength(2)
     FakeWebSocket.last.open()
     click(10, 10)
@@ -449,10 +449,26 @@ describe('accounts', () => {
     await announced("La toile vient d'être effacée")
   })
 
-  test('anyone reports what is around the view centre; a refusal says why', async () => {
+  test('anyone reports a drawing by clicking on it; a refusal says why', async () => {
     withAuth()
     await start()
-    await page.getByRole('button', { name: 'Signaler un contenu ou un bug' }).click()
+    const flag = page.getByRole('button', { name: 'Signaler un dessin' })
+    await flag.click()
+    await announced('Clique sur le dessin à signaler')
+    await expect.element(flag).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Annuler' }).click()
+    await expect.element(page.getByText('Clique sur le dessin à signaler.')).not.toBeInTheDocument()
+    await flag.click()
+    await flag.click() // again: gives up
+    await expect.element(flag).toHaveAttribute('aria-pressed', 'false')
+    await flag.click()
+    press('Escape')
+    await expect.element(page.getByText('Clique sur le dessin à signaler.')).not.toBeInTheDocument()
+    await flag.click()
+    const r = board().getBoundingClientRect()
+    click(r.left + r.width / 2, r.top + r.height / 2)
+    await expect.element(page.getByText(/^Le dessin autour de/)).toBeVisible()
+    await expect.element(page.getByText('Clique sur le dessin à signaler.')).not.toBeInTheDocument()
     for (const [status, text] of [
       [429, "Trop de signalements d'affilée, réessaie dans une minute"],
       [503, 'Impossible pour le moment'],
@@ -464,7 +480,33 @@ describe('accounts', () => {
     reportStatus = 204
     await page.getByRole('button', { name: 'Envoyer' }).click()
     await expect.element(page.getByText("Merci, c'est envoyé : la modération va regarder.")).toBeVisible()
-    expect(reportCalls.at(-1)).toEqual({ x: 0, y: 0, reason: 'hate', comment: '' })
+    expect(reportCalls.at(-1)).toMatchObject({ reason: 'hate', comment: '' })
+  })
+
+  test('the keyboard picks the drawing to report too', async () => {
+    withAuth()
+    await start()
+    await page.getByRole('button', { name: 'Signaler un dessin' }).click()
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(board())
+    })
+    press('Enter') // shows the cursor on 0, 0
+    press('Enter')
+    await expect.element(page.getByText('Le dessin autour de 0, 0 sera montré à la modération.')).toBeVisible()
+  })
+
+  test('anyone reports a bug from its own button', async () => {
+    withAuth()
+    await start()
+    const bug = page.getByRole('button', { name: 'Signaler un bug' })
+    await bug.click()
+    await expect.element(bug).toHaveAttribute('aria-expanded', 'true') // its dialog is open
+    await page.getByRole('textbox', { name: 'Description' }).fill('la palette reste fermée')
+    await page.getByRole('button', { name: 'Envoyer' }).click()
+    await expect.element(page.getByText("Merci, c'est envoyé : la modération va regarder.")).toBeVisible()
+    expect(reportCalls.at(-1)).toEqual({ x: 0, y: 0, reason: 'bug', comment: 'la palette reste fermée' })
+    await userEvent.keyboard('{Escape}')
+    await expect.element(bug).not.toHaveAttribute('aria-expanded')
   })
 
   test('signs out', async () => {
@@ -616,7 +658,7 @@ describe('keyboard', () => {
     const screen = await render(App)
     await page.getByRole('button', { name: 'À propos' }).click()
     await page.getByRole('button', { name: 'Revoir la présentation' }).click()
-    await expect.element(page.getByRole('heading', { name: 'En bas : la couleur' })).toBeVisible()
+    await expect.element(page.getByRole('heading', { name: 'Choisis ta couleur' })).toBeVisible()
     expect(document.querySelector('.shot .toolbar')).toBeNull() // the palette is not loaded
     await userEvent.keyboard('{Escape}')
     await screen.unmount()
@@ -626,7 +668,7 @@ describe('keyboard', () => {
     await start()
     await page.getByRole('button', { name: 'À propos' }).click()
     await page.getByRole('button', { name: 'Revoir la présentation' }).click()
-    await expect.element(page.getByRole('heading', { name: 'En bas : couleur et stock' })).toBeVisible()
+    await expect.element(page.getByRole('heading', { name: 'Choisis ta couleur' })).toBeVisible()
     expect(document.querySelector('.shot .toolbar')).not.toBeNull() // the palette is loaded
     await userEvent.keyboard('{Escape}')
   })

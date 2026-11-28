@@ -8,13 +8,23 @@
   type Props = { title: string; children: Snippet; initialFocus?: () => HTMLElement | undefined }
   const { title, children, initialFocus }: Props = $props()
   let shown = $state(false)
+  let opener: Element | null = null // the button that opened it: shown "on" while open
 
   export function open() {
+    opener = document.activeElement?.closest('[aria-haspopup=dialog]') ?? null
+    opener?.setAttribute('aria-expanded', 'true')
     shown = true
   }
 
   export function close() {
     shown = false
+    closed()
+  }
+
+  // Also bits-ui's onOpenChange, only called when the user closes it (no trigger opens it).
+  function closed() {
+    opener?.removeAttribute('aria-expanded')
+    opener = null
   }
 
   function autofocus(e: Event) {
@@ -25,7 +35,7 @@
   }
 </script>
 
-<Dialog.Root bind:open={shown}>
+<Dialog.Root bind:open={shown} onOpenChange={closed}>
   <Dialog.Content class="panel modal" onOpenAutoFocus={autofocus}>
     <!-- The body scrolls, not the panel: the close cross straddles its corner. -->
     <div class="body">
