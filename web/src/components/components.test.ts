@@ -333,6 +333,7 @@ describe('AdminDialog', () => {
     onjump: vi.fn(),
     onselect: vi.fn(),
     onban: vi.fn(() => Promise.resolve<string | null>(null)),
+    onstamp: vi.fn(() => Promise.resolve<string | null>(null)),
   })
 
   test('lists the reports: goes to one, dismisses another', async () => {
@@ -373,6 +374,22 @@ describe('AdminDialog', () => {
     await screen.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
     expect(p.onselect).toHaveBeenCalledOnce()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('lays an image centred on the chosen point, then says it is done or why not', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    const file = new File(['x'], 'logo.png', { type: 'image/png' })
+    await userEvent.upload(screen.getByLabelText('Image'), file)
+    await screen.getByRole('spinbutton', { name: 'Centre en x' }).fill('-20')
+    await screen.getByRole('spinbutton', { name: 'y' }).fill('7')
+    await screen.getByRole('button', { name: 'Poser' }).click()
+    expect(p.onstamp).toHaveBeenCalledWith(expect.objectContaining({ name: 'logo.png' }), -20, 7)
+    await expect.element(screen.getByText('Image posée')).toBeVisible()
+    p.onstamp.mockResolvedValueOnce('Image illisible')
+    await screen.getByRole('button', { name: 'Poser' }).click()
+    await expect.element(screen.getByText('Image illisible')).toBeVisible()
   })
 
   test('bans and unbans a pseudo, says when it is unknown', async () => {

@@ -15,8 +15,9 @@
     onjump: (x: number, y: number) => void
     onselect: () => void // starts drawing the zones to paint over, on the board
     onban: (pseudo: string, banned: boolean) => Promise<string | null> // resolves to a refusal
+    onstamp: (file: File, x: number, y: number) => Promise<string | null> // lays an image centred on x, y
   }
-  const { now, onreports, ondismiss, onjump, onselect, onban }: Props = $props()
+  const { now, onreports, ondismiss, onjump, onselect, onban, onstamp }: Props = $props()
 
   const LATER = 'Impossible pour le moment'
 
@@ -26,10 +27,13 @@
   let reportStatus = $state('')
   let pseudo = $state('')
   let banStatus = $state('')
+  let sx = $state(0)
+  let sy = $state(0)
+  let stampStatus = $state('')
 
   export function open() {
     reports = []
-    reportStatus = banStatus = ''
+    reportStatus = banStatus = stampStatus = ''
     modal.open()
     void load()
   }
@@ -56,6 +60,11 @@
   function onboard(action: () => void) {
     modal.close()
     action()
+  }
+
+  async function stamp(file: File) {
+    stampStatus = 'Pose en cours…'
+    stampStatus = (await onstamp(file, sx, sy)) ?? 'Image posée'
   }
 
   async function ban(banned: boolean) {
@@ -97,6 +106,30 @@
   <h3>Repeindre des zones</h3>
   <p>Trace une ou plusieurs zones sur la toile, puis remplis-les dans la couleur choisie.</p>
   <Button onclick={() => onboard(onselect)}>Sélectionner sur la toile</Button>
+
+  <h3>Poser une image</h3>
+  <p>
+    Un PNG, pixel pour pixel : chaque couleur devient la plus proche de la palette, la transparence laisse la toile
+    telle quelle.
+  </p>
+  <form
+    onsubmit={(e) => {
+      e.preventDefault()
+      void stamp(new FormData(e.currentTarget).get('image') as File) // required: always there
+    }}
+  >
+    <Label for={`${id}-image`}>Image</Label>
+    <!-- Native: the Input component has no file variant. -->
+    <input class="file" id={`${id}-image`} name="image" type="file" accept="image/png" required />
+    <div class="row">
+      <Label for={`${id}-x`}>Centre en x</Label>
+      <Input class="w-24" id={`${id}-x`} type="number" bind:value={sx} required />
+      <Label for={`${id}-y`}>y</Label>
+      <Input class="w-24" id={`${id}-y`} type="number" bind:value={sy} required />
+      <Button type="submit">Poser</Button>
+    </div>
+    <span class="hint" role="status">{stampStatus}</span>
+  </form>
 
   <h3>Bannir un joueur</h3>
   <p>Un joueur banni ne peut plus peindre, tout de suite.</p>
@@ -152,6 +185,10 @@
     gap: 8px;
     align-items: center;
     margin-top: 8px;
+  }
+  .file {
+    display: block;
+    font-size: var(--text-sm);
   }
   .hint {
     display: block;

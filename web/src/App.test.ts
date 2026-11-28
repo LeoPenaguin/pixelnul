@@ -360,6 +360,37 @@ describe('accounts', () => {
     expect(adminCalls.at(-1)).toEqual({ url: '/api/admin/ban', body: { pseudo: 'Kevin', banned: true } })
   })
 
+  test('an admin lays an image centred on a point; a refusal says why', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    const canvas = new OffscreenCanvas(3, 1)
+    const ctx = canvas.getContext('2d')
+    ctx!.fillStyle = '#000000'
+    ctx!.fillRect(0, 0, 2, 1)
+    ctx!.fillStyle = '#E52521'
+    ctx!.fillRect(2, 0, 1, 1)
+    const png = new File([await canvas.convertToBlob()], 'logo.png', { type: 'image/png' })
+    const lay = async (file: File, x: string, text: string) => {
+      await userEvent.upload(page.getByLabelText('Image'), file)
+      await page.getByRole('spinbutton', { name: 'Centre en x' }).fill(x)
+      await page.getByRole('button', { name: 'Poser' }).click()
+      await expect.element(page.getByText(text)).toBeVisible()
+    }
+    await lay(new File(['nope'], 'nope.png', { type: 'image/png' }), '0', 'Image illisible')
+    await lay(png, '639', "L'image dépasse de la toile")
+    adminStatus = 500
+    await lay(png, '-639', 'Impossible pour le moment')
+    adminStatus = 204
+    adminCalls = []
+    await lay(png, '10', 'Image posée')
+    expect(adminCalls).toEqual([
+      { url: '/api/admin/fill', body: { x0: 9, y0: 0, x1: 10, y1: 0, c: 5 } },
+      { url: '/api/admin/fill', body: { x0: 11, y0: 0, x1: 11, y1: 0, c: 6 } },
+    ])
+  })
+
   test('anyone reports what is around the view centre; a refusal says why', async () => {
     withAuth()
     await start()

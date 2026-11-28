@@ -41,6 +41,7 @@
   import { Live } from './lib/live'
   import { quotaAt } from './lib/quota'
   import { loadSettings, saveSettings } from './lib/settings'
+  import { readImage, toBlocks } from './lib/stamp'
 
   const RETRY_MS = 2000 // server unreachable on load: retry
   const INFO_DELAY_MS = 200 // a pixel's history loads after a short pause on it
@@ -209,6 +210,26 @@
       left = left.slice(1)
       world?.setRects(left)
     }
+    return null
+  }
+
+  /** Moderation: lays an image centred on x, y, one fill per block; a refusal stops there. */
+  async function stamp(file: File, x: number, y: number, conf: Config) {
+    let img
+    try {
+      img = await readImage(file)
+    } catch {
+      return 'Image illisible'
+    }
+    const left = x - Math.floor(img.width / 2)
+    const top = y - Math.floor(img.height / 2)
+    const [w, h] = [conf.worldWidth / 2, conf.worldHeight / 2]
+    if (left < -w || top < -h || left + img.width > w || top + img.height > h) return "L'image dépasse de la toile"
+    for (const b of toBlocks(img, colors)) {
+      const refusal = await fillRect(left + b.x0, top + b.y0, left + b.x1, top + b.y1, b.c)
+      if (refusal) return refusal
+    }
+    world?.jumpTo(x, y)
     return null
   }
 
@@ -397,6 +418,7 @@
       onjump={(x: number, y: number) => world?.jumpTo(x, y)}
       onselect={startSelecting}
       onban={setBanned}
+      onstamp={(file: File, x: number, y: number) => stamp(file, x, y, conf)}
     />
     {#if selection}
       {@const sel = selection}
