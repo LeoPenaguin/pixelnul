@@ -24,6 +24,7 @@ import SitePanel from './SitePanel.svelte'
 import StatsDialog from './StatsDialog.svelte'
 import Toolbar from './Toolbar.svelte'
 import WelcomeDialog from './WelcomeDialog.svelte'
+import { VERSION } from '$lib/version'
 
 describe('NavControls', () => {
   test('each button calls its action', async () => {
@@ -603,6 +604,14 @@ describe('AboutDialog', () => {
     await expect
       .element(screen.getByRole('link', { name: 'GitHub' }))
       .toHaveAttribute('href', 'https://github.com/LeoPenaguin/pixelnul')
+  })
+
+  test('links its version to the release notes', async () => {
+    const screen = await render(AboutDialog, { onwelcome: vi.fn() })
+    screen.component.open()
+    await expect
+      .element(screen.getByRole('link', { name: `Version ${VERSION}` }))
+      .toHaveAttribute('href', `https://github.com/LeoPenaguin/pixelnul/releases/tag/v${VERSION}`)
   })
 
   test('closes to replay the welcome tour', async () => {

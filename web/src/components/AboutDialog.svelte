@@ -1,7 +1,8 @@
-<!-- What the site is, its rules, where the code lives, and the welcome tour to replay. -->
+<!-- What the site is, its rules, where the code lives, its version, and the welcome tour to replay. -->
 <script lang="ts">
   import Modal from './Modal.svelte'
   import { Button } from './ui/button'
+  import { VERSION } from '$lib/version'
 
   type Props = { onwelcome: () => void }
   const { onwelcome }: Props = $props()
@@ -27,6 +28,13 @@
     Le code source est sur <a href="https://github.com/LeoPenaguin/pixelnul" target="_blank" rel="noopener noreferrer"
       >GitHub</a
     >.
+  </p>
+  <p>
+    <a
+      href={`https://github.com/LeoPenaguin/pixelnul/releases/tag/v${VERSION}`}
+      target="_blank"
+      rel="noopener noreferrer">{`Version ${VERSION}`}</a
+    >
   </p>
   <!-- Bottom right, like the welcome tour's own buttons. -->
   <div class="actions">
