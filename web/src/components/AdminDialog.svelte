@@ -137,7 +137,7 @@
         <Button onclick={() => onboard(onstickers)}>Coller des stickers</Button>
       </div>
       <h3>Accueil</h3>
-      <p>Le logo et les trois premières étapes, au centre de la toile (0, 0), là où la vue s'ouvre.</p>
+      <p>La tête de chat et « Salut ! », au centre de la toile (0, 0), là où la vue s'ouvre.</p>
       <Button onclick={() => void stamp(onwelcome)}>Poser l'accueil</Button>
       <h3>Poser une image</h3>
       <p>Un PNG : chaque couleur devient la plus proche de la palette, la transparence laisse la toile telle quelle.</p>
