@@ -336,6 +336,7 @@ describe('AdminDialog', () => {
     onban: vi.fn(() => Promise.resolve<string | null>(null)),
     onstamp: vi.fn(() => Promise.resolve<string | null>(null)),
     onstickers: vi.fn(),
+    onreset: vi.fn(() => Promise.resolve<string | null>(null)),
   })
 
   test('lists the reports: goes to one, dismisses another', async () => {
@@ -401,6 +402,26 @@ describe('AdminDialog', () => {
     await screen.getByRole('button', { name: 'Coller des stickers' }).click()
     expect(p.onstickers).toHaveBeenCalledOnce()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('empties the board only once EFFACER is typed', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    const erase = screen.getByRole('button', { name: 'Effacer la toile' })
+    const field = screen.getByRole('textbox', { name: 'Tape EFFACER pour confirmer' })
+    await expect.element(erase).toBeDisabled()
+    await field.fill('effacer')
+    await expect.element(erase).toBeDisabled()
+    await field.fill('EFFACER')
+    await erase.click()
+    expect(p.onreset).toHaveBeenCalledOnce()
+    await expect.element(screen.getByText('Toile effacée')).toBeVisible()
+    await expect.element(erase).toBeDisabled() // the word is asked again for the next time
+    p.onreset.mockResolvedValueOnce('Impossible pour le moment')
+    await field.fill('EFFACER')
+    await erase.click()
+    await expect.element(screen.getByText('Impossible pour le moment')).toBeVisible()
   })
 
   test('bans and unbans a pseudo, says when it is unknown', async () => {

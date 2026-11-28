@@ -126,6 +126,7 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("POST /api/me/pseudo", jsonOnly(s.setPseudo))
 		mux.HandleFunc("DELETE /api/me", jsonOnly(s.deleteMe))
 		mux.HandleFunc("POST /api/admin/fill", jsonOnly(s.fill))
+		mux.HandleFunc("POST /api/admin/reset", jsonOnly(s.reset))
 		mux.HandleFunc("POST /api/admin/ban", jsonOnly(s.ban))
 		mux.HandleFunc("POST /api/reports", jsonOnly(s.report)) // read by admins only: needs sign-in
 		mux.HandleFunc("GET /api/admin/reports", s.reports)

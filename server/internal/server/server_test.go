@@ -319,7 +319,7 @@ func TestMeTellsAdmins(t *testing.T) {
 
 func TestAdminRoutesNeedAnAdmin(t *testing.T) {
 	e, _, kevinTok := adminEnv(t)
-	for _, route := range []string{"/api/admin/fill", "/api/admin/ban"} {
+	for _, route := range []string{"/api/admin/fill", "/api/admin/ban", "/api/admin/reset"} {
 		for _, tok := range []string{"", kevinTok} {
 			if res := request(t, http.MethodPost, e.url+route, `{}`, "session="+tok); res.code != http.StatusForbidden {
 				t.Errorf("%s by %q = %d; want 403", route, tok, res.code)
@@ -355,6 +355,34 @@ func TestFillRoute(t *testing.T) {
 	}
 	e.mr.HSet("count:0:0", "not", "a string") // SETRANGE fails
 	if res := request(t, http.MethodPost, e.url+"/api/admin/fill", `{"x0":0,"y0":0,"x1":0,"y1":0,"c":1}`, "session="+adminTok); res.code != http.StatusInternalServerError {
+		t.Errorf("Redis error = %d; want 500", res.code)
+	}
+}
+
+func TestResetRoute(t *testing.T) {
+	e, adminTok, _ := adminEnv(t)
+	ctx := context.Background()
+	_ = e.s.store.Paint(ctx, board.Pixel{X: 1, Y: 1, C: 3}, 1, "")
+	ws := dial(t, e)
+	for _, body := range []string{`pas du json`, `{}`, `{"confirm":"effacer"}`} {
+		if res := request(t, http.MethodPost, e.url+"/api/admin/reset", body, "session="+adminTok); res.code != http.StatusBadRequest {
+			t.Errorf("%s = %d; want 400: no reset without the confirmation", body, res.code)
+		}
+	}
+	if info, _ := e.s.store.Info(ctx, 1, 1); info.C != 3 {
+		t.Fatal("a refused reset must leave the board alone")
+	}
+	if res := request(t, http.MethodPost, e.url+"/api/admin/reset", `{"confirm":"EFFACER"}`, "session="+adminTok); res.code != http.StatusNoContent {
+		t.Fatalf("reset = %d %s", res.code, res.body)
+	}
+	if m := read(t, ws); m.T != "r" {
+		t.Errorf("clients must be told to reload: %+v", m)
+	}
+	if info, _ := e.s.store.Info(ctx, 1, 1); info.C != 0 {
+		t.Errorf("after the reset = %+v; want white", info)
+	}
+	e.s.store = board.NewStore(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"})) // the board's Redis is down, not the accounts'
+	if res := request(t, http.MethodPost, e.url+"/api/admin/reset", `{"confirm":"EFFACER"}`, "session="+adminTok); res.code != http.StatusInternalServerError {
 		t.Errorf("Redis error = %d; want 500", res.code)
 	}
 }

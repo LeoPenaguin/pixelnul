@@ -17,8 +17,9 @@
     onban: (pseudo: string, banned: boolean) => Promise<string | null> // resolves to a refusal
     onstamp: (file: File, x: number, y: number) => Promise<string | null> // lays an image centred on x, y
     onstickers: () => void // starts pasting stickers, on the board
+    onreset: () => Promise<string | null> // empties the board; resolves to a refusal
   }
-  const { now, onreports, ondismiss, onjump, onselect, onban, onstamp, onstickers }: Props = $props()
+  const { now, onreports, ondismiss, onjump, onselect, onban, onstamp, onstickers, onreset }: Props = $props()
 
   const LATER = 'Impossible pour le moment'
 
@@ -31,10 +32,12 @@
   let sx = $state(0)
   let sy = $state(0)
   let stampStatus = $state('')
+  let confirm = $state('') // the reset waits for the word typed in full
+  let resetStatus = $state('')
 
   export function open() {
     reports = []
-    reportStatus = banStatus = stampStatus = ''
+    reportStatus = banStatus = stampStatus = resetStatus = confirm = ''
     modal.open()
     void load()
   }
@@ -66,6 +69,12 @@
   async function stamp(file: File) {
     stampStatus = 'Pose en cours…'
     stampStatus = (await onstamp(file, sx, sy)) ?? 'Image posée'
+  }
+
+  async function reset() {
+    resetStatus = 'Effacement…'
+    resetStatus = (await onreset()) ?? 'Toile effacée'
+    confirm = ''
   }
 
   async function ban(banned: boolean) {
@@ -151,6 +160,25 @@
       <Button onclick={() => void ban(false)} disabled={!pseudo.trim()}>Débannir</Button>
     </div>
     <span class="hint" role="status">{banStatus}</span>
+  </form>
+
+  <h3>Effacer la toile</h3>
+  <p>
+    Remet tous les pixels en blanc, pour tout le monde, d'un coup. La toile d'avant reste en sauvegarde sur le serveur
+    (jusqu'au prochain effacement).
+  </p>
+  <form
+    onsubmit={(e) => {
+      e.preventDefault()
+      void reset()
+    }}
+  >
+    <Label for={`${id}-confirm`}>Tape EFFACER pour confirmer</Label>
+    <div class="row">
+      <Input class="flex-1" id={`${id}-confirm`} bind:value={confirm} autocomplete="off" />
+      <Button type="submit" variant="destructive" disabled={confirm !== 'EFFACER'}>Effacer la toile</Button>
+    </div>
+    <span class="hint" role="status">{resetStatus}</span>
   </form>
 </Modal>
 

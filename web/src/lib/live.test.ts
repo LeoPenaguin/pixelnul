@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { FakeWebSocket, stubWebSocket } from '../test/fakes'
 import { Live, wsUrl } from './live'
 
-const handlers = () => ({ onOpen: vi.fn(), onClose: vi.fn(), onPixel: vi.fn(), onQuota: vi.fn() })
+const handlers = () => ({ onOpen: vi.fn(), onClose: vi.fn(), onPixel: vi.fn(), onQuota: vi.fn(), onReset: vi.fn() })
 
 beforeEach(stubWebSocket)
 afterEach(() => {
@@ -31,6 +31,8 @@ test('connects to /ws on the same host and relays messages', () => {
     [1, 2, 3],
     [-4, 5, 6],
   ])
+  ws.receive({ t: 'r' })
+  expect(h.onReset).toHaveBeenCalledOnce()
 })
 
 test('reconnects after a drop, not after close()', () => {

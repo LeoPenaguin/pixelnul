@@ -61,6 +61,30 @@ func (s *Server) fill(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// resetConfirm is the word a reset needs in its body: a request sent by mistake erases nothing.
+const resetConfirm = "EFFACER"
+
+// reset empties the board, {"confirm":"EFFACER"}: the store keeps the previous one as a backup, and every
+// client is told to reload its chunks.
+func (s *Server) reset(w http.ResponseWriter, r *http.Request) {
+	if !s.admin(w, r) {
+		return
+	}
+	var b struct{ Confirm string }
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&b); err != nil || b.Confirm != resetConfirm {
+		http.Error(w, "confirm with "+resetConfirm, http.StatusBadRequest)
+		return
+	}
+	s.paintMu.Lock()
+	defer s.paintMu.Unlock()
+	if err := s.store.Reset(r.Context()); err != nil {
+		http.Error(w, "redis error", http.StatusInternalServerError)
+		return
+	}
+	s.hub.reload()
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ban bans the account owning a pseudo, or lifts the ban: {"pseudo", "banned"}.
 func (s *Server) ban(w http.ResponseWriter, r *http.Request) {
 	if !s.admin(w, r) {

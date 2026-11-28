@@ -416,6 +416,24 @@ describe('accounts', () => {
     await expect.element(page.getByRole('button', { name: 'Cœur' })).not.toBeInTheDocument()
   })
 
+  test('an admin empties the board; every client reloads it', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    const { ws } = await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('textbox', { name: 'Tape EFFACER pour confirmer' }).fill('EFFACER')
+    await page.getByRole('button', { name: 'Effacer la toile' }).click()
+    await expect.element(page.getByText('Toile effacée')).toBeVisible()
+    expect(adminCalls.at(-1)).toEqual({ url: '/api/admin/reset', body: { confirm: 'EFFACER' } })
+    adminStatus = 500
+    await page.getByRole('textbox', { name: 'Tape EFFACER pour confirmer' }).fill('EFFACER')
+    await page.getByRole('button', { name: 'Effacer la toile' }).click()
+    await expect.element(page.getByText('Impossible pour le moment')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    ws.receive({ t: 'r' })
+    await announced("La toile vient d'être effacée")
+  })
+
   test('anyone reports what is around the view centre; a refusal says why', async () => {
     withAuth()
     await start()

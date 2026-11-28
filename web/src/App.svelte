@@ -25,6 +25,7 @@
     fetchPixelInfo,
     fetchReports,
     fillRect,
+    resetBoard,
     savePseudo,
     sendReport,
     setBanned,
@@ -353,6 +354,10 @@
           if (isHovered({ x, y })) loadInfo() // the targeted pixel just changed
         },
         onQuota: (n) => (quota = { n, at: Date.now() }),
+        onReset: () => {
+          w.reload()
+          announce("La toile vient d'être effacée")
+        },
       })
       live.connect()
     } catch {
@@ -454,6 +459,7 @@
       onban={setBanned}
       onstamp={stamp}
       onstickers={startStickers}
+      onreset={resetBoard}
     />
     {#if sticker !== null}
       <StickerBar picked={sticker} status={stickerStatus} onpick={pickSticker} ondone={() => pickSticker(null)} />
