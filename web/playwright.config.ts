@@ -12,19 +12,26 @@ export default defineConfig({
   reporter: 'list',
   // Reduced motion: camera moves are instant, hence deterministic.
   use: { baseURL: `http://localhost:${String(WEB_PORT)}`, trace: 'retain-on-failure', reducedMotion: 'reduce' },
-  projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }],
+  globalSetup: './e2e/accounts.ts', // the player and admin accounts
+  projects: [
+    { name: 'desktop', use: devices['Desktop Chrome'], testIgnore: /mobile\.spec/ },
+    // Touch screen: the keyboard tests make no sense there.
+    { name: 'mobile', use: devices['Pixel 7'], testIgnore: /desktop\.spec/ },
+  ],
   webServer: [
     {
       command: 'go run .',
       cwd: '../server',
       url: `http://localhost:${String(API_PORT)}/api/config`,
-      // Client ids empty, set: they win over server/.env, sign-in stays off (anyone paints).
+      // Sign-in on with a fake Google client (never called: accounts.ts writes the sessions), Discord off.
+      // Set, they win over server/.env.
       env: {
         ADDR: `:${String(API_PORT)}`,
         REDIS_URL: 'redis://localhost:6379/14',
-        PIXEL_BURST: '1000',
-        GOOGLE_CLIENT_ID: '',
+        GOOGLE_CLIENT_ID: 'e2e',
+        GOOGLE_CLIENT_SECRET: 'e2e',
         DISCORD_CLIENT_ID: '',
+        ADMIN_IDS: 'e2eadmin',
       },
     },
     {
