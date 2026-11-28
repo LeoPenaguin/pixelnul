@@ -241,8 +241,6 @@ describe('mouse', () => {
     expect(hover).toHaveBeenCalledWith({ x: 0, y: 0 })
 
     pointer(canvas, 'pointerdown', 200, 150)
-    pointer(canvas, 'pointerdown', 200, 150, { pointerId: 2 }) // second finger: ignored
-    pointer(canvas, 'pointerup', 200, 150, { pointerId: 2 })
     pointer(canvas, 'pointerup', 200, 150)
     expect(place).toHaveBeenCalledWith(0, 0)
 
@@ -318,6 +316,50 @@ describe('mouse', () => {
     expect(w.cam.zoom).toBeCloseTo(12 * Math.exp(0.4))
     wheel({ deltaY: 10, metaKey: true })
     expect(w.cam.zoom).toBeCloseTo(12 * Math.exp(0.3))
+  })
+})
+
+describe('touch', () => {
+  test('a two-finger pinch zooms around the fingers and follows them, without painting', () => {
+    const w = setup()
+    const place = vi.fn()
+    w.onPlace = place
+    pointer(canvas, 'pointerdown', 150, 150)
+    pointer(canvas, 'pointermove', 160, 150) // the first finger starts a drag…
+    pointer(canvas, 'pointerdown', 250, 150, { pointerId: 2 }) // …that the second one turns into a pinch
+    const { x, zoom } = w.cam
+    pointer(canvas, 'pointermove', 300, 150, { pointerId: 2 }) // 90 → 140 px apart, midpoint 205 → 230
+    expect(w.cam.zoom).toBeCloseTo((zoom * 140) / 90)
+    expect(w.toWorld(230, 150).x).toBeCloseTo(x + (205 - 200) / zoom) // the point under the fingers stays there
+    pointer(canvas, 'pointerdown', 400, 400, { pointerId: 3 }) // a third finger: ignored
+    pointer(canvas, 'pointermove', 420, 400, { pointerId: 3 })
+    pointer(canvas, 'pointerup', 420, 400, { pointerId: 3 })
+    expect(w.cam.zoom).toBeCloseTo((zoom * 140) / 90)
+    pointer(canvas, 'pointerup', 300, 150, { pointerId: 2 })
+    pointer(canvas, 'pointermove', 100, 150) // the finger left neither pans…
+    expect(w.cam.zoom).toBeCloseTo((zoom * 140) / 90)
+    pointer(canvas, 'pointerup', 100, 150) // …nor paints
+    expect(place).not.toHaveBeenCalled()
+    pointer(canvas, 'pointerdown', 200, 150) // a new tap paints again
+    pointer(canvas, 'pointerup', 200, 150)
+    expect(place).toHaveBeenCalledOnce()
+  })
+
+  test('a cancelled pointer paints nothing and ends the pinch', () => {
+    const w = setup()
+    const place = vi.fn()
+    w.onPlace = place
+    pointer(canvas, 'pointerdown', 200, 150)
+    pointer(canvas, 'pointercancel', 200, 150)
+    pointer(canvas, 'pointerup', 200, 150)
+    expect(place).not.toHaveBeenCalled()
+    pointer(canvas, 'pointerdown', 150, 150)
+    pointer(canvas, 'pointerdown', 250, 150, { pointerId: 2 })
+    pointer(canvas, 'pointercancel', 250, 150, { pointerId: 2 })
+    pointer(canvas, 'pointercancel', 150, 150)
+    pointer(canvas, 'pointerdown', 200, 150) // nothing left over: a tap paints
+    pointer(canvas, 'pointerup', 200, 150)
+    expect(place).toHaveBeenCalledOnce()
   })
 })
 
