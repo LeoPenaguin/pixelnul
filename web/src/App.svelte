@@ -351,14 +351,7 @@
   ondelete={() => leave(deleteAccount, 'Compte supprimé')}
 />
 
-<WelcomeDialog
-  bind:this={welcome}
-  quota={limits}
-  rows={cfg?.palette ?? []}
-  {color}
-  report={auth}
-  minimap={() => minimap}
-/>
+<WelcomeDialog bind:this={welcome} quota={limits} rows={cfg?.palette ?? []} {color} report={auth} />
 
 <!-- Server unreachable on load, or the live connection dropped later: same screen, both retry on their own. -->
 {#if down || lost}

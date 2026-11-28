@@ -679,35 +679,23 @@ describe('StatsDialog', () => {
 })
 
 describe('WelcomeDialog', () => {
-  const minimap = () => document.createElement('canvas')
-
-  test('tours the interface, back and forth, each step on its part of the screen', async () => {
-    const props = { quota: { burst: 3, refillMs: 30_000 }, rows: config.palette, color: 1, report: true, minimap }
+  test('tours the controls, back and forth, each step on its part of the screen', async () => {
+    const props = { quota: { burst: 3, refillMs: 30_000 }, rows: config.palette, color: 1, report: true }
     const screen = await render(WelcomeDialog, props)
     const plan = () => document.querySelector('.plan')?.className
     screen.component.open('Minou')
-    await expect.element(screen.getByRole('heading', { name: 'La toile' })).toBeVisible()
-    await expect.element(screen.getByText('Bienvenue, Minou. 1280 × 720 pixels', { exact: false })).toBeVisible()
-    await expect.element(screen.getByText('1 / 6')).toBeVisible()
-    expect(plan()).toContain('board')
-    await expect.element(screen.getByRole('button', { name: 'Précédent' })).toBeDisabled()
-
-    await screen.getByRole('button', { name: 'Suivant' }).click()
     await expect.element(screen.getByRole('heading', { name: 'En bas : couleur et stock' })).toBeVisible()
+    await expect.element(screen.getByText('Bienvenue, Minou.')).toBeVisible()
     await expect
       .element(screen.getByText(/3 pixels d'affilée au plus, et elle en regagne un en 30 secondes/))
       .toBeVisible()
+    await expect.element(screen.getByText('1 / 3')).toBeVisible()
     expect(plan()).toContain('bottom')
     expect(document.querySelector('.shot .toolbar')).not.toBeNull() // the real toolbar, copied
     // Pictures only: the copies are neither read out nor clickable.
     await expect.element(screen.getByRole('button', { name: /^Couleurs/ })).not.toBeInTheDocument()
-    await screen.getByRole('button', { name: 'Précédent' }).click()
-    await expect.element(screen.getByText('1 / 6')).toBeVisible()
-    await screen.getByRole('button', { name: 'Suivant' }).click()
+    await expect.element(screen.getByRole('button', { name: 'Précédent' })).toBeDisabled()
 
-    await screen.getByRole('button', { name: 'Suivant' }).click()
-    await expect.element(screen.getByRole('heading', { name: 'Un clic, un pixel' })).toBeVisible()
-    expect(document.querySelector<HTMLElement>('.cells .on')?.style.background).toBe('rgb(0, 0, 0)') // black
     await screen.getByRole('button', { name: 'Suivant' }).click()
     await expect.element(screen.getByRole('heading', { name: 'En bas à droite : les outils' })).toBeVisible()
     await expect
@@ -718,36 +706,30 @@ describe('WelcomeDialog', () => {
     if (shot) shot.inert = false // were it not inert, its buttons would still do nothing
     shot?.querySelector<HTMLElement>('[aria-label="Zoomer"]')?.click()
     await expect.element(screen.getByRole('heading', { name: 'En bas à droite : les outils' })).toBeVisible()
+    await screen.getByRole('button', { name: 'Précédent' }).click()
+    await expect.element(screen.getByText('1 / 3')).toBeVisible()
     await screen.getByRole('button', { name: 'Suivant' }).click()
-    await expect.element(screen.getByRole('heading', { name: 'En haut à droite : la minicarte' })).toBeVisible()
-    expect(document.querySelector<HTMLImageElement>('.shot img')?.src).toMatch(/^data:image\/png/)
     await screen.getByRole('button', { name: 'Suivant' }).click()
     await expect.element(screen.getByRole('heading', { name: 'Le drapeau : signaler' })).toBeVisible()
     await screen.getByRole('button', { name: 'Au travail' }).click()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
 
     screen.component.open('Matou') // again: back to the first step
-    await expect.element(screen.getByText('Bienvenue, Matou.', { exact: false })).toBeVisible()
+    await expect.element(screen.getByText('Bienvenue, Matou.')).toBeVisible()
   })
 
-  test('skips what is not there: stock, reports, the minimap on phones, the name when signed out', async () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: true })) // small touch screen
-    const screen = await render(WelcomeDialog, { quota: null, rows: [], color: 0, report: false, minimap })
+  test('skips what is not there: stock, reports, the name when signed out', async () => {
+    const screen = await render(WelcomeDialog, { quota: null, rows: [], color: 0, report: false })
     screen.component.open('')
-    await expect
-      .element(screen.getByText(/^1280 × 720 pixels, partagés par tout le monde, en direct\. Glisser/))
-      .toBeVisible()
-    await expect.element(screen.getByText('1 / 4')).toBeVisible()
-    await screen.getByRole('button', { name: 'Suivant' }).click()
     await expect.element(screen.getByRole('heading', { name: 'En bas : la couleur' })).toBeVisible()
+    await expect.element(screen.getByText(/Bienvenue/)).not.toBeInTheDocument()
+    await expect.element(screen.getByText('1 / 2')).toBeVisible()
     expect(document.querySelector('.shot .toolbar')).toBeNull() // palette not loaded yet
-    await screen.getByRole('button', { name: 'Suivant' }).click()
     await screen.getByRole('button', { name: 'Suivant' }).click()
     expect(document.querySelector('.shot [aria-label="Signaler un contenu ou un bug"]')).toBeNull()
     await expect
       .element(screen.getByText("télécharger l'image, afficher ou cacher la grille", { exact: false }))
       .toBeVisible()
-    await expect.element(screen.getByRole('button', { name: 'Au travail' })).toBeVisible() // no minimap, no flag
-    vi.unstubAllGlobals()
+    await expect.element(screen.getByRole('button', { name: 'Au travail' })).toBeVisible() // no flag
   })
 })
