@@ -111,3 +111,9 @@ canvas.panel {
 [aria-haspopup='dialog'][aria-expanded='true'] {
   background: var(--active);
 }
+
+/* Pinching zooms the board only (its canvas says touch-action: none and handles it): on the interface, the
+   browser would zoom the whole page and push the panels off screen. Scrolling still works. */
+:where(*) {
+  touch-action: pan-x pan-y;
+}

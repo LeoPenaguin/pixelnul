@@ -1,26 +1,12 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+// Keyboard and mouse, signed in as a player (painting needs an account).
+import { expect, test, type Page } from '@playwright/test'
+import { open, signIn, whitePixel } from './accounts.js'
 
-type PixelInfo = { x: number; y: number; c: number; changes: number }
-
-/** A random white pixel near the origin (reachable with the keyboard cursor), so painting it black
- *  is always a change, whatever earlier runs left in Redis. Returns its current history too. */
-async function whitePixel(request: APIRequestContext): Promise<PixelInfo> {
-  for (;;) {
-    const [x, y] = [0, 0].map(() => Math.floor(Math.random() * 61) - 30)
-    const res = await request.get(`/api/pixels/${String(x)}/${String(y)}`)
-    const info = (await res.json()) as PixelInfo
-    if (info.c === 0) return info
-  }
-}
+test.beforeEach(async ({ context }) => {
+  await signIn(context, 'player')
+})
 
 const changes = (n: number) => `· ${String(n)} changement${n > 1 ? 's' : ''}`
-
-/** Opens the app and waits for the configuration (commands are inert before that). */
-async function open(page: Page) {
-  await page.bringToFront() // several players: the front page receives the keyboard
-  await page.goto('/')
-  await expect(page.getByRole('button', { name: 'Zoomer', exact: true })).toBeVisible()
-}
 
 /** Moves the keyboard cursor from the view centre (0, 0 on a fresh page) to a pixel. */
 async function cursorTo(page: Page, { x, y }: { x: number; y: number }) {
@@ -97,6 +83,7 @@ test('the navigation buttons recenter on 0, 0', async ({ page }) => {
   await page.mouse.down()
   await page.mouse.move(cx - 300, cy - 200, { steps: 5 })
   await page.mouse.up()
+  await page.getByRole('button', { name: 'Zoomer', exact: true }).hover() // off the board: the view centre shows
   await expect(coords).not.toHaveText(/^X\s*0\s*Y\s*0\s*$/)
   await page.getByRole('button', { name: 'Recentrer sur 0, 0' }).click()
   await expect(coords).toHaveText(/^X\s*0\s*Y\s*0\s*$/)

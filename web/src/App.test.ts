@@ -174,6 +174,17 @@ describe('painting pixels', () => {
   })
 })
 
+describe('touch', () => {
+  test('a pinch zooms the board, not the page around the interface', async () => {
+    const { screen } = await start()
+    const pinch = (el: Element) => !el.dispatchEvent(new Event('gesturestart', { bubbles: true, cancelable: true }))
+    expect(pinch(board())).toBe(false)
+    expect(pinch(page.getByRole('button', { name: 'Zoomer', exact: true }).element())).toBe(true)
+    await screen.unmount()
+    expect(pinch(document.body)).toBe(false) // listener gone
+  })
+})
+
 describe('accounts', () => {
   const withAuth = () => (configResponse = () => Response.json({ ...config, auth: ['google'] }))
 

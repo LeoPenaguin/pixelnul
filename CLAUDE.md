@@ -73,6 +73,7 @@ No need to memorise them: run the linters. Things they will push you towards:
 - Synthetic pointer events need `el.setPointerCapture = vi.fn()`. Tests rendering `App` must import `./app.css` (panels are positioned by it).
 - Go tests use miniredis (`newTestEnv` in `server_test.go`); mark helpers with `t.Helper()`.
 - E2E tests run with reduced motion (instant camera) and random coordinates, so they never depend on existing Redis data. Wait for the app to load (`open()` helper) before acting.
+- E2E projects: `desktop` (Desktop Chrome, keyboard and mouse in `desktop.spec.ts`) and `mobile` (Pixel 7, touch in `mobile.spec.ts`); `admin.spec.ts` runs on both. Sign-in is on with a fake Google client: `e2e/accounts.ts` writes a player and an admin, with their sessions, straight into Redis, and `signIn(context, role)` sets the cookie. Every new admin route goes into the refusal list of `admin.spec.ts`.
 - One test per behaviour, named after the behaviour (`'reopens on the last painted pixel'`).
 
 ## Git
