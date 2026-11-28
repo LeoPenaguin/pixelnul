@@ -1,15 +1,17 @@
 // Real-time connection to the server (WebSocket /ws), reconnected automatically.
 //   sent:     {"x","y","c"}
-//   received: {"t":"q","n"} remaining quota; {"t":"b","p":[x,y,c, x,y,c, …]} batch of painted pixels
+//   received: {"t":"q","n"} remaining quota; {"t":"b","p":[x,y,c, x,y,c, …]} batch of painted pixels;
+//             {"t":"r"} the board was reset: reload it
 const RECONNECT_MS = 1000 // plus up to as much at random: after a server restart, clients do not all come back at once
 
-type Message = { t: 'q'; n: number } | { t: 'b'; p: number[] }
+type Message = { t: 'q'; n: number } | { t: 'b'; p: number[] } | { t: 'r' }
 
 export type LiveHandlers = {
   onOpen: () => void
   onClose: () => void
   onPixel: (x: number, y: number, c: number) => void
   onQuota: (n: number) => void
+  onReset: () => void
 }
 
 /** WebSocket URL of the page's server (wss over https). */
@@ -35,6 +37,7 @@ export class Live {
     ws.onmessage = (e: MessageEvent<string>) => {
       const msg = JSON.parse(e.data) as Message
       if (msg.t === 'q') this.h.onQuota(msg.n)
+      else if (msg.t === 'r') this.h.onReset()
       else for (let i = 0; i < msg.p.length; i += 3) this.h.onPixel(msg.p[i], msg.p[i + 1], msg.p[i + 2])
     }
     ws.onclose = () => {

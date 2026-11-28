@@ -14,6 +14,7 @@
   import SettingsDialog from './components/SettingsDialog.svelte'
   import SitePanel from './components/SitePanel.svelte'
   import StatsDialog from './components/StatsDialog.svelte'
+  import StickerBar from './components/StickerBar.svelte'
   import Toolbar from './components/Toolbar.svelte'
   import WelcomeDialog from './components/WelcomeDialog.svelte'
   import {
@@ -24,6 +25,7 @@
     fetchPixelInfo,
     fetchReports,
     fillRect,
+    resetBoard,
     savePseudo,
     sendReport,
     setBanned,
@@ -41,6 +43,9 @@
   import { Live } from './lib/live'
   import { quotaAt } from './lib/quota'
   import { loadSettings, saveSettings } from './lib/settings'
+  import welcomeUrl from './assets/welcome.png' // tools/pixeltext.py, see docs/technical.md
+  import { readImage, toBlocks, type Picture } from './lib/stamp'
+  import { STICKERS, stickerPicture } from './lib/stickers'
 
   const RETRY_MS = 2000 // server unreachable on load: retry
   const INFO_DELAY_MS = 200 // a pixel's history loads after a short pause on it
@@ -75,6 +80,9 @@
   let down = $state(false) // server unreachable on load (retried every RETRY_MS)
   let message = $state('') // screen reader announcement
   let selection = $state<{ rects: Rect[]; corner: Point | null } | null>(null) // moderation: zones to paint over
+  let sticker = $state<number | null>(null) // moderation: the sticker a click pastes (index in STICKERS), null: off
+  let stickerStatus = $state('')
+  let half = { w: 0, h: 0 } // half the world's size, once the configuration loads
 
   let colors: string[] = [] // flattened palette, filled when the configuration loads
   const limits = $derived(cfg?.quota.refillMs ? cfg.quota : null)
@@ -190,6 +198,7 @@
 
   /** Moderation: clicks and drags on the board draw zones until `stopSelecting`. */
   function startSelecting() {
+    pickSticker(null)
     world?.setSelecting(true)
     selection = { rects: [], corner: null }
     setTimeout(() => canvas.focus()) // after the dialog gives the focus back: the arrows move the cursor
@@ -212,6 +221,55 @@
     return null
   }
 
+  /** Moderation: lays a picture centred on x, y, one fill per block; a refusal stops there. */
+  async function lay(img: Picture, x: number, y: number) {
+    const left = x - Math.floor(img.width / 2)
+    const top = y - Math.floor(img.height / 2)
+    if (left < -half.w || top < -half.h || left + img.width > half.w || top + img.height > half.h)
+      return 'Ça dépasse de la toile'
+    for (const b of toBlocks(img, colors)) {
+      const refusal = await fillRect(left + b.x0, top + b.y0, left + b.x1, top + b.y1, b.c)
+      if (refusal) return refusal
+    }
+    return null
+  }
+
+  async function stamp(file: Blob, x: number, y: number) {
+    let img
+    try {
+      img = await readImage(file)
+    } catch {
+      return 'Image illisible'
+    }
+    const refusal = await lay(img, x, y)
+    if (!refusal) world?.jumpTo(x, y)
+    return refusal
+  }
+
+  /** Moderation: the sticker a click pastes, shown on the board under the pointer; null: back to painting. */
+  function pickSticker(i: number | null) {
+    sticker = i
+    world?.setGhost(i === null ? null : stickerPicture(STICKERS[i]))
+  }
+
+  /** Moderation: lays the welcome image (logo and first steps) back on 0, 0, where the view opens. */
+  async function layWelcome() {
+    return stamp(await (await fetch(welcomeUrl)).blob(), 0, 0)
+  }
+
+  function startStickers() {
+    stopSelecting()
+    pickSticker(0)
+    stickerStatus = ''
+    setTimeout(() => canvas.focus()) // after the dialog gives the focus back: Enter pastes
+  }
+
+  async function paste(i: number, x: number, y: number) {
+    const s = STICKERS[i]
+    stickerStatus = (await lay(stickerPicture(s), x, y)) ?? `${s.name} collé en ${String(x)}, ${String(y)}`
+    announce(stickerStatus)
+  }
+
   function run(a: Action) {
     switch (a.type) {
       case 'move':
@@ -221,6 +279,7 @@
         if (!world?.hover)
           moveCursor(0, 0) // first press: shows the cursor
         else if (selection) world.mark(world.hover)
+        else if (sticker !== null) void paste(sticker, world.hover.x, world.hover.y)
         else place(world.hover.x, world.hover.y)
         break
       case 'zoomIn':
@@ -246,6 +305,7 @@
         if (world?.corner)
           world.setRects(world.rects) // drops the pending corner
         else if (selection) stopSelecting()
+        else pickSticker(null)
         break
     }
   }
@@ -266,6 +326,7 @@
       down = false
       cfg = conf
       colors = conf.palette.flat()
+      half = { w: conf.worldWidth / 2, h: conf.worldHeight / 2 }
       quota = { n: conf.quota.burst, at: Date.now() }
       user = me
       if (me && !me.pseudo) setTimeout(() => accountDialog.open()) // first sign-in: choose a pseudo
@@ -278,7 +339,8 @@
       }
       w.onPlace = (x, y) => {
         paletteOpen = false // a click on the board closes the palette
-        place(x, y)
+        if (sticker !== null) void paste(sticker, x, y)
+        else place(x, y)
       }
       w.onSelect = () => {
         if (selection) selection = { rects: w.rects, corner: w.corner }
@@ -298,6 +360,10 @@
           if (isHovered({ x, y })) loadInfo() // the targeted pixel just changed
         },
         onQuota: (n) => (quota = { n, at: Date.now() }),
+        onReset: () => {
+          w.reload()
+          announce("La toile vient d'être effacée")
+        },
       })
       live.connect()
     } catch {
@@ -390,7 +456,14 @@
       onjump={(x: number, y: number) => world?.jumpTo(x, y)}
       onselect={startSelecting}
       onban={setBanned}
+      onstamp={stamp}
+      onstickers={startStickers}
+      onreset={resetBoard}
+      onwelcome={layWelcome}
     />
+    {#if sticker !== null}
+      <StickerBar picked={sticker} status={stickerStatus} onpick={pickSticker} ondone={() => pickSticker(null)} />
+    {/if}
     {#if selection}
       {@const sel = selection}
       <SelectionBar

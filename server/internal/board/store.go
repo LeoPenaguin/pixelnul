@@ -25,6 +25,7 @@ import (
 //	stats:hourly hash, "{Unix hour}" = paints during that hour (counted since this key exists)
 //	top:{day}    sorted set, user id → paints during that UTC day (Unix ms / 86,400,000); kept 2 days
 //	visitors:{day} HyperLogLog of the visitors of that UTC day (~1 % error, 12 KB a day, kept)
+//	backup:{key} the chunk, count, time and painter keys as they were before the last reset
 type Store struct{ rdb redis.UniversalClient }
 
 // NewStore stores the world in the given Redis.
@@ -143,6 +144,23 @@ func (s *Store) Fill(ctx context.Context, x0, y0, x1, y1, c int) error {
 		}
 	}
 	return nil
+}
+
+// Atomic reset: the previous backup goes, the board's keys become the new backup.
+// ponytail: KEYS walks the whole keyspace while blocking Redis; fine for the few dozen keys here (4 per chunk).
+var resetScript = redis.NewScript(`
+for _, k in ipairs(redis.call('KEYS', 'backup:*')) do redis.call('DEL', k) end
+for _, p in ipairs({'chunk:*', 'count:*', 'time:*', 'painter:*'}) do
+  for _, k in ipairs(redis.call('KEYS', p)) do redis.call('RENAME', k, 'backup:' .. k) end
+end
+return 0
+`)
+
+// Reset empties the board: every pixel white, with no history. The previous board is kept under
+// backup:{key}, replacing the previous backup, so a reset can be undone by hand (rename the keys back).
+// The stats (hourly paints, daily podium, visitors) stay.
+func (s *Store) Reset(ctx context.Context) error {
+	return resetScript.Run(ctx, s.rdb, nil).Err()
 }
 
 // Chunk returns a chunk's raw bytes; empty if it was never painted.

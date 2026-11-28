@@ -81,6 +81,27 @@ describe('rendering', () => {
     await frames(10)
   })
 
+  test('a sticker ghost follows the hover, centred on it, until removed', async () => {
+    const w = setup()
+    w.setCam({ x: 1, y: 1, zoom: 20 }) // pixel (x, y) spans screen x 200 + (x - 1) × 20 onwards
+    const red = {
+      data: Uint8ClampedArray.from([229, 37, 33, 255, 229, 37, 33, 255, 229, 37, 33, 255]),
+      width: 3,
+      height: 1,
+    }
+    w.setGhost(red)
+    await frames()
+    expect(rgbAt(canvas, 270, 240)).toEqual([255, 255, 255]) // no hover, no ghost
+    w.hover = { x: 5, y: 5 }
+    w.redraw()
+    await frames()
+    const [r, g] = rgbAt(canvas, 270, 240) // pixel (4, 5): left of the hover, see-through red
+    expect(r).toBeGreaterThan(g + 100)
+    w.setGhost(null)
+    await frames()
+    expect(rgbAt(canvas, 270, 240)).toEqual([255, 255, 255])
+  })
+
   test('zoomed out, the grid keeps a line every 10 and every 100 pixels, darker', async () => {
     const w = setup()
     w.setCam({ x: 50, y: 0, zoom: 2 }) // (50, 0) at the centre (200, 150); a pixel line every 2 px: too dense

@@ -204,6 +204,32 @@ func TestFill(t *testing.T) {
 	}
 }
 
+func TestResetEmptiesTheBoardAndKeepsABackup(t *testing.T) {
+	s, mr := newTestStore(t)
+	ctx := context.Background()
+	_ = s.Paint(ctx, Pixel{1, 2, 3}, 1, "u1")
+	if err := s.Reset(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if info, _ := s.Info(ctx, 1, 2); info.C != 0 || info.Changes != 0 || info.LastChange != nil || info.User != "" {
+		t.Errorf("after a reset = %+v; want white, no history", info)
+	}
+	if !mr.Exists("backup:chunk:0:0") || !mr.Exists("backup:painter:0:0") {
+		t.Error("the board before the reset must be kept under backup:")
+	}
+	_ = s.Paint(ctx, Pixel{-1, -1, 4}, 2, "u1") // another chunk
+	if err := s.Reset(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if mr.Exists("backup:chunk:0:0") || !mr.Exists("backup:chunk:-1:-1") {
+		t.Error("a reset must replace the previous backup, not add to it")
+	}
+	mr.Close()
+	if err := s.Reset(ctx); err == nil {
+		t.Error("Redis down: an error was expected")
+	}
+}
+
 func TestPaintRefusesAnOverlongUserID(t *testing.T) {
 	s, _ := newTestStore(t)
 	if err := s.Paint(context.Background(), Pixel{0, 0, 1}, 1, strings.Repeat("u", PainterLen+1)); err == nil {

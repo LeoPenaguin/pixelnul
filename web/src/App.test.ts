@@ -23,6 +23,7 @@ let statsUp = true
 let accountStatus = 204 // answer of the account actions (pseudo, sign out, delete)
 let adminStatus = 204 // answer of the moderation routes
 let adminCalls: { url: string; body: unknown }[] = []
+let welcomePng: Blob = new Blob() // what the bundled welcome image answers
 let reports: Report[] = []
 let reportStatus = 204 // answer of POST /api/reports
 let reportCalls: unknown[] = []
@@ -51,6 +52,7 @@ beforeEach(() => {
       reportCalls.push(JSON.parse(init?.body as string))
       return new Response(null, { status: reportStatus })
     },
+    '/src/assets/welcome.png': () => new Response(welcomePng),
     '/api/admin/reports': (url, init) => {
       if (init?.method !== 'DELETE') return Response.json(reports)
       reports = reports.filter((r) => !url.endsWith(r.id))
@@ -258,7 +260,8 @@ describe('accounts', () => {
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     const { ws } = await start()
     await page.getByRole('button', { name: 'Modération' }).click()
-    await page.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
+    await page.getByRole('button', { name: 'Repeindre des zones' }).click()
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
     await vi.waitFor(() => {
       expect(document.activeElement).toBe(board())
@@ -313,7 +316,8 @@ describe('accounts', () => {
     await expect.element(page.getByRole('region', { name: 'Zones à repeindre' })).not.toBeInTheDocument()
 
     await page.getByRole('button', { name: 'Modération' }).click()
-    await page.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
+    await page.getByRole('button', { name: 'Repeindre des zones' }).click()
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
     await vi.waitFor(() => {
       expect(document.activeElement).toBe(board())
@@ -347,6 +351,7 @@ describe('accounts', () => {
     me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
     await start()
     await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Joueurs' }).click()
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Kevin')
     for (const [status, text] of [
       [204, 'Kevin : compte banni'],
@@ -358,6 +363,90 @@ describe('accounts', () => {
       await expect.element(page.getByText(text)).toBeVisible()
     }
     expect(adminCalls.at(-1)).toEqual({ url: '/api/admin/ban', body: { pseudo: 'Kevin', banned: true } })
+  })
+
+  test('an admin lays an image centred on a point; a refusal says why', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
+    const canvas = new OffscreenCanvas(3, 1)
+    const ctx = canvas.getContext('2d')
+    ctx!.fillStyle = '#000000'
+    ctx!.fillRect(0, 0, 2, 1)
+    ctx!.fillStyle = '#E52521'
+    ctx!.fillRect(2, 0, 1, 1)
+    const png = new File([await canvas.convertToBlob()], 'logo.png', { type: 'image/png' })
+    const lay = async (file: File, x: string, text: string) => {
+      await userEvent.upload(page.getByLabelText('Image'), file)
+      await page.getByRole('spinbutton', { name: 'Centre en x' }).fill(x)
+      await page.getByRole('button', { name: 'Poser' }).click()
+      await expect.element(page.getByText(text)).toBeVisible()
+    }
+    await lay(new File(['nope'], 'nope.png', { type: 'image/png' }), '0', 'Image illisible')
+    await lay(png, '639', 'Ça dépasse de la toile')
+    adminStatus = 500
+    await lay(png, '-639', 'Impossible pour le moment')
+    adminStatus = 204
+    adminCalls = []
+    await lay(png, '10', 'Image posée')
+    expect(adminCalls).toEqual([
+      { url: '/api/admin/fill', body: { x0: 9, y0: 0, x1: 10, y1: 0, c: 5 } },
+      { url: '/api/admin/fill', body: { x0: 11, y0: 0, x1: 11, y1: 0, c: 6 } },
+    ])
+    welcomePng = png
+    adminCalls = []
+    await page.getByRole('button', { name: "Poser l'accueil" }).click()
+    await vi.waitFor(() => {
+      expect(adminCalls).toHaveLength(2) // the same 3 × 1 picture, centred on 0, 0
+    })
+    expect(adminCalls[0]).toEqual({ url: '/api/admin/fill', body: { x0: -1, y0: 0, x1: 0, y1: 0, c: 5 } })
+  })
+
+  test('an admin pastes stickers with Enter or a click, instead of painting', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    const { ws } = await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Toile' }).click()
+    await page.getByRole('button', { name: 'Coller des stickers' }).click()
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument() // keys go to the board again
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(board())
+    })
+    press('Enter') // shows the cursor on 0, 0
+    press('Enter')
+    await announced('Chat collé en 0, 0')
+    expect(adminCalls[0]).toEqual({ url: '/api/admin/fill', body: { x0: -4, y0: -5, x1: -3, y1: -5, c: 5 } }) // left ear
+    await page.getByRole('button', { name: 'Cœur' }).click()
+    await expect.element(page.getByRole('button', { name: 'Cœur' })).toHaveAttribute('aria-pressed', 'true')
+    adminStatus = 500
+    const r = board().getBoundingClientRect()
+    click(r.left + r.width / 2 + 1, r.top + r.height / 2 + 1)
+    await announced('Impossible pour le moment')
+    expect(ws.sent).toHaveLength(0) // no pixel painted
+    await page.getByRole('button', { name: 'Terminer' }).click()
+    await expect.element(page.getByRole('button', { name: 'Cœur' })).not.toBeInTheDocument()
+  })
+
+  test('an admin empties the board; every client reloads it', async () => {
+    withAuth()
+    me = { id: 'u1', pseudo: 'Modo', admin: true, banned: false, provider: 'google' }
+    const { ws } = await start()
+    await page.getByRole('button', { name: 'Modération' }).click()
+    await page.getByRole('tab', { name: 'Effacer' }).click()
+    await page.getByRole('textbox', { name: 'Tape EFFACER pour confirmer' }).fill('EFFACER')
+    await page.getByRole('button', { name: 'Effacer la toile' }).click()
+    await expect.element(page.getByText('Toile effacée')).toBeVisible()
+    expect(adminCalls.at(-1)).toEqual({ url: '/api/admin/reset', body: { confirm: 'EFFACER' } })
+    adminStatus = 500
+    await page.getByRole('textbox', { name: 'Tape EFFACER pour confirmer' }).fill('EFFACER')
+    await page.getByRole('button', { name: 'Effacer la toile' }).click()
+    await expect.element(page.getByText('Impossible pour le moment')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    ws.receive({ t: 'r' })
+    await announced("La toile vient d'être effacée")
   })
 
   test('anyone reports what is around the view centre; a refusal says why', async () => {

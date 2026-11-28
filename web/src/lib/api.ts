@@ -76,6 +76,12 @@ export async function fillRect(x0: number, y0: number, x1: number, y1: number, c
   return LATER
 }
 
+/** Admin: empties the board (the server keeps a backup). Resolves to the reason of a refusal, or null once done. */
+export async function resetBoard(): Promise<string | null> {
+  const r = await postJSON('/api/admin/reset', { confirm: 'EFFACER' })
+  return r.ok ? null : LATER
+}
+
 /** Admin: bans the owner of a pseudo, or lifts the ban. Resolves to the reason of a refusal, or null once done. */
 export async function setBanned(pseudo: string, banned: boolean): Promise<string | null> {
   const r = await postJSON('/api/admin/ban', { pseudo, banned })

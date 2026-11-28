@@ -10,6 +10,7 @@ import AccountDialog from './AccountDialog.svelte'
 import AdminDialog from './AdminDialog.svelte'
 import ReportDialog from './ReportDialog.svelte'
 import SelectionBar from './SelectionBar.svelte'
+import StickerBar from './StickerBar.svelte'
 import DownloadDialog from './DownloadDialog.svelte'
 import HelpDialog from './HelpDialog.svelte'
 import PixelPanel from './PixelPanel.svelte'
@@ -333,6 +334,10 @@ describe('AdminDialog', () => {
     onjump: vi.fn(),
     onselect: vi.fn(),
     onban: vi.fn(() => Promise.resolve<string | null>(null)),
+    onstamp: vi.fn(() => Promise.resolve<string | null>(null)),
+    onstickers: vi.fn(),
+    onreset: vi.fn(() => Promise.resolve<string | null>(null)),
+    onwelcome: vi.fn(() => Promise.resolve<string | null>(null)),
   })
 
   test('lists the reports: goes to one, dismisses another', async () => {
@@ -370,15 +375,67 @@ describe('AdminDialog', () => {
     const p = props()
     const screen = await render(AdminDialog, p)
     screen.component.open()
-    await screen.getByRole('button', { name: 'Sélectionner sur la toile' }).click()
+    await screen.getByRole('tab', { name: 'Toile' }).click()
+    await screen.getByRole('button', { name: 'Repeindre des zones' }).click()
     expect(p.onselect).toHaveBeenCalledOnce()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('lays an image centred on the chosen point, then says it is done or why not', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    await screen.getByRole('tab', { name: 'Toile' }).click()
+    const file = new File(['x'], 'logo.png', { type: 'image/png' })
+    await userEvent.upload(screen.getByLabelText('Image'), file)
+    await screen.getByRole('spinbutton', { name: 'Centre en x' }).fill('-20')
+    await screen.getByRole('spinbutton', { name: 'y' }).fill('7')
+    await screen.getByRole('button', { name: 'Poser' }).click()
+    expect(p.onstamp).toHaveBeenCalledWith(expect.objectContaining({ name: 'logo.png' }), -20, 7)
+    await expect.element(screen.getByText('Image posée')).toBeVisible()
+    await screen.getByRole('button', { name: "Poser l'accueil" }).click()
+    expect(p.onwelcome).toHaveBeenCalledOnce()
+    p.onstamp.mockResolvedValueOnce('Image illisible')
+    await screen.getByRole('button', { name: 'Poser' }).click()
+    await expect.element(screen.getByText('Image illisible')).toBeVisible()
+  })
+
+  test('closes to paste stickers on the board', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    await screen.getByRole('tab', { name: 'Toile' }).click()
+    await screen.getByRole('button', { name: 'Coller des stickers' }).click()
+    expect(p.onstickers).toHaveBeenCalledOnce()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('empties the board only once EFFACER is typed', async () => {
+    const p = props()
+    const screen = await render(AdminDialog, p)
+    screen.component.open()
+    await screen.getByRole('tab', { name: 'Effacer' }).click()
+    const erase = screen.getByRole('button', { name: 'Effacer la toile' })
+    const field = screen.getByRole('textbox', { name: 'Tape EFFACER pour confirmer' })
+    await expect.element(erase).toBeDisabled()
+    await field.fill('effacer')
+    await expect.element(erase).toBeDisabled()
+    await field.fill('EFFACER')
+    await erase.click()
+    expect(p.onreset).toHaveBeenCalledOnce()
+    await expect.element(screen.getByText('Toile effacée')).toBeVisible()
+    await expect.element(erase).toBeDisabled() // the word is asked again for the next time
+    p.onreset.mockResolvedValueOnce('Impossible pour le moment')
+    await field.fill('EFFACER')
+    await erase.click()
+    await expect.element(screen.getByText('Impossible pour le moment')).toBeVisible()
   })
 
   test('bans and unbans a pseudo, says when it is unknown', async () => {
     const p = props()
     const screen = await render(AdminDialog, p)
     screen.component.open()
+    await screen.getByRole('tab', { name: 'Joueurs' }).click()
     const unban = screen.getByRole('button', { name: 'Débannir' })
     await expect.element(unban).toBeDisabled()
     await screen.getByRole('textbox', { name: 'Pseudo' }).fill(' Kevin ')
@@ -731,5 +788,19 @@ describe('WelcomeDialog', () => {
       .element(screen.getByText("télécharger l'image, afficher ou cacher la grille", { exact: false }))
       .toBeVisible()
     await expect.element(screen.getByRole('button', { name: 'Au travail' })).toBeVisible() // no flag
+  })
+})
+
+describe('StickerBar', () => {
+  test('shows every sticker, the picked one pressed; picks another, says what happened, stops', async () => {
+    const props = { picked: 0, status: 'Chat collé en 1, 2', onpick: vi.fn(), ondone: vi.fn() }
+    const screen = await render(StickerBar, props)
+    await expect.element(screen.getByRole('button', { name: 'Chat' })).toHaveAttribute('aria-pressed', 'true')
+    await expect.element(screen.getByRole('button', { name: 'Aubergine' })).toHaveAttribute('aria-pressed', 'false')
+    await expect.element(screen.getByRole('status')).toHaveTextContent('Chat collé en 1, 2')
+    await screen.getByRole('button', { name: 'Étoile' }).click()
+    expect(props.onpick).toHaveBeenCalledWith(2)
+    await screen.getByRole('button', { name: 'Terminer' }).click()
+    expect(props.ondone).toHaveBeenCalledOnce()
   })
 })

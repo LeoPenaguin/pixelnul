@@ -79,6 +79,20 @@ func (h *hub) flush() {
 	h.mu.Unlock()
 }
 
+// reload drops the pending pixels (painted before a reset) and tells every client to reload its chunks:
+// {"t":"r"}.
+func (h *hub) reload() {
+	h.pendMu.Lock()
+	h.pending = map[[2]int]int{}
+	h.pendMu.Unlock()
+	msg := mustJSON(map[string]string{"t": "r"})
+	h.mu.Lock()
+	for c := range h.clients {
+		trySend(c, msg)
+	}
+	h.mu.Unlock()
+}
+
 // trySend drops the message for a slow client (full buffer); it reloads chunks when it reconnects.
 func trySend(c chan []byte, msg []byte) {
 	select {
