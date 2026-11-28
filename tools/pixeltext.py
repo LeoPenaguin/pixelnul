@@ -1,5 +1,5 @@
 """Pixel-art text for the board: the house cat (web/public/favicon.svg) above lines in a 3×5 font, as a PNG
-to lay with Modération → « Poser une image ». Colours are already the palette's, so nothing shifts on import.
+to lay with Modération → « Poser une image ». The logo uses palette colours only, so nothing shifts on import.
 
     python3 tools/pixeltext.py out.png "1. CHOISIS UNE COULEUR EN BAS" "2. CLIQUE SUR LA TOILE" ...
 
@@ -15,9 +15,6 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 INK = (0x37, 0x37, 0x37)  # palette "Gris foncé"
 GAP = 3  # px between the cat and the text
-# Favicon colours outside the palette → the palette colour kept for them (nearest, except the pink nose).
-CAT = {"#111111": "#000000", "#7D6B5D": "#696969", "#4B3B30": "#373737", "#FFFFFF": "#FFFFFF",
-       "#221C15": "#4E2408", "#5A4636": "#6B4128", "#E8A3A0": "#FF8A80"}
 
 # 3×5, after /u/Udzu's "3x5 minifont": capitals and digits 4 high (rows 0-3); lower case 3 high (rows 1-3)
 # with ascenders on row 0 and descenders on row 4. Rows top to bottom, '1' = ink.
@@ -61,7 +58,7 @@ def main(out: str, lines: list[str]) -> None:
     svg = (ROOT / "web/public/favicon.svg").read_text()
     for fill, d in re.findall(r'fill="(#\w+)" d="([^"]+)"', svg):
         for x, y in re.findall(r"M(\d+) (\d+)", d):
-            cat[int(x), int(y)] = CAT[fill.upper()]
+            cat[int(x), int(y)] = fill
     tw = max(width(line) for line in lines)
     w, h = max(tw, 10), 10 + GAP + 6 * len(lines) - 1
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
