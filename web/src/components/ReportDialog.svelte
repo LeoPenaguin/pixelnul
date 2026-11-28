@@ -1,4 +1,4 @@
-<!-- Report: the content around the targeted pixel (or the view centre), or a bug, to the moderators. -->
+<!-- Report: the drawing around the pixel picked on the board, or a bug, to the moderators. -->
 <script lang="ts">
   import type { Point } from '../lib/engine/camera'
   import { NEEDS_COMMENT, REASONS } from '../lib/reasons'
@@ -7,10 +7,9 @@
   import { Label } from './ui/label'
 
   type Props = {
-    position: Point // targeted pixel, or view centre: frozen when the dialog opens
     onsend: (x: number, y: number, reason: string, comment: string) => Promise<string | null> // resolves to a refusal
   }
-  const { position, onsend }: Props = $props()
+  const { onsend }: Props = $props()
 
   const MAX_COMMENT = 500 // characters, as the server allows
 
@@ -22,11 +21,14 @@
   let error = $state('')
   let sending = $state(false)
   let sent = $state(false)
+  const bug = $derived(reason === 'bug')
+  const drawing = Object.entries(REASONS).filter(([value]) => value !== 'bug') // a bug has its own button
   const needed = $derived(NEEDS_COMMENT.includes(reason))
 
-  export function open() {
-    at = { ...position }
-    reason = 'hate'
+  /** Opens on the picked pixel, or, with bug, for a bug (no place, no reason to pick). */
+  export function open(p: Point, isBug = false) {
+    at = { ...p }
+    reason = isBug ? 'bug' : 'hate'
     comment = error = ''
     sent = false
     modal.open()
@@ -41,28 +43,26 @@
   }
 </script>
 
-<Modal bind:this={modal} title="Signaler">
+<Modal bind:this={modal} title={bug ? 'Signaler un bug' : 'Signaler un dessin'}>
   {#if sent}
     <p role="status">Merci, c'est envoyé : la modération va regarder.</p>
   {:else}
     <form onsubmit={submit}>
-      <fieldset>
-        <legend>Que veux-tu signaler ?</legend>
-        {#each Object.entries(REASONS) as [value, label] (value)}
-          <label class="choice"
-            ><input
-              type="radio"
-              name={`${id}-reason`}
-              checked={reason === value}
-              onchange={() => (reason = value)}
-            /><span>{label}</span></label
-          >
-        {/each}
-      </fieldset>
-      {#if reason !== 'bug'}
-        <p>
-          {`Le contenu autour de ${String(at.x)}, ${String(at.y)} (sous ton curseur, ou au centre de ta vue) sera montré à la modération.`}
-        </p>
+      {#if !bug}
+        <p>{`Le dessin autour de ${String(at.x)}, ${String(at.y)} sera montré à la modération.`}</p>
+        <fieldset>
+          <legend>Qu'est-ce qui ne va pas ?</legend>
+          {#each drawing as [value, label] (value)}
+            <label class="choice"
+              ><input
+                type="radio"
+                name={`${id}-reason`}
+                checked={reason === value}
+                onchange={() => (reason = value)}
+              /><span>{label}</span></label
+            >
+          {/each}
+        </fieldset>
       {/if}
       <Label for={`${id}-comment`}>{needed ? 'Description' : 'Précisions (facultatif)'}</Label>
       <textarea

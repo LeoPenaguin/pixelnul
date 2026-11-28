@@ -106,3 +106,8 @@ canvas.panel {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* The button whose dialog is open (set by Modal): same "on" look as a pressed toggle. */
+[aria-haspopup='dialog'][aria-expanded='true'] {
+  background: var(--active);
+}
