@@ -8,7 +8,26 @@ on:
   workflow_call: # reused by release.yml before a release
 
 jobs:
+  # Pull requests touching only Markdown skip the code checks (Markdown is still linted): skipped required checks
+  # count as passed. Anything but a clear « false » (push, release, this job failing) runs everything.
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+
   server:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,7 +50,11 @@ jobs:
           go tool cover -func=cover.out | tail -1 | grep -q '100.0%'
 
   web:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    env:
+      CODE: ${{ needs.changes.outputs.code != 'false' }}
     services:
       redis: # for the end-to-end tests (database 14)
         image: redis:7
@@ -42,6 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6 # the end-to-end tests start the Go server
+        if: env.CODE == 'true'
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
@@ -55,7 +79,16 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
+        if: env.CODE == 'true'
       - run: pnpm lint
+        if: env.CODE == 'true'
+      - name: Markdown only
+        if: env.CODE != 'true'
+        working-directory: .
+        run: web/node_modules/.bin/markdownlint-cli2
       - run: pnpm check
+        if: env.CODE == 'true'
       - run: pnpm test
+        if: env.CODE == 'true'
       - run: pnpm test:e2e
+        if: env.CODE == 'true'
