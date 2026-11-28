@@ -1,5 +1,5 @@
-// Moderation stickers: 10 × 10 pixel drawings (the logo's size) pasted on the board with a click, in palette
-// colours only.
+// Moderation stickers: pixel drawings pasted on the board with a click, in palette colours only. 10 × 10 (the
+// logo's size), except the middle finger: a hand needs more room to read.
 // Rows top to bottom; '.' is transparent (the board shows through), a letter is a colour from `colors`.
 
 import type { Picture } from './stamp'
@@ -86,6 +86,29 @@ export const STICKERS: Sticker[] = [
       'kpppppdk..',
       'kppppdk...',
       '.kkkkk....',
+    ],
+  },
+  {
+    name: "Doigt d'honneur",
+    colors: { a: '#000000', b: '#EDCB9A' },
+    rows: [
+      '.....aa........',
+      '....abba.......',
+      '....abba.......',
+      '....abba.......',
+      '....abba.......',
+      '...aabbaaa.....',
+      '.aababbabba....',
+      'abababbabba.aa.',
+      'abbbbbbbbbaabba',
+      'abbbbbbbbbbbbba',
+      'abbbbbbbbbbbba.',
+      'abbbbbbbbbbba..',
+      '.abbbbbbbbbba..',
+      '.abbbbbbbbba...',
+      '..abbbbbbba....',
+      '..abbbbbba.....',
+      '..aaaaaaaa.....',
     ],
   },
 ]
