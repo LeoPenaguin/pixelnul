@@ -13,38 +13,27 @@
   import { Kbd } from './ui/kbd'
 
   // quota: null when unlimited. rows, color: the palette and current colour, for the toolbar copy (no rows
-  // before the configuration loads). report: reports are on. minimap: the real one, copied when the tour opens.
-  type Props = {
-    quota: QuotaRules | null
-    rows: string[][]
-    color: number
-    report: boolean
-    minimap: () => HTMLCanvasElement
-  }
-  const { quota, rows, color, report, minimap }: Props = $props()
+  // before the configuration loads). report: reports are on.
+  type Props = { quota: QuotaRules | null; rows: string[][]; color: number; report: boolean }
+  const { quota, rows, color, report }: Props = $props()
 
   const noop = () => undefined // the copies' buttons: inert, they do nothing
 
-  type Zone = 'board' | 'bottom' | 'bottom-right' | 'top-right' // part of the screen plan to highlight
+  type Zone = 'bottom' | 'bottom-right' // part of the screen plan to highlight
   type Step = { title: string; zone: Zone; body: Snippet; shot: Snippet }
 
   let modal: { open: () => void; close: () => void }
   let pseudo = $state('')
   let i = $state(0)
-  let miniShot = $state('') // the minimap, as an image
-  let phone = $state(false) // small touch screen: no minimap there
 
+  // Moving, zooming, painting and the minimap are found by trying: only the controls are shown.
   const steps: Step[] = $derived([
-    { title: 'La toile', zone: 'board', body: board, shot: none },
     { title: quota ? 'En bas : couleur et stock' : 'En bas : la couleur', zone: 'bottom', body: tools, shot: toolbar },
-    { title: 'Un clic, un pixel', zone: 'board', body: click, shot: cell },
     { title: 'En bas à droite : les outils', zone: 'bottom-right', body: nav, shot: controls },
-    ...(phone ? [] : [{ title: 'En haut à droite : la minicarte', zone: 'top-right', body: map, shot: mini } as const]),
     ...(report ? [{ title: 'Le drapeau : signaler', zone: 'bottom-right', body: flag, shot: flagShot } as const] : []),
   ])
   const step = $derived(steps[i])
   const last = $derived(i === steps.length - 1)
-  const greeting = $derived(pseudo ? `Bienvenue, ${pseudo}. ` : '')
   const toolsText = $derived(
     `Zoomer, dézoomer, revenir en 0, 0, télécharger l'image, ${report ? 'signaler, ' : ''}afficher ou cacher la grille, l'accessibilité, les raccourcis clavier`,
   )
@@ -57,37 +46,19 @@
   export function open(name: string) {
     pseudo = name
     i = 0
-    miniShot = minimap().toDataURL()
-    phone = matchMedia('(pointer: coarse) and (max-width: 640px)').matches
     modal.open()
   }
 </script>
 
-{#snippet board()}
-  <p>
-    {`${greeting}1280 × 720 pixels, partagés par tout le monde, en direct. Glisser pour s'y déplacer ; pincer, ou Ctrl + molette, pour zoomer.`}
-  </p>
-{/snippet}
-
 {#snippet tools()}
+  {#if pseudo}<p>{`Bienvenue, ${pseudo}.`}</p>{/if}
   <p>Le carré de couleur ouvre la palette (touche <Kbd><KeyCap key="C" /></Kbd>).</p>
   {#if stockText}<p>{stockText}</p>{/if}
-{/snippet}
-
-{#snippet click()}
-  <p>
-    Un clic sur la toile pose un pixel de ta couleur. Il apparaît chez tout le monde, tout de suite. Au clavier : les
-    flèches pour viser, Entrée pour poser.
-  </p>
 {/snippet}
 
 {#snippet nav()}
   <!-- The text in its own element: Svelte would otherwise add a branch for it. -->
   <p><span>{toolsText}</span> (touche <Kbd><KeyCap key="?" /></Kbd>).</p>
-{/snippet}
-
-{#snippet map()}
-  <p>La toile autour de toi, vue de loin. Le cadre, c'est ce que tu vois. Clique ou glisse dedans pour te déplacer.</p>
 {/snippet}
 
 {#snippet flag()}
@@ -97,21 +68,11 @@
   </p>
 {/snippet}
 
-{#snippet none()}{/snippet}
-
 {#snippet toolbar()}
   {#if rows.length}
     <!-- Infinity: a full gauge (capped at the burst). -->
     <Toolbar {rows} {color} open={false} {quota} snapshot={{ n: Infinity, at: 0 }} now={0} />
   {/if}
-{/snippet}
-
-{#snippet cell()}
-  <div class="cells">
-    {#each { length: 25 }, k (k)}
-      <span class:on={k === 12} style:background={k === 12 ? rows.flat()[color] : undefined}></span>
-    {/each}
-  </div>
 {/snippet}
 
 {#snippet controls()}
@@ -126,10 +87,6 @@
     onhelp={noop}
     onreport={report ? noop : undefined}
   />
-{/snippet}
-
-{#snippet mini()}
-  <img class="panel mini" src={miniShot} alt="" />
 {/snippet}
 
 {#snippet flagShot()}
@@ -215,12 +172,8 @@
     width: 10px;
     height: 32px;
   }
-  .plan.board {
-    background: color-mix(in oklch, var(--active) 35%, var(--paper));
-  }
   .plan.bottom .z.bottom,
-  .plan.bottom-right .z.bottom-right,
-  .plan.top-right .z.top-right {
+  .plan.bottom-right .z.bottom-right {
     background: var(--active);
   }
   /* The copies are panels made to sit on the screen's edges: here they sit in the flow, at the dialog's zoom. */
@@ -240,26 +193,6 @@
     height: auto;
     align-self: stretch;
     margin: -4px 4px;
-  }
-  .cells {
-    display: grid;
-    grid-template-columns: repeat(5, 14px);
-    gap: 1px;
-    padding: 1px;
-    background: color-mix(in oklch, var(--ink) 15%, var(--paper));
-  }
-  .cells span {
-    height: 14px;
-    background: var(--paper);
-  }
-  /* Framed inside its own cell (an outline would spill over the neighbours, under their paint): a white pixel
-     stays visible. */
-  .cells .on {
-    box-shadow: inset 0 0 0 2px var(--ink);
-  }
-  .mini {
-    width: 96px;
-    height: 96px;
   }
   .flag {
     display: grid;
