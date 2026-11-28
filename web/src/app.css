@@ -117,3 +117,12 @@ canvas.panel {
 :where(*) {
   touch-action: pan-x pan-y;
 }
+
+/* Repeated taps on a button (zoom, palette…) would select its label on touch screens. Also the links drawn as
+   buttons (sign in) and the radio choices whose whole label is the target (report). */
+button,
+a[data-slot='button'],
+label:has(input[type='radio']) {
+  -webkit-user-select: none;
+  user-select: none;
+}
