@@ -199,7 +199,7 @@ describe('accounts', () => {
     await page.getByRole('textbox', { name: 'Pseudo' }).fill('Minou')
     await page.getByRole('button', { name: 'Enregistrer' }).click()
     await announced('Bienvenue Minou, tu peux peindre')
-    await expect.element(page.getByRole('heading', { name: 'La toile' })).toBeVisible()
+    await expect.element(page.getByRole('heading', { name: 'En bas : couleur et stock' })).toBeVisible()
     expect(FakeWebSocket.instances).toHaveLength(2)
     FakeWebSocket.last.open()
     click(10, 10)
@@ -616,8 +616,8 @@ describe('keyboard', () => {
     const screen = await render(App)
     await page.getByRole('button', { name: 'À propos' }).click()
     await page.getByRole('button', { name: 'Revoir la présentation' }).click()
-    await page.getByRole('button', { name: 'Suivant' }).click()
     await expect.element(page.getByRole('heading', { name: 'En bas : la couleur' })).toBeVisible()
+    expect(document.querySelector('.shot .toolbar')).toBeNull() // the palette is not loaded
     await userEvent.keyboard('{Escape}')
     await screen.unmount()
   })
@@ -626,8 +626,7 @@ describe('keyboard', () => {
     await start()
     await page.getByRole('button', { name: 'À propos' }).click()
     await page.getByRole('button', { name: 'Revoir la présentation' }).click()
-    await expect.element(page.getByRole('heading', { name: 'La toile' })).toBeVisible()
-    await page.getByRole('button', { name: 'Suivant' }).click()
+    await expect.element(page.getByRole('heading', { name: 'En bas : couleur et stock' })).toBeVisible()
     expect(document.querySelector('.shot .toolbar')).not.toBeNull() // the palette is loaded
     await userEvent.keyboard('{Escape}')
   })
